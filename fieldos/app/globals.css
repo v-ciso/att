@@ -197,6 +197,16 @@
     @apply animate-pulse-glow;
   }
 
+  /* Presentation mode: meeting panel fullscreened onto a TV/projector */
+  #tab-meeting:fullscreen {
+    @apply bg-bg-primary overflow-auto;
+    padding: clamp(1rem, 4vw, 4rem);
+  }
+  #tab-meeting:fullscreen > * {
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;

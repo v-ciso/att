@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
@@ -11,8 +11,9 @@ import { Avatar, AvatarGroup } from '@/components/ui/badge-avatar';
 import { LineChart } from '@/components/charts/chart-wrapper';
 import { PieChart3D } from '@/components/charts/chart-3d';
 import { formatCurrency, formatNumber, formatPercent, getInitials, ROLE_LABELS, ROLE_COLORS, STORE_LABELS, cn } from '@/lib/utils';
-import { FileText, TrendingUp, Zap, DollarSign, Star, Trophy, CalendarCheck, Target, Users, Building2, MapPin, Zap as ZapIcon, Receipt, PieChart } from 'lucide-react';
-import { LeaderboardRow, MeetingTracker, MeetingTeam, PNLCard, CommissionCategory, LeaderboardEntry } from '@/components/dashboard/dashboard-components';
+import { FileText, TrendingUp, Zap, DollarSign, Star, Trophy, CalendarCheck, Target, Users, Building2, MapPin, PieChart, Maximize2 } from 'lucide-react';
+import { LeaderboardRow, MeetingTracker, LeaderboardEntry } from '@/components/dashboard/dashboard-components';
+import { CommissionEngine, PnlEditor, TeamsEditor } from '@/components/dashboard/editable-sections';
 
 // Stats Data
 const stats = [
@@ -79,53 +80,6 @@ const meetingTrackers = [
   { label: 'Top Rep', value: 'Sarah J.', color: 'purple', size: 'lg' },
   { label: 'Attendance', value: '91.7%', color: 'green', size: '2xl' },
   { label: 'Goal Progress', value: '87%', color: 'yellow', size: '2xl' },
-];
-
-// Meeting Teams
-const meetingTeams = [
-  { name: 'Team Alpha', change: '+12%', lines: 34, premium: 18, fiber: 6, progress: 78, color: 'blue' },
-  { name: 'Team Beta', change: '+8%', lines: 28, premium: 14, fiber: 5, progress: 64, color: 'purple' },
-  { name: 'Team Gamma', change: '+5%', lines: 22, premium: 10, fiber: 4, progress: 52, color: 'cyan' },
-  { name: 'Team Delta', change: '+15%', lines: 41, premium: 22, fiber: 9, progress: 92, color: 'yellow' },
-];
-
-// P&L Data
-const pnlRevenue = [
-  { category: 'Commission', amount: 142500 },
-  { category: 'Bonus', amount: 12300 },
-];
-const pnlExpenses = [
-  { category: 'Payroll', amount: 85000 },
-  { category: 'Rent', amount: 18000 },
-  { category: 'Travel', amount: 8500 },
-  { category: 'Other', amount: 5100 },
-];
-const pnlTotalRevenue = pnlRevenue.reduce((a, b) => a + b.amount, 0);
-const pnlTotalExpenses = pnlExpenses.reduce((a, b) => a + b.amount, 0);
-const pnlNetProfit = pnlTotalRevenue - pnlTotalExpenses;
-const pnlMargin = ((pnlNetProfit / pnlTotalRevenue) * 100).toFixed(1);
-
-// Commission Rules
-const phonePlans = [
-  { name: 'Premium 2.0', payout: 35 },
-  { name: 'Premium 2.0 + Next Up', payout: 40 },
-  { name: 'Extra 2.0', payout: 30 },
-  { name: 'Value 2.0', payout: 20 },
-  { name: 'Upgrades', payout: 15 },
-];
-
-const fiberPlans = [
-  { name: 'Fiber 300', payout: 25 },
-  { name: 'Fiber 500', payout: 35 },
-  { name: 'Fiber 1GIG', payout: 50 },
-  { name: 'Fiber 2GIG', payout: 75 },
-  { name: 'Fiber 5GIG', payout: 100 },
-];
-
-const overrides = [
-  { name: 'Leader', override: '$5/line' },
-  { name: 'Asst. Mgr', override: '$3/line' },
-  { name: 'Tier (100+)', override: '$2/line' },
 ];
 
 // Stats Card Component
@@ -274,6 +228,26 @@ function DashboardContent() {
     setLeaderboard(DEFAULT_LEADERBOARD);
     localStorage.removeItem(LEADERBOARD_STORAGE_KEY);
   };
+
+  // Presentation mode — fullscreen the meeting panel for TV / AirPlay sharing
+  const meetingRef = useRef<HTMLDivElement>(null);
+  const togglePresentation = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      meetingRef.current?.requestFullscreen?.().catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (activeTab !== 'meeting') return;
+      if ((document.activeElement as HTMLElement | null)?.isContentEditable) return;
+      if (e.key === 'f' || e.key === 'F') togglePresentation();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [activeTab]);
 
   const exportPDF = () => {
     const element = document.getElementById('reportContent');
@@ -507,14 +481,17 @@ function DashboardContent() {
       )}
 
       {activeTab === 'meeting' && (
-        <div id="tab-meeting" className="tab-panel">
+        <div id="tab-meeting" ref={meetingRef} className="tab-panel">
           <Card className="p-5">
-            <div className="flex flex-wrap items-center justify-between mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h2 className="text-xl font-bold neon-text-blue">
                 Meeting Mode · Daily Trackers
                 <span className="text-xs text-text-muted font-normal ml-2">(click to edit)</span>
               </h2>
-              <Button variant="ghost" size="sm" onClick={() => alert('Reset to defaults')}>↻ Reset</Button>
+              <Button size="sm" onClick={togglePresentation}>
+                <Maximize2 className="w-3.5 h-3.5" />
+                Present
+              </Button>
             </div>
 
             {/* Daily Trackers */}
@@ -524,19 +501,11 @@ function DashboardContent() {
               ))}
             </div>
 
-            {/* Team View */}
-            <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              Teams Overview <span className="text-[10px] text-text-muted font-normal">(editable)</span>
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {meetingTeams.map((team, i) => (
-                <MeetingTeam key={i} {...team} />
-              ))}
-            </div>
+            <TeamsEditor />
+
             <div className="mt-3 text-xs text-text-secondary flex items-center gap-2">
               <Users className="w-3 h-3" />
-              Click any number or name to edit for your daily standup
+              Click any number or name to edit for your daily standup · Present = fullscreen for the TV · Esc exits
             </div>
           </Card>
         </div>
@@ -545,20 +514,7 @@ function DashboardContent() {
       {activeTab === 'pnl' && (
         <div id="tab-pnl" className="tab-panel">
           <Card className="p-5">
-            <h2 className="text-xl font-bold neon-text-cyan mb-4">Profit & Loss</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <PNLCard title="Revenue" items={pnlRevenue} total={pnlTotalRevenue} color="green" icon={DollarSign} />
-              <PNLCard title="Expenses" items={pnlExpenses} total={pnlTotalExpenses} color="red" icon={Receipt} />
-            </div>
-            <div className="mt-4 p-4 rounded-xl glass border border-accent-green/20 bg-accent-green/5">
-              <div className="flex justify-between text-xl">
-                <span className="font-bold">Net Profit</span>
-                <span className={cn('font-bold', pnlNetProfit >= 0 ? 'text-accent-green' : 'text-accent-red')}>
-                  {formatCurrency(pnlNetProfit)}
-                </span>
-              </div>
-              <p className="text-xs text-text-secondary">{pnlMargin}% Margin</p>
-            </div>
+            <PnlEditor />
           </Card>
         </div>
       )}
@@ -566,12 +522,7 @@ function DashboardContent() {
       {activeTab === 'commission' && (
         <div id="tab-commission" className="tab-panel">
           <Card className="p-5">
-            <h2 className="text-xl font-bold neon-text-blue mb-4">Commission Rules</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <CommissionCategory title="📱 Phone" plans={phonePlans} icon={ZapIcon} color="blue" />
-              <CommissionCategory title="🌐 Fiber" plans={fiberPlans} icon={TrendingUp} color="purple" />
-              <CommissionCategory title="👥 Overrides" plans={overrides} icon={Users} color="yellow" />
-            </div>
+            <CommissionEngine />
           </Card>
         </div>
       )}
