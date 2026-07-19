@@ -5,7 +5,6 @@
       "name": "fieldos-dev",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "cwd": "fieldos",
       "port": 3000
     }
   ]

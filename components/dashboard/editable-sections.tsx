@@ -524,19 +524,22 @@ export interface TeamData {
   fiber: number;
   progress: number;
   color: string;
+  lead: string;
+  asm: string;
+  members: string[];
 }
 
 const TEAM_COLORS = ['blue', 'purple', 'cyan', 'yellow'];
 
 const DEFAULT_TEAMS: TeamData[] = [
-  { name: 'Team Alpha', change: '+12%', lines: 34, premium: 18, fiber: 6, progress: 78, color: 'blue' },
-  { name: 'Team Beta', change: '+8%', lines: 28, premium: 14, fiber: 5, progress: 64, color: 'purple' },
-  { name: 'Team Gamma', change: '+5%', lines: 22, premium: 10, fiber: 4, progress: 52, color: 'cyan' },
-  { name: 'Team Delta', change: '+15%', lines: 41, premium: 22, fiber: 9, progress: 92, color: 'yellow' },
+  { name: 'Team Alpha', change: '+12%', lines: 34, premium: 18, fiber: 6, progress: 78, color: 'blue', lead: 'Alex Thompson', asm: 'Jordan Reyes', members: ['Sarah Johnson', 'Chris Lee', 'Dana White'] },
+  { name: 'Team Beta', change: '+8%', lines: 28, premium: 14, fiber: 5, progress: 64, color: 'purple', lead: 'Mike Chen', asm: 'Jordan Reyes', members: ['Priya Patel', 'Sam Ortiz'] },
+  { name: 'Team Gamma', change: '+5%', lines: 22, premium: 10, fiber: 4, progress: 52, color: 'cyan', lead: 'Jessica Williams', asm: 'Taylor Brooks', members: ['Evan Kim', 'Maria Garcia'] },
+  { name: 'Team Delta', change: '+15%', lines: 41, premium: 22, fiber: 9, progress: 92, color: 'yellow', lead: 'Devon Carter', asm: 'Taylor Brooks', members: ['Liam Nguyen', 'Aisha Bell', 'Noah Park'] },
 ];
 
 export function TeamsEditor() {
-  const { state: teams, setState: setTeams, reset } = useLocalState<TeamData[]>('se-teams-v1', DEFAULT_TEAMS);
+  const { state: teams, setState: setTeams, reset } = useLocalState<TeamData[]>('se-teams-v2', DEFAULT_TEAMS);
 
   const edit = (index: number, field: keyof TeamData, value: string) =>
     setTeams(prev => prev.map((t, i) => {
@@ -552,9 +555,25 @@ export function TeamsEditor() {
       name: `Team ${String.fromCharCode(65 + (prev.length % 26))}`,
       change: '+0%', lines: 0, premium: 0, fiber: 0, progress: 0,
       color: TEAM_COLORS[prev.length % TEAM_COLORS.length],
+      lead: 'Appoint lead', asm: 'Appoint ASM', members: [],
     }]);
 
   const removeTeam = (index: number) => setTeams(prev => prev.filter((_, i) => i !== index));
+
+  const editMember = (teamIndex: number, memberIndex: number, value: string) =>
+    setTeams(prev => prev.map((t, i) => i === teamIndex
+      ? { ...t, members: t.members.map((m, j) => j === memberIndex ? (value.trim() || m) : m) }
+      : t));
+
+  const addMember = (teamIndex: number) =>
+    setTeams(prev => prev.map((t, i) => i === teamIndex
+      ? { ...t, members: [...t.members, 'New Member'] }
+      : t));
+
+  const removeMember = (teamIndex: number, memberIndex: number) =>
+    setTeams(prev => prev.map((t, i) => i === teamIndex
+      ? { ...t, members: t.members.filter((_, j) => j !== memberIndex) }
+      : t));
 
   const borderColors: Record<string, string> = {
     blue: 'border-accent-blue/10',
@@ -595,6 +614,41 @@ export function TeamsEditor() {
               <Editable value={team.name} onCommit={(v) => edit(i, 'name', v)} className="font-medium" />
               <Editable value={team.change} onCommit={(v) => edit(i, 'change', v)} className="text-xs text-accent-green" />
             </div>
+
+            {/* Leadership appointments */}
+            <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2 text-xs">
+              <span className="text-text-muted">
+                Lead:{' '}
+                <Editable value={team.lead} onCommit={(v) => edit(i, 'lead', v)} className="text-accent-purple font-medium" />
+              </span>
+              <span className="text-text-muted">
+                ASM/AD:{' '}
+                <Editable value={team.asm} onCommit={(v) => edit(i, 'asm', v)} className="text-accent-yellow font-medium" />
+              </span>
+            </div>
+
+            {/* Member roster */}
+            <div className="flex flex-wrap items-center gap-1.5 mb-2">
+              {team.members.map((member, j) => (
+                <span key={j} className="group/chip inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/5 border border-border-subtle text-[11px]">
+                  <Editable value={member} onCommit={(v) => editMember(i, j, v)} />
+                  <button
+                    onClick={() => removeMember(i, j)}
+                    className="text-text-muted opacity-0 group-hover/chip:opacity-100 hover:text-accent-red transition-all"
+                    aria-label={`Remove ${member} from ${team.name}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              <button
+                onClick={() => addMember(i)}
+                className="px-2 py-0.5 rounded-full text-[11px] text-text-muted border border-dashed border-border-strong hover:text-white hover:bg-white/5 transition-all"
+              >
+                + member
+              </button>
+            </div>
+
             <div className="flex justify-between text-xs text-text-secondary">
               <span>Lines: <Editable value={String(team.lines)} onCommit={(v) => edit(i, 'lines', v)} className="text-white" /></span>
               <span>Premium: <Editable value={String(team.premium)} onCommit={(v) => edit(i, 'premium', v)} className="text-white" /></span>
