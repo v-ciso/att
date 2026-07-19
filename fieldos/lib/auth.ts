@@ -62,7 +62,9 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  // PREVIEW MODE: fallback secret so the app runs with zero env vars.
+  // Set a real NEXTAUTH_SECRET before enabling real logins in production.
+  secret: process.env.NEXTAUTH_SECRET ?? 'preview-only-secret-replace-before-real-auth',
 };
 
 export async function auth() {

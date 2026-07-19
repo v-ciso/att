@@ -14,10 +14,11 @@ export function Sidebar() {
   const { data: session } = useSession();
   const { theme } = useTheme();
 
-  const userName = session?.user?.name ?? 'Guest';
+  // Falls back to the demo identity when no one is signed in (preview mode).
+  const userName = session?.user?.name ?? 'Demo Owner';
   const userRole = session?.user?.role
     ? (ROLE_LABELS[session.user.role as keyof typeof ROLE_LABELS] ?? session.user.role)
-    : '';
+    : 'Market Owner';
 
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-64 glass border-r border-border-subtle p-6 hidden lg:flex flex-col z-30">
