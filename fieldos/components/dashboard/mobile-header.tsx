@@ -1,47 +1,24 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import {
-  Menu,
-  X,
-  LayoutDashboard,
-  Users,
-  Store,
-  DollarSign,
-  CalendarCheck,
-  Receipt,
-  Trophy,
-  Presentation,
-  Target,
-  TrendingUp,
-} from 'lucide-react';
+import { useTheme } from '@/components/white-label/theme-provider';
+import { Menu, X } from 'lucide-react';
+import { navigation, isNavItemActive } from './nav-items';
 
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Employees', href: '/dashboard/employees', icon: Users },
-  { name: 'Stores', href: '/dashboard/stores', icon: Store },
-  { name: 'Sales Entry', href: '/dashboard/sales', icon: DollarSign },
-  { name: 'Attendance', href: '/dashboard/attendance', icon: CalendarCheck },
-  { name: 'Expenses', href: '/dashboard/expenses', icon: Receipt },
-  { name: 'Leaderboard', href: '/dashboard/leaderboard', icon: Trophy },
-  { name: 'Meeting Mode', href: '/dashboard/meeting', icon: Presentation },
-  { name: 'Goals', href: '/dashboard/goals', icon: Target },
-  { name: 'Forecasts', href: '/dashboard/forecasts', icon: TrendingUp },
-];
+function Logo() {
+  const { theme } = useTheme();
+  if (theme.logoUrl) {
+    return <img src={theme.logoUrl} alt={`${theme.companyName} logo`} className="h-8 w-auto" />;
+  }
+  return <span className="text-lg font-bold neon-text-blue">{theme.companyName}</span>;
+}
 
 export function MobileHeader({ onMenuClick }: { onMenuClick: () => void }) {
   return (
     <header className="fixed top-0 left-0 right-0 z-40 glass border-b border-border-subtle px-4 py-3 flex items-center justify-between lg:hidden">
-      <div className="logo-placeholder">
-        <img
-          src="https://placehold.co/120x40/1a1a2e/ffffff?text=FIELDOS"
-          alt="FieldOS Logo"
-          className="logo-img h-8 w-auto"
-        />
-      </div>
+      <Logo />
       <button onClick={onMenuClick} className="p-2 rounded-lg hover:bg-white/5 transition-colors" aria-label="Open menu">
         <Menu className="w-6 h-6" />
       </button>
@@ -51,34 +28,30 @@ export function MobileHeader({ onMenuClick }: { onMenuClick: () => void }) {
 
 export function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentTab = searchParams.get('tab');
 
   return (
     <div
       id="mobileMenu"
       className={cn(
         'mobile-menu fixed inset-0 z-50 glass lg:hidden',
-        isOpen && 'open'
+        isOpen ? 'block' : 'hidden'
       )}
       role="dialog"
       aria-modal="true"
       aria-label="Mobile navigation"
     >
-      <div className="p-6">
+      <div className="p-6 bg-bg-secondary/95 backdrop-blur-glass min-h-screen">
         <div className="flex items-center justify-between mb-8">
-          <div className="logo-placeholder">
-            <img
-              src="https://placehold.co/120x40/1a1a2e/ffffff?text=FIELDOS"
-              alt="FieldOS Logo"
-              className="logo-img h-8 w-auto"
-            />
-          </div>
+          <Logo />
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/5 transition-colors" aria-label="Close menu">
             <X className="w-6 h-6" />
           </button>
         </div>
         <nav className="space-y-2" role="navigation" aria-label="Mobile navigation">
           {navigation.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+            const isActive = isNavItemActive(item, pathname, currentTab);
             return (
               <Link
                 key={item.name}

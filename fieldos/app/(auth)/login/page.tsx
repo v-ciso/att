@@ -48,21 +48,8 @@ function LoginForm() {
   };
 
   const handleMagicLink = async () => {
-    if (!email) {
-      setError('Please enter your email first');
-      return;
-    }
-    setError('');
-    setIsLoading(true);
-
-    try {
-      await signIn('email', { email, callbackUrl, redirect: false });
-      setError('Magic link sent! Check your email.');
-    } catch {
-      setError('Failed to send magic link');
-    } finally {
-      setIsLoading(false);
-    }
+    // Email provider is not configured yet (see HANDOFF.md P3) — be honest instead of failing silently.
+    setError('Magic link sign-in is coming soon. Please use your email and password.');
   };
 
   return (

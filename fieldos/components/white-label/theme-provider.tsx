@@ -14,8 +14,10 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<WhiteLabelTheme>(DEFAULT_THEME);
   const [isLoading, setIsLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const saved = localStorage.getItem('whitelabel-theme');
     if (saved) {
       try {
@@ -29,15 +31,23 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!isLoading) {
+    if (!isLoading && mounted) {
       applyTheme(theme);
       localStorage.setItem('whitelabel-theme', JSON.stringify(theme));
     }
-  }, [theme, isLoading]);
+  }, [theme, isLoading, mounted]);
 
   const setTheme = (partial: Partial<WhiteLabelTheme>) => {
     setThemeState(prev => ({ ...prev, ...partial }));
   };
+
+  if (!mounted) {
+    return (
+      <ThemeContext.Provider value={{ theme: DEFAULT_THEME, setTheme: () => {}, isLoading: true }}>
+        {children}
+      </ThemeContext.Provider>
+    );
+  }
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme, isLoading }}>

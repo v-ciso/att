@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-export const dynamic = 'force-dynamic';
+import { Suspense, useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,10 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabList, Tab, TabPanel } from '@/components/ui/tabs';
 import { Avatar, AvatarGroup } from '@/components/ui/badge-avatar';
 import { LineChart, DoughnutChart } from '@/components/charts/chart-wrapper';
-import { PieChart3D } from '@/components/charts/chart-3d';
 import { formatCurrency, formatNumber, formatPercent, getInitials, ROLE_LABELS, ROLE_COLORS, STORE_LABELS, cn } from '@/lib/utils';
-import { FileText, TrendingUp, Zap, DollarSign, Star, Trophy, CalendarCheck, Target, Users, Building2, MapPin, Zap as ZapIcon, Receipt } from 'lucide-react';
-import html2pdf from 'html2pdf.js';
+import { FileText, TrendingUp, Zap, DollarSign, Star, Trophy, CalendarCheck, Target, Users, Building2, MapPin, Zap as ZapIcon, Receipt, PieChart } from 'lucide-react';
 import { LeaderboardRow, MeetingTracker, MeetingTeam, PNLCard, CommissionCategory } from '@/components/dashboard/dashboard-components';
 
 // Stats Data
@@ -205,9 +203,28 @@ function TabButton({ children, isActive, onClick }: { children: React.ReactNode;
   );
 }
 
-export default function DashboardPage() {
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const switchTab = (tab: string) => setActiveTab(tab);
+const VALID_TABS = ['dashboard', 'leaderboard', 'meeting', 'pnl', 'commission'];
+
+function DashboardContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(
+    tabParam && VALID_TABS.includes(tabParam) ? tabParam : 'dashboard'
+  );
+
+  useEffect(() => {
+    if (tabParam && VALID_TABS.includes(tabParam)) {
+      setActiveTab(tabParam);
+    } else if (!tabParam) {
+      setActiveTab('dashboard');
+    }
+  }, [tabParam]);
+
+  const switchTab = (tab: string) => {
+    setActiveTab(tab);
+    router.replace(tab === 'dashboard' ? '/dashboard' : `/dashboard?tab=${tab}`, { scroll: false });
+  };
 
   const exportPDF = () => {
     const element = document.getElementById('reportContent');
@@ -254,7 +271,7 @@ export default function DashboardPage() {
       {/* Stats */}
       <div className="slide-in grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4">
         {stats.map((stat, i) => (
-          <StatCard key={stat.label} {...stat} className="stagger-{i + 1}" />
+          <StatCard key={stat.label} {...stat} className={`stagger-${i + 1}`} />
         ))}
       </div>
 
@@ -263,7 +280,7 @@ export default function DashboardPage() {
         <ChartCard title="Commission Trend" icon={TrendingUp} color="blue">
           <LineChart data={commissionData} />
         </ChartCard>
-        <ChartCard title="Product Mix" icon={PieChart3D} color="purple">
+        <ChartCard title="Product Mix" icon={PieChart} color="purple">
           <DoughnutChart data={productMixData} />
         </ChartCard>
       </div>
@@ -456,7 +473,7 @@ export default function DashboardPage() {
             <div className="mt-4 p-4 rounded-xl glass border border-accent-green/20 bg-accent-green/5">
               <div className="flex justify-between text-xl">
                 <span className="font-bold">Net Profit</span>
-                <span className={cn('font-bold neon-text-blue', formatCurrency(pnlNetProfit))}>
+                <span className={cn('font-bold', pnlNetProfit >= 0 ? 'text-accent-green' : 'text-accent-red')}>
                   {formatCurrency(pnlNetProfit)}
                 </span>
               </div>
@@ -479,5 +496,13 @@ export default function DashboardPage() {
         </div>
       )}
     </DashboardLayout>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-bg-primary" />}>
+      <DashboardContent />
+    </Suspense>
   );
 }

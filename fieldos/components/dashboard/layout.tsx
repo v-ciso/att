@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useState } from 'react';
+import { ReactNode, Suspense, useState } from 'react';
 import { Sidebar } from './sidebar';
 import { MobileHeader, MobileMenu } from './mobile-header';
 
@@ -22,10 +22,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <div className="orb w-80 h-80 bg-accent-cyan" style={{ top: '50%', right: '30%' }} />
 
       <MobileHeader onMenuClick={toggleMobileMenu} />
-      <MobileMenu isOpen={isMobileMenuOpen} onClose={closeMobileMenu} />
+      <Suspense fallback={null}>
+        <MobileMenu isOpen={isMobileMenuOpen} onClose={closeMobileMenu} />
+      </Suspense>
 
       <div className="flex min-h-screen pt-14 lg:pt-0">
-        <Sidebar />
+        <Suspense fallback={null}>
+          <Sidebar />
+        </Suspense>
 
         <main id="reportContent" className="flex-1 lg:ml-64 p-4 lg:p-8">
           {children}

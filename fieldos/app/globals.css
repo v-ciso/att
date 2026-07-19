@@ -112,7 +112,8 @@
 
   .tab-btn {
     @apply px-3 py-1.5 rounded-lg text-xs font-medium border transition-all duration-200
-           cursor-pointer select-none -webkit-tap-highlight-transparent;
+           cursor-pointer select-none;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .tab-btn.active {
@@ -157,6 +158,10 @@
 
   .neon-text-green {
     @apply bg-grad-green bg-clip-text text-transparent filter drop-shadow-[0_0_20px_rgba(16,185,129,0.5)];
+  }
+
+  .neon-text-yellow {
+    @apply bg-grad-yellow bg-clip-text text-transparent filter drop-shadow-[0_0_20px_rgba(245,158,11,0.5)];
   }
 
   .orb {

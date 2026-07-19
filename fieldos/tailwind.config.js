@@ -16,6 +16,7 @@ module.exports = {
           card: 'rgba(255,255,255,0.03)',
         },
         border: {
+          DEFAULT: 'rgba(255,255,255,0.08)',
           subtle: 'rgba(255,255,255,0.08)',
           strong: 'rgba(255,255,255,0.15)',
         },
@@ -43,7 +44,9 @@ module.exports = {
         'grad-purple': 'linear-gradient(135deg, #C084FC, #A855F7, #7C3AED)',
         'grad-cyan': 'linear-gradient(135deg, #67E8F9, #06B6D4, #0891B2)',
         'grad-green': 'linear-gradient(135deg, #6EE7B7, #10B981, #059669)',
+        'grad-yellow': 'linear-gradient(135deg, #FCD34D, #F59E0B, #D97706)',
         'grad-card': 'linear-gradient(135deg, rgba(17,24,39,0.9), rgba(0,0,0,0.95))',
+        'grad-border': 'linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.02))',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

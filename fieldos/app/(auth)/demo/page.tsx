@@ -187,34 +187,17 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
     { label: 'Premium Mix', value: '68.4%', change: '+2.1%', color: 'yellow' },
   ];
 
-  const leaderboard = [
-    { rank: 1, name: 'Sarah Johnson', store: 'Costco', lines: 12, premium: 8, fiber: 3, commission: 480 },
-    { rank: 2, name: 'Mike Chen', store: 'Target', lines: 10, premium: 6, fiber: 4, commission: 410 },
-    { rank: 3, name: 'Jessica Williams', store: "BJ's", lines: 9, premium: 5, fiber: 3, commission: 375 },
-  ];
-
-  const phonePlans = [
-    { name: 'Premium 2.0', payout: 35 },
-    { name: 'Premium 2.0 + Next Up', payout: 40 },
-    { name: 'Extra 2.0', payout: 30 },
-    { name: 'Value 2.0', payout: 20 },
-  ];
-
   return (
     <div className="min-h-screen bg-bg-primary">
-      <div className="orb w-96 h-96 bg-accent-blue" style={{ top: '-100px', right: '-100px' }} />
-      <div className="orb w-64 h-64 bg-accent-purple" style={{ bottom: '20%', left: '-50px' }} />
-      <div className="orb w-80 h-80 bg-accent-cyan" style={{ top: '50%', right: '30%' }} />
-
       <div className="max-w-6xl mx-auto p-4 lg:p-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <div className="flex items-center gap-2 mb-2">
               <Building2 className="w-6 h-6 text-accent-blue" />
-              <span className="text-xl font-bold neon-text-blue">FieldOS Demo</span>
+              <span className="text-xl font-bold text-text-primary">FieldOS Demo</span>
             </div>
-            <p className="text-text-secondary text-sm">Interactive demo with sample data</p>
+            <p className="text-text-secondary text-sm">Interactive preview with sample data</p>
           </div>
           <div className="flex items-center gap-3">
             <Badge variant="blue" dot>Live Preview</Badge>
@@ -228,7 +211,7 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
           {stats.map((stat) => (
             <Card key={stat.label} className="p-4">
               <p className="text-[10px] text-text-muted uppercase tracking-wider">{stat.label}</p>
-              <p className={cn('text-2xl font-bold', `neon-text-${stat.color}`)}>{stat.value}</p>
+              <p className="text-2xl font-bold text-text-primary">{stat.value}</p>
               <p className="text-[10px] text-accent-green">{stat.change}</p>
             </Card>
           ))}
@@ -247,46 +230,69 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
           ))}
         </div>
 
-        {/* Tab Content */}
+        {/* Tab Content - Dashboard */}
         {activeTab === 'dashboard' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card className="p-5">
               <h3 className="font-semibold mb-4 flex items-center gap-2">
                 <Star className="w-4 h-4 text-accent-yellow" /> Top Performers
               </h3>
-              {leaderboard.map((p) => (
-                <div key={p.rank} className="flex items-center gap-3 p-3 rounded-xl glass mb-2">
-                  <span className={cn('text-xl font-bold', p.rank === 1 ? 'text-accent-yellow' : p.rank === 2 ? 'text-text-secondary' : 'text-accent-orange')}>#{p.rank}</span>
+              <div className="space-y-2">
+                <div className="flex items-center gap-3 p-3 rounded-xl glass">
+                  <span className="text-xl font-bold text-accent-yellow">#1</span>
                   <div className="flex-1">
-                    <p className="font-semibold text-sm">{p.name}</p>
-                    <p className="text-xs text-text-secondary">{p.store}</p>
+                    <p className="font-semibold text-sm">Sarah Johnson</p>
+                    <p className="text-xs text-text-secondary">Costco · Clearwater</p>
                   </div>
-                  <p className="font-bold text-accent-green">${p.commission}</p>
+                  <p className="font-bold text-accent-green">$480</p>
                 </div>
-              ))}
+                <div className="flex items-center gap-3 p-3 rounded-xl glass">
+                  <span className="text-xl font-bold text-text-secondary">#2</span>
+                  <div className="flex-1">
+                    <p className="font-semibold text-sm">Mike Chen</p>
+                    <p className="text-xs text-text-secondary">Target · Tampa</p>
+                  </div>
+                  <p className="font-bold text-accent-green">$410</p>
+                </div>
+                <div className="flex items-center gap-3 p-3 rounded-xl glass">
+                  <span className="text-xl font-bold text-accent-orange">#3</span>
+                  <div className="flex-1">
+                    <p className="font-semibold text-sm">Jessica Williams</p>
+                    <p className="text-xs text-text-secondary">BJ's · Orlando</p>
+                  </div>
+                  <p className="font-bold text-accent-green">$375</p>
+                </div>
+              </div>
             </Card>
             <Card className="p-5">
               <h3 className="font-semibold mb-4 flex items-center gap-2">
                 <Target className="w-4 h-4 text-accent-green" /> Weekly Goals
               </h3>
-              {[
-                { label: 'Total Lines', current: 843, target: 1000, color: 'bg-accent-blue' },
-                { label: 'Premium', current: 287, target: 350, color: 'bg-accent-purple' },
-              ].map((g) => (
-                <div key={g.label} className="mb-4">
+              <div className="space-y-4">
+                <div>
                   <div className="flex justify-between text-xs mb-1">
-                    <span className="text-text-secondary">{g.label}</span>
-                    <span className="font-medium">{g.current} / {g.target}</span>
+                    <span className="text-text-secondary">Total Lines</span>
+                    <span className="font-medium text-accent-blue">843 / 1,000</span>
                   </div>
                   <div className="w-full h-2 rounded-full bg-bg-tertiary">
-                    <div className={cn('h-full rounded-full', g.color)} style={{ width: `${(g.current / g.target) * 100}%` }} />
+                    <div className="h-full rounded-full bg-gradient-to-r from-accent-blue to-blue-400" style={{ width: '84.3%' }} />
                   </div>
                 </div>
-              ))}
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-text-secondary">Premium</span>
+                    <span className="font-medium text-accent-purple">287 / 350</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-bg-tertiary">
+                    <div className="h-full rounded-full bg-gradient-to-r from-accent-purple to-purple-400" style={{ width: '82%' }} />
+                  </div>
+                </div>
+              </div>
             </Card>
           </div>
         )}
 
+        {/* Tab Content - Leaderboard */}
         {activeTab === 'leaderboard' && (
           <Card className="p-5">
             <h3 className="font-semibold mb-4">Leaderboard <span className="text-xs text-text-muted font-normal">(click to edit)</span></h3>
@@ -304,90 +310,118 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
-                  {leaderboard.map((entry) => (
-                    <tr key={entry.rank} className="hover:bg-white/2">
-                      <td className="py-2 font-bold">#{entry.rank}</td>
-                      <td className="py-2" contentEditable suppressContentEditableWarning>{entry.name}</td>
-                      <td className="py-2 text-text-secondary" contentEditable suppressContentEditableWarning>{entry.store}</td>
-                      <td className="py-2" contentEditable suppressContentEditableWarning>{entry.lines}</td>
-                      <td className="py-2 text-accent-purple" contentEditable suppressContentEditableWarning>{entry.premium}</td>
-                      <td className="py-2 text-accent-cyan" contentEditable suppressContentEditableWarning>{entry.fiber}</td>
-                      <td className="py-2 text-accent-green font-bold">${entry.commission}</td>
-                    </tr>
-                  ))}
+                  <tr className="hover:bg-white/2">
+                    <td className="py-2 font-bold">#1</td>
+                    <td className="py-2" contentEditable suppressContentEditableWarning>Sarah Johnson</td>
+                    <td className="py-2 text-text-secondary" contentEditable suppressContentEditableWarning>Costco</td>
+                    <td className="py-2" contentEditable suppressContentEditableWarning>12</td>
+                    <td className="py-2 text-accent-purple" contentEditable suppressContentEditableWarning>8</td>
+                    <td className="py-2 text-accent-cyan" contentEditable suppressContentEditableWarning>3</td>
+                    <td className="py-2 text-accent-green font-bold">$480</td>
+                  </tr>
+                  <tr className="hover:bg-white/2">
+                    <td className="py-2 font-bold">#2</td>
+                    <td className="py-2" contentEditable suppressContentEditableWarning>Mike Chen</td>
+                    <td className="py-2 text-text-secondary" contentEditable suppressContentEditableWarning>Target</td>
+                    <td className="py-2" contentEditable suppressContentEditableWarning>10</td>
+                    <td className="py-2 text-accent-purple" contentEditable suppressContentEditableWarning>6</td>
+                    <td className="py-2 text-accent-cyan" contentEditable suppressContentEditableWarning>4</td>
+                    <td className="py-2 text-accent-green font-bold">$410</td>
+                  </tr>
+                  <tr className="hover:bg-white/2">
+                    <td className="py-2 font-bold">#3</td>
+                    <td className="py-2" contentEditable suppressContentEditableWarning>Jessica Williams</td>
+                    <td className="py-2 text-text-secondary" contentEditable suppressContentEditableWarning>BJ's</td>
+                    <td className="py-2" contentEditable suppressContentEditableWarning>9</td>
+                    <td className="py-2 text-accent-purple" contentEditable suppressContentEditableWarning>5</td>
+                    <td className="py-2 text-accent-cyan" contentEditable suppressContentEditableWarning>3</td>
+                    <td className="py-2 text-accent-green font-bold">$375</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
           </Card>
         )}
 
+        {/* Tab Content - Commission */}
         {activeTab === 'commission' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card className="p-4 border-accent-blue/20">
               <h4 className="font-semibold text-sm mb-3 flex items-center gap-2 text-accent-blue"><Zap className="w-4 h-4" /> Phone Plans</h4>
-              {phonePlans.map((p) => (
-                <div key={p.name} className="flex justify-between text-xs py-1">
-                  <span>{p.name}</span>
-                  <span className="text-accent-green">${p.payout}</span>
-                </div>
-              ))}
+              <div className="space-y-1">
+                {['Premium 2.0', 'Premium 2.0 + Next Up', 'Extra 2.0', 'Value 2.0'].map((name, i) => (
+                  <div key={name} className="flex justify-between text-xs py-1">
+                    <span>{name}</span>
+                    <span className="text-accent-green">${[35, 40, 30, 20][i]}</span>
+                  </div>
+                ))}
+              </div>
             </Card>
             <Card className="p-4 border-accent-purple/20">
               <h4 className="font-semibold text-sm mb-3 flex items-center gap-2 text-accent-purple"><TrendingUp className="w-4 h-4" /> Fiber Plans</h4>
-              {[{ name: 'Fiber 300', payout: 25 }, { name: 'Fiber 500', payout: 35 }, { name: 'Fiber 1GIG', payout: 50 }].map((p) => (
-                <div key={p.name} className="flex justify-between text-xs py-1">
-                  <span>{p.name}</span>
-                  <span className="text-accent-green">${p.payout}</span>
-                </div>
-              ))}
+              <div className="space-y-1">
+                {['Fiber 300', 'Fiber 500', 'Fiber 1GIG', 'Fiber 2GIG'].map((name, i) => (
+                  <div key={name} className="flex justify-between text-xs py-1">
+                    <span>{name}</span>
+                    <span className="text-accent-green">${[25, 35, 50, 75][i]}</span>
+                  </div>
+                ))}
+              </div>
             </Card>
             <Card className="p-4 border-accent-yellow/20">
               <h4 className="font-semibold text-sm mb-3 flex items-center gap-2 text-accent-yellow"><Users className="w-4 h-4" /> Overrides</h4>
-              {[{ name: 'Team Lead', value: '$5/line' }, { name: 'ASM', value: '10%' }, { name: 'Owner', value: '15%' }].map((p) => (
-                <div key={p.name} className="flex justify-between text-xs py-1">
-                  <span>{p.name}</span>
-                  <span className="text-accent-green">{p.value}</span>
-                </div>
-              ))}
+              <div className="space-y-1">
+                {['Team Lead', 'ASM', 'Owner'].map((name, i) => (
+                  <div key={name} className="flex justify-between text-xs py-1">
+                    <span>{name}</span>
+                    <span className="text-accent-green">{['$5/line', '10%', '15%'][i]}</span>
+                  </div>
+                ))}
+              </div>
             </Card>
           </div>
         )}
 
+        {/* Tab Content - P&L */}
         {activeTab === 'pnl' && (
           <Card className="p-5">
             <h3 className="font-semibold mb-4">Profit & Loss</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <h4 className="text-sm text-accent-green mb-2">Revenue</h4>
-                {[{ cat: 'Commission', amt: 142500 }, { cat: 'Bonus', amt: 12300 }].map((r) => (
-                  <div key={r.cat} className="flex justify-between text-sm p-2 rounded-lg glass mb-1">
-                    <span>{r.cat}</span>
-                    <span className="text-accent-green">${r.amt.toLocaleString()}</span>
+                <div className="space-y-1">
+                  {[{ cat: 'Commission', amt: 142500 }, { cat: 'Bonus', amt: 12300 }].map((r) => (
+                    <div key={r.cat} className="flex justify-between text-sm p-2 rounded-lg glass">
+                      <span>{r.cat}</span>
+                      <span className="text-accent-green">${r.amt.toLocaleString()}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-sm p-2 font-bold mt-2 border-t border-border-subtle">
+                    <span>Total Revenue</span>
+                    <span className="text-accent-green">$154,800</span>
                   </div>
-                ))}
-                <div className="flex justify-between text-sm p-2 font-bold mt-2 border-t border-border-subtle">
-                  <span>Total Revenue</span>
-                  <span className="text-accent-green">$154,800</span>
                 </div>
               </div>
               <div>
                 <h4 className="text-sm text-accent-red mb-2">Expenses</h4>
-                {[{ cat: 'Payroll', amt: 85000 }, { cat: 'Rent', amt: 18000 }, { cat: 'Travel', amt: 8500 }].map((e) => (
-                  <div key={e.cat} className="flex justify-between text-sm p-2 rounded-lg glass mb-1">
-                    <span>{e.cat}</span>
-                    <span className="text-accent-red">${e.amt.toLocaleString()}</span>
+                <div className="space-y-1">
+                  {[{ cat: 'Payroll', amt: 85000 }, { cat: 'Rent', amt: 18000 }, { cat: 'Travel', amt: 8500 }].map((e) => (
+                    <div key={e.cat} className="flex justify-between text-sm p-2 rounded-lg glass">
+                      <span>{e.cat}</span>
+                      <span className="text-accent-red">${e.amt.toLocaleString()}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-sm p-2 font-bold mt-2 border-t border-border-subtle">
+                    <span>Total Expenses</span>
+                    <span className="text-accent-red">$111,500</span>
                   </div>
-                ))}
-                <div className="flex justify-between text-sm p-2 font-bold mt-2 border-t border-border-subtle">
-                  <span>Total Expenses</span>
-                  <span className="text-accent-red">$111,500</span>
                 </div>
               </div>
             </div>
             <div className="mt-4 p-4 rounded-xl glass border border-accent-green/20 bg-accent-green/5">
               <div className="flex justify-between text-xl">
                 <span className="font-bold">Net Profit</span>
-                <span className="font-bold neon-text-blue">$43,300</span>
+                <span className="font-bold text-accent-blue">$43,300</span>
               </div>
               <p className="text-xs text-text-secondary">28.0% Margin</p>
             </div>

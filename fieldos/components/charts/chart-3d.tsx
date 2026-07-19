@@ -26,6 +26,7 @@ export function PieChart3D({ data, labels, colors, className, height = 300, inne
 
   useEffect(() => {
     if (!containerRef.current) return;
+    if (!data?.length || total === 0) return;
 
     const container = containerRef.current;
     const width = container.clientWidth || 400;
@@ -215,6 +216,7 @@ export function BarChart3D({ data, labels, colors, className, height = 300, maxV
 
   useEffect(() => {
     if (!containerRef.current) return;
+    if (!data?.length) return;
 
     const container = containerRef.current;
     const width = container.clientWidth || 400;

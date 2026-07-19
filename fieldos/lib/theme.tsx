@@ -136,8 +136,16 @@ export function getTheme(): WhiteLabelTheme {
 export function applyTheme(theme: WhiteLabelTheme) {
   if (typeof window !== 'undefined') {
     localStorage.setItem('whitelabel-theme', JSON.stringify(theme));
-    const style = document.getElementById('whitelabel-theme');
-    if (style) style.textContent = generateCSSVariables(theme);
-    document.title = `${theme.companyName} - FieldOS`;
+    let style = document.getElementById('whitelabel-theme') as HTMLStyleElement | null;
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'whitelabel-theme';
+      document.head.appendChild(style);
+    }
+    style.textContent = generateCSSVariables(theme);
+    document.title =
+      theme.companyName === 'FieldOS'
+        ? 'FieldOS — Retail Command Center'
+        : `${theme.companyName} — Powered by FieldOS`;
   }
 }
