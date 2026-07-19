@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
+  <title>FieldOS · White Label</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+    * { font-family: 'Inter', sans-serif; }
+    body { background: #000; overflow-x: hidden; }
+    .glass { background: rgba(255,255,255,0.03); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); }
+    .neon-blue { background: linear-gradient(135deg, #60A5FA, #3B82F6, #2563EB); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(59,130,246,0.5)); }
+    .neon-purple { background: linear-gradient(135deg, #C084FC, #A855F7, #7C3AED); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(168,85,247,0.5)); }
+    .neon-cyan { background: linear-gradient(135deg, #67E8F9, #06B6D4, #0891B2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 0 20px rgba(6,182,212,0.5)); }
+    .card-3d { position: relative; background: linear-gradient(135deg, rgba(17,24,39,0.8), rgba(0,0,0,0.9)); border: 1px solid rgba(255,255,255,0.1); transition: all 0.4s cubic-bezier(0.4,0,0.2,1); }
+    .card-3d::before { content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; background: linear-gradient(135deg, rgba(59,130,246,0.3), rgba(168,85,247,0.3), rgba(6,182,212,0.3)); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; }
+    .orb { position: fixed; border-radius: 50%; filter: blur(100px); opacity: 0.15; pointer-events: none; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #000; }
+    ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 20px rgba(59,130,246,0.1); } 50% { box-shadow: 0 0 40px rgba(59,130,246,0.3); } }
+    .pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+    .slide-in { animation: slideIn 0.6s ease-out forwards; }
+    .mobile-menu { transform: translateX(100%); transition: transform 0.3s ease; }
+    .mobile-menu.open { transform: translateX(0); }
+    .logo-img { max-height: 40px; width: auto; filter: brightness(0) invert(1); }
+    .chart-container { position: relative; width: 100% !important; max-width: 100%; height: auto !important; min-height: 180px; }
+    .chart-container canvas { width: 100% !important; height: auto !important; max-height: 200px; }
+    .tab-btn { cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; transition: all 0.2s; }
+    .tab-btn.active { background: rgba(59,130,246,0.2); color: #60A5FA; border-color: rgba(59,130,246,0.3); }
+    .tab-btn.inactive { background: rgba(255,255,255,0.03); color: #9CA3AF; border-color: transparent; }
+    .tab-btn.inactive:hover { background: rgba(255,255,255,0.06); color: #fff; }
+    @media (max-width: 640px) { .stats-grid-2 { grid-template-columns: 1fr 1fr; gap: 0.75rem; } .stats-grid-5 { grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; } .stats-grid-5 .card-3d { padding: 0.75rem; } .stats-grid-5 .text-2xl { font-size: 1.2rem; } }
+    [contenteditable="true"]:focus { outline: 2px solid rgba(59,130,246,0.3); outline-offset: 2px; border-radius: 6px; background: rgba(59,130,246,0.05); }
+    .editable-hint { opacity: 0.4; font-size: 10px; }
+  </style>
+</head>
+<body class="bg-black text-white">
+
+  <div class="orb w-96 h-96 bg-blue-500" style="top: -100px; right: -100px;"></div>
+  <div class="orb w-64 h-64 bg-purple-500" style="bottom: 20%; left: -50px;"></div>
+  <div class="orb w-80 h-80 bg-cyan-500" style="top: 50%; right: 30%;"></div>
+
+  <!-- Mobile Header -->
+  <header class="fixed top-0 left-0 right-0 z-40 glass border-b border-white/5 px-4 py-3 flex items-center justify-between lg:hidden">
+    <div class="logo-placeholder"><img src="https://placehold.co/120x40/1a1a2e/ffffff?text=CLIENT+LOGO" alt="Logo" class="logo-img" /></div>
+    <button onclick="toggleMobileMenu()" class="p-2"><i data-lucide="menu" class="w-6 h-6"></i></button>
+  </header>
+
+  <div class="flex min-h-screen pt-14 lg:pt-0">
+    <!-- Sidebar -->
+    <aside class="fixed left-0 top-0 bottom-0 w-64 glass border-r border-white/5 p-6 hidden lg:flex flex-col z-30">
+      <div class="logo-placeholder mb-8"><img src="https://placehold.co/140x50/1a1a2e/ffffff?text=CLIENT+LOGO" alt="Company Logo" class="logo-img" /><span class="text-xs text-gray-500 ml-1">v2.0</span></div>
+      <nav class="flex-1 space-y-1">
+        <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-blue-500/10 text-white nav-active transition-all"><i data-lucide="layout-dashboard" class="w-5 h-5 text-blue-400"></i><span class="text-sm">Dashboard</span></a>
+        <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all"><i data-lucide="users" class="w-5 h-5"></i><span class="text-sm">Employees</span></a>
+        <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all"><i data-lucide="store" class="w-5 h-5"></i><span class="text-sm">Stores</span></a>
+        <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all"><i data-lucide="dollar-sign" class="w-5 h-5"></i><span class="text-sm">Sales Entry</span></a>
+        <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all"><i data-lucide="calendar-check" class="w-5 h-5"></i><span class="text-sm">Attendance</span></a>
+        <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all"><i data-lucide="receipt" class="w-5 h-5"></i><span class="text-sm">Expenses</span></a>
+        <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all"><i data-lucide="trophy" class="w-5 h-5"></i><span class="text-sm">Leaderboard</span></a>
+        <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all"><i data-lucide="presentation" class="w-5 h-5"></i><span class="text-sm">Meeting Mode</span></a>
+        <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all"><i data-lucide="target" class="w-5 h-5"></i><span class="text-sm">Goals</span></a>
+        <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all"><i data-lucide="trending-up" class="w-5 h-5"></i><span class="text-sm">Forecasts</span></a>
+      </nav>
+      <div class="pt-4 border-t border-white/5"><div class="flex items-center gap-3 px-3 py-2"><div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-sm font-bold">A</div><div><p class="text-sm font-medium">Alex Thompson</p><p class="text-xs text-gray-500">Owner</p></div></div></div>
+    </aside>
+
+    <!-- Mobile Menu -->
+    <div id="mobileMenu" class="mobile-menu fixed inset-0 z-50 glass lg:hidden">
+      <div class="p-6">
+        <div class="flex items-center justify-between mb-8">
+          <div class="logo-placeholder"><img src="https://placehold.co/120x40/1a1a2e/ffffff?text=CLIENT" alt="Logo" class="logo-img" /></div>
+          <button onclick="toggleMobileMenu()" class="p-2"><i data-lucide="x" class="w-6 h-6"></i></button>
+        </div>
+        <nav class="space-y-2">
+          <a href="#" class="flex items-center gap-3 px-3 py-3 rounded-xl bg-blue-500/10 text-white nav-active transition-all"><i data-lucide="layout-dashboard" class="w-5 h-5 text-blue-400"></i><span>Dashboard</span></a>
+          <a href="#" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all"><i data-lucide="users" class="w-5 h-5"></i><span>Employees</span></a>
+          <a href="#" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all"><i data-lucide="store" class="w-5 h-5"></i><span>Stores</span></a>
+          <a href="#" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all"><i data-lucide="dollar-sign" class="w-5 h-5"></i><span>Sales Entry</span></a>
+          <a href="#" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all"><i data-lucide="calendar-check" class="w-5 h-5"></i><span>Attendance</span></a>
+          <a href="#" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all"><i data-lucide="receipt" class="w-5 h-5"></i><span>Expenses</span></a>
+          <a href="#" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all"><i data-lucide="trophy" class="w-5 h-5"></i><span>Leaderboard</span></a>
+          <a href="#" class="flex items-center gap-3 px-3 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-all"><i data-lucide="presentation" class="w-5 h-5"></i><span>Meeting Mode</span></a>
+        </nav>
+      </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <main id="reportContent" class="flex-1 lg:ml-64 p-4 lg:p-8">
+      <!-- Header -->
+      <div class="slide-in mb-6 flex flex-wrap items-center justify-between">
+        <div><h1 class="text-2xl lg:text-4xl font-bold neon-blue">Dashboard</h1><p class="text-gray-400 text-sm mt-0.5">AT&T campaign · white-label ready</p></div>
+        <button onclick="exportPDF()" class="mt-2 lg:mt-0 flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 transition text-sm font-medium shadow-lg shadow-blue-600/20"><i data-lucide="file-text" class="w-4 h-4"></i> Export PDF</button>
+      </div>
+
+      <!-- Campaign Badge -->
+      <div class="slide-in mb-6 flex flex-wrap items-center gap-2">
+        <span class="px-3 py-1.5 rounded-full glass text-xs text-blue-400 border border-blue-500/20 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> Live</span>
+        <span class="px-3 py-1.5 rounded-full glass text-xs text-gray-300 flex items-center gap-1.5"><i data-lucide="building-2" class="w-3 h-3"></i> AT&T Retailer</span>
+        <span class="px-3 py-1.5 rounded-full glass text-xs text-gray-300 flex items-center gap-1.5"><i data-lucide="map-pin" class="w-3 h-3"></i> 8 Stores</span>
+      </div>
+
+      <!-- Stats -->
+      <div class="slide-in grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4">
+        <div class="card-3d rounded-2xl p-4 pulse-glow"><div class="flex items-start justify-between mb-1"><p class="text-[10px] text-gray-500 uppercase tracking-wider">Daily Prod</p><div class="p-1.5 rounded-lg bg-blue-500/20"><i data-lucide="trending-up" class="w-3 h-3 text-blue-400"></i></div></div><p class="text-2xl font-bold neon-blue">127</p><p class="text-[10px] text-green-400">+12.5%</p></div>
+        <div class="card-3d rounded-2xl p-4"><div class="flex items-start justify-between mb-1"><p class="text-[10px] text-gray-500 uppercase tracking-wider">Weekly Prod</p><div class="p-1.5 rounded-lg bg-purple-500/20"><i data-lucide="zap" class="w-3 h-3 text-purple-400"></i></div></div><p class="text-2xl font-bold neon-purple">843</p><p class="text-[10px] text-green-400">+8.2%</p></div>
+        <div class="card-3d rounded-2xl p-4"><div class="flex items-start justify-between mb-1"><p class="text-[10px] text-gray-500 uppercase tracking-wider">Revenue</p><div class="p-1.5 rounded-lg bg-green-500/20"><i data-lucide="dollar-sign" class="w-3 h-3 text-green-400"></i></div></div><p class="text-2xl font-bold text-green-400">$142K</p><p class="text-[10px] text-green-400">+15.3%</p></div>
+        <div class="card-3d rounded-2xl p-4"><div class="flex items-start justify-between mb-1"><p class="text-[10px] text-gray-500 uppercase tracking-wider">Premium Mix</p><div class="p-1.5 rounded-lg bg-yellow-500/20"><i data-lucide="star" class="w-3 h-3 text-yellow-400"></i></div></div><p class="text-2xl font-bold text-yellow-400">68.4%</p><p class="text-[10px] text-green-400">+2.1%</p></div>
+      </div>
+
+      <!-- Charts -->
+      <div class="slide-in grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        <div class="card-3d rounded-2xl p-4"><h3 class="text-base font-semibold neon-cyan mb-2">Commission Trend</h3><div class="chart-container" style="position:relative; height:180px; width:100%;"><canvas id="commissionChart"></canvas></div></div>
+        <div class="card-3d rounded-2xl p-4"><h3 class="text-base font-semibold neon-purple mb-2">Product Mix</h3><div class="chart-container" style="position:relative; height:180px; width:100%;"><canvas id="productMixChart"></canvas></div></div>
+      </div>
+
+      <!-- TABS - FIXED clickable -->
+      <div class="slide-in mt-6 mb-4 flex gap-1.5 overflow-x-auto pb-1.5 no-scrollbar">
+        <button class="tab-btn active px-3 py-1.5 rounded-lg text-xs font-medium border transition" data-tab="dashboard" onclick="switchTab('dashboard', this)">Dashboard</button>
+        <button class="tab-btn inactive px-3 py-1.5 rounded-lg text-xs font-medium border transition" data-tab="leaderboard" onclick="switchTab('leaderboard', this)">Leaderboard</button>
+        <button class="tab-btn inactive px-3 py-1.5 rounded-lg text-xs font-medium border transition" data-tab="meeting" onclick="switchTab('meeting', this)">Meeting Mode</button>
+        <button class="tab-btn inactive px-3 py-1.5 rounded-lg text-xs font-medium border transition" data-tab="expenses" onclick="switchTab('expenses', this)">P&L</button>
+        <button class="tab-btn inactive px-3 py-1.5 rounded-lg text-xs font-medium border transition" data-tab="commission" onclick="switchTab('commission', this)">Commission</button>
+      </div>
+
+      <!-- TAB PANELS -->
+      <div id="tab-dashboard" class="tab-panel">
+        <div class="slide-in grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div class="lg:col-span-2 card-3d rounded-2xl p-5"><h3 class="text-base font-semibold neon-blue mb-3 flex items-center gap-2"><i data-lucide="trophy" class="w-4 h-4 text-yellow-400"></i>Top Performers</h3><div class="space-y-2"><div class="flex items-center gap-3 p-3 rounded-xl glass border border-yellow-500/20"><span class="text-xl font-bold text-yellow-400">#1</span><div class="flex-1"><p class="font-semibold text-sm">Sarah Johnson</p><p class="text-xs text-gray-400">Costco · Clearwater</p></div><div class="text-right"><p class="font-bold text-green-400 text-sm">$480</p><p class="text-xs text-gray-400">12 lines</p></div></div><div class="flex items-center gap-3 p-3 rounded-xl glass border border-gray-500/20"><span class="text-xl font-bold text-gray-400">#2</span><div class="flex-1"><p class="font-semibold text-sm">Mike Chen</p><p class="text-xs text-gray-400">Target · Tampa</p></div><div class="text-right"><p class="font-bold text-green-400 text-sm">$410</p><p class="text-xs text-gray-400">10 lines</p></div></div><div class="flex items-center gap-3 p-3 rounded-xl glass border border-orange-500/20"><span class="text-xl font-bold text-orange-400">#3</span><div class="flex-1"><p class="font-semibold text-sm">Jessica Williams</p><p class="text-xs text-gray-400">BJ's · Orlando</p></div><div class="text-right"><p class="font-bold text-green-400 text-sm">$375</p><p class="text-xs text-gray-400">9 lines</p></div></div></div></div>
+          <div class="space-y-4"><div class="card-3d rounded-2xl p-5"><h3 class="text-base font-semibold neon-purple mb-2 flex items-center gap-2"><i data-lucide="calendar-check" class="w-4 h-4"></i>Attendance</h3><div class="flex items-center justify-between mb-2"><div class="text-center"><p class="text-xl font-bold text-green-400">22</p><p class="text-[10px] text-gray-500">Present</p></div><div class="text-center"><p class="text-xl font-bold text-yellow-400">1</p><p class="text-[10px] text-gray-500">Late</p></div><div class="text-center"><p class="text-xl font-bold text-red-400">1</p><p class="text-[10px] text-gray-500">Absent</p></div></div><div class="w-full h-1.5 rounded-full bg-gray-800"><div class="h-full rounded-full bg-gradient-to-r from-green-500 to-blue-500" style="width: 91.7%"></div></div><p class="text-xs text-gray-400 mt-1">91.7% Attendance</p></div><div class="card-3d rounded-2xl p-5"><h3 class="text-base font-semibold text-green-400 mb-2 flex items-center gap-2"><i data-lucide="target" class="w-4 h-4"></i>Weekly Goals</h3><div class="space-y-3"><div><div class="flex justify-between text-xs mb-0.5"><span class="text-gray-400">Total Lines</span><span class="text-blue-400">843 / 1000</span></div><div class="w-full h-1.5 rounded-full bg-gray-800"><div class="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-400" style="width: 84.3%"></div></div></div><div><div class="flex justify-between text-xs mb-0.5"><span class="text-gray-400">Premium</span><span class="text-purple-400">287 / 350</span></div><div class="w-full h-1.5 rounded-full bg-gray-800"><div class="h-full rounded-full bg-gradient-to-r from-purple-500 to-purple-400" style="width: 82%"></div></div></div></div></div></div>
+        </div>
+      </div>
+
+      <!-- LEADERBOARD with Teams & Edit -->
+      <div id="tab-leaderboard" class="tab-panel hidden">
+        <div class="card-3d rounded-2xl p-5">
+          <div class="flex flex-wrap items-center justify-between mb-4">
+            <h2 class="text-xl font-bold neon-purple">Team Leaderboard <span class="text-xs text-gray-400 font-normal ml-2 editable-hint">(click any text to edit)</span></h2>
+            <button onclick="resetLeaderboard()" class="text-xs text-blue-400 hover:text-blue-300 transition">↻ Reset</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead><tr class="text-left text-[10px] text-gray-500 uppercase tracking-wider border-b border-white/10"><th class="pb-2">Rank</th><th class="pb-2">Rep / Team</th><th class="pb-2">Store</th><th class="pb-2">Lines</th><th class="pb-2">Premium</th><th class="pb-2">Fiber</th><th class="pb-2">Commission</th></tr></thead>
+              <tbody id="leaderboardBody" class="divide-y divide-white/5">
+                <tr><td class="py-2"><span class="text-yellow-400 font-bold">#1</span></td><td class="py-2 font-medium" contenteditable="true">Sarah Johnson</td><td class="py-2 text-gray-400" contenteditable="true">Costco</td><td class="py-2 font-semibold" contenteditable="true">12</td><td class="py-2 text-purple-400" contenteditable="true">8</td><td class="py-2 text-cyan-400" contenteditable="true">3</td><td class="py-2 text-green-400 font-bold" contenteditable="true">$480</td></tr>
+                <tr><td class="py-2"><span class="text-gray-400 font-bold">#2</span></td><td class="py-2 font-medium" contenteditable="true">Mike Chen</td><td class="py-2 text-gray-400" contenteditable="true">Target</td><td class="py-2 font-semibold" contenteditable="true">10</td><td class="py-2 text-purple-400" contenteditable="true">6</td><td class="py-2 text-cyan-400" contenteditable="true">4</td><td class="py-2 text-green-400 font-bold" contenteditable="true">$410</td></tr>
+                <tr><td class="py-2"><span class="text-orange-400 font-bold">#3</span></td><td class="py-2 font-medium" contenteditable="true">Jessica Williams</td><td class="py-2 text-gray-400" contenteditable="true">BJ's</td><td class="py-2 font-semibold" contenteditable="true">9</td><td class="py-2 text-purple-400" contenteditable="true">5</td><td class="py-2 text-cyan-400" contenteditable="true">3</td><td class="py-2 text-green-400 font-bold" contenteditable="true">$375</td></tr>
+                <tr><td class="py-2"><span class="text-gray-500 font-bold">#4</span></td><td class="py-2 font-medium" contenteditable="true">Team Alpha</td><td class="py-2 text-gray-400" contenteditable="true">Orlando</td><td class="py-2 font-semibold" contenteditable="true">8</td><td class="py-2 text-purple-400" contenteditable="true">4</td><td class="py-2 text-cyan-400" contenteditable="true">2</td><td class="py-2 text-green-400 font-bold" contenteditable="true">$320</td></tr>
+                <tr><td class="py-2"><span class="text-gray-500 font-bold">#5</span></td><td class="py-2 font-medium" contenteditable="true">Team Beta</td><td class="py-2 text-gray-400" contenteditable="true">Tampa</td><td class="py-2 font-semibold" contenteditable="true">7</td><td class="py-2 text-purple-400" contenteditable="true">3</td><td class="py-2 text-cyan-400" contenteditable="true">2</td><td class="py-2 text-green-400 font-bold" contenteditable="true">$290</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="mt-3 text-xs text-gray-500 flex items-center gap-2"><i data-lucide="edit-2" class="w-3 h-3"></i> Click any cell to edit stats or names</div>
+        </div>
+      </div>
+
+      <!-- MEETING MODE with Daily Trackers & Teams -->
+      <div id="tab-meeting" class="tab-panel hidden">
+        <div class="card-3d rounded-2xl p-5">
+          <div class="flex flex-wrap items-center justify-between mb-4">
+            <h2 class="text-xl font-bold neon-blue">Meeting Mode · Daily Trackers <span class="text-xs text-gray-400 font-normal ml-2 editable-hint">(click to edit)</span></h2>
+            <button onclick="resetMeeting()" class="text-xs text-blue-400 hover:text-blue-300 transition">↻ Reset</button>
+          </div>
+          <!-- Daily Trackers -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+            <div class="glass rounded-xl p-3 text-center"><p class="text-xs text-gray-400">Today's Lines</p><p class="text-2xl font-bold text-blue-400" contenteditable="true">127</p></div>
+            <div class="glass rounded-xl p-3 text-center"><p class="text-xs text-gray-400">Top Rep</p><p class="text-lg font-bold text-purple-400" contenteditable="true">Sarah J.</p></div>
+            <div class="glass rounded-xl p-3 text-center"><p class="text-xs text-gray-400">Attendance</p><p class="text-2xl font-bold text-green-400" contenteditable="true">91.7%</p></div>
+            <div class="glass rounded-xl p-3 text-center"><p class="text-xs text-gray-400">Goal Progress</p><p class="text-2xl font-bold text-yellow-400" contenteditable="true">87%</p></div>
+          </div>
+          <!-- Team view -->
+          <h3 class="text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2"><i data-lucide="users" class="w-4 h-4"></i> Teams Overview <span class="text-[10px] text-gray-500 font-normal">(editable)</span></h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="glass rounded-xl p-4 border border-blue-500/10">
+              <div class="flex justify-between items-center mb-2"><span class="font-medium" contenteditable="true">Team Alpha</span><span class="text-xs text-green-400" contenteditable="true">+12%</span></div>
+              <div class="flex justify-between text-xs text-gray-400"><span contenteditable="true">Lines: 34</span><span contenteditable="true">Premium: 18</span><span contenteditable="true">Fiber: 6</span></div>
+              <div class="w-full h-1 mt-2 rounded-full bg-gray-700"><div class="h-full rounded-full bg-blue-500" style="width:78%"></div></div>
+            </div>
+            <div class="glass rounded-xl p-4 border border-purple-500/10">
+              <div class="flex justify-between items-center mb-2"><span class="font-medium" contenteditable="true">Team Beta</span><span class="text-xs text-green-400" contenteditable="true">+8%</span></div>
+              <div class="flex justify-between text-xs text-gray-400"><span contenteditable="true">Lines: 28</span><span contenteditable="true">Premium: 14</span><span contenteditable="true">Fiber: 5</span></div>
+              <div class="w-full h-1 mt-2 rounded-full bg-gray-700"><div class="h-full rounded-full bg-purple-500" style="width:64%"></div></div>
+            </div>
+            <div class="glass rounded-xl p-4 border border-cyan-500/10">
+              <div class="flex justify-between items-center mb-2"><span class="font-medium" contenteditable="true">Team Gamma</span><span class="text-xs text-green-400" contenteditable="true">+5%</span></div>
+              <div class="flex justify-between text-xs text-gray-400"><span contenteditable="true">Lines: 22</span><span contenteditable="true">Premium: 10</span><span contenteditable="true">Fiber: 4</span></div>
+              <div class="w-full h-1 mt-2 rounded-full bg-gray-700"><div class="h-full rounded-full bg-cyan-500" style="width:52%"></div></div>
+            </div>
+            <div class="glass rounded-xl p-4 border border-yellow-500/10">
+              <div class="flex justify-between items-center mb-2"><span class="font-medium" contenteditable="true">Team Delta</span><span class="text-xs text-green-400" contenteditable="true">+15%</span></div>
+              <div class="flex justify-between text-xs text-gray-400"><span contenteditable="true">Lines: 41</span><span contenteditable="true">Premium: 22</span><span contenteditable="true">Fiber: 9</span></div>
+              <div class="w-full h-1 mt-2 rounded-full bg-gray-700"><div class="h-full rounded-full bg-yellow-500" style="width:92%"></div></div>
+            </div>
+          </div>
+          <div class="mt-3 text-xs text-gray-500 flex items-center gap-2"><i data-lucide="edit-2" class="w-3 h-3"></i> Click any number or name to edit for your daily standup</div>
+        </div>
+      </div>
+
+      <!-- P&L -->
+      <div id="tab-expenses" class="tab-panel hidden"><div class="card-3d rounded-2xl p-5"><h2 class="text-xl font-bold neon-cyan mb-4">Profit & Loss</h2><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><div><h3 class="text-sm font-semibold text-green-400 mb-2">Revenue</h3><div class="space-y-2"><div class="flex justify-between p-2 rounded-lg glass text-sm"><span>Commission</span><span class="text-green-400">$142,500</span></div><div class="flex justify-between p-2 rounded-lg glass text-sm"><span>Bonus</span><span class="text-green-400">$12,300</span></div><div class="flex justify-between p-2 rounded-lg glass border-t border-white/10 pt-2 text-sm"><span class="font-bold">Total</span><span class="text-green-400 font-bold">$154,800</span></div></div></div><div><h3 class="text-sm font-semibold text-red-400 mb-2">Expenses</h3><div class="space-y-2"><div class="flex justify-between p-2 rounded-lg glass text-sm"><span>Payroll</span><span class="text-red-400">$85,000</span></div><div class="flex justify-between p-2 rounded-lg glass text-sm"><span>Rent</span><span class="text-red-400">$18,000</span></div><div class="flex justify-between p-2 rounded-lg glass text-sm"><span>Travel</span><span class="text-red-400">$8,500</span></div><div class="flex justify-between p-2 rounded-lg glass text-sm"><span>Other</span><span class="text-red-400">$5,100</span></div><div class="flex justify-between p-2 rounded-lg glass border-t border-white/10 pt-2 text-sm"><span class="font-bold">Total</span><span class="text-red-400 font-bold">$116,600</span></div></div></div></div><div class="mt-4 p-4 rounded-xl glass border border-green-500/20 bg-green-500/5"><div class="flex justify-between text-xl"><span class="font-bold">Net Profit</span><span class="text-green-400 font-bold neon-blue">$38,200</span></div><p class="text-xs text-gray-400">24.7% Margin</p></div></div></div>
+
+      <!-- Commission -->
+      <div id="tab-commission" class="tab-panel hidden"><div class="card-3d rounded-2xl p-5"><h2 class="text-xl font-bold neon-blue mb-4">Commission Rules</h2><div class="grid grid-cols-1 md:grid-cols-3 gap-3"><div class="p-3 rounded-xl glass border border-blue-500/20"><h4 class="font-semibold text-blue-400 text-sm mb-2">📱 Phone</h4><div class="space-y-1 text-xs"><div class="flex justify-between"><span>Premium</span><span class="text-green-400">$35</span></div><div class="flex justify-between"><span>Premium+NextUp</span><span class="text-green-400">$40</span></div><div class="flex justify-between"><span>Extra</span><span class="text-green-400">$30</span></div><div class="flex justify-between"><span>Value</span><span class="text-green-400">$20</span></div><div class="flex justify-between"><span>Upgrades</span><span class="text-green-400">$15</span></div></div></div><div class="p-3 rounded-xl glass border border-purple-500/20"><h4 class="font-semibold text-purple-400 text-sm mb-2">🌐 Fiber</h4><div class="space-y-1 text-xs"><div class="flex justify-between"><span>Fiber 300</span><span class="text-green-400">$25</span></div><div class="flex justify-between"><span>Fiber 500</span><span class="text-green-400">$35</span></div><div class="flex justify-between"><span>Fiber 1G</span><span class="text-green-400">$50</span></div><div class="flex justify-between"><span>Fiber 2G</span><span class="text-green-400">$75</span></div><div class="flex justify-between"><span>Fiber 5G</span><span class="text-green-400">$100</span></div></div></div><div class="p-3 rounded-xl glass border border-yellow-500/20"><h4 class="font-semibold text-yellow-400 text-sm mb-2">👥 Overrides</h4><div class="space-y-1 text-xs"><div class="flex justify-between"><span>Leader</span><span class="text-green-400">$5/line</span></div><div class="flex justify-between"><span>Asst. Mgr</span><span class="text-green-400">$3/line</span></div><div class="flex justify-between"><span>Tier (100+)</span><span class="text-green-400">$50</span></div><div class="flex justify-between"><span>Accessories</span><span class="text-green-400">$10</span></div><div class="flex justify-between"><span>NextUp Stand</span><span class="text-green-400">$5</span></div></div></div></div></div></div>
+    </main>
+  </div>
+
+  <script>
+    lucide.createIcons();
+    function toggleMobileMenu() { document.getElementById('mobileMenu').classList.toggle('open'); }
+
+    // FIXED TAB SWITCHING
+    function switchTab(tabName, btn) {
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+      const target = document.getElementById('tab-' + tabName);
+      if (target) { target.classList.remove('hidden'); target.classList.add('slide-in'); }
+      document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('active', 'inactive'); b.classList.add('inactive'); });
+      if (btn) { btn.classList.remove('inactive'); btn.classList.add('active'); }
+    }
+
+    // Reset functions for editable content
+    function resetLeaderboard() {
+      const rows = document.querySelectorAll('#leaderboardBody tr');
+      const defaults = [
+        ['Sarah Johnson', 'Costco', '12', '8', '3', '$480'],
+        ['Mike Chen', 'Target', '10', '6', '4', '$410'],
+        ['Jessica Williams', 'BJ\'s', '9', '5', '3', '$375'],
+        ['Team Alpha', 'Orlando', '8', '4', '2', '$320'],
+        ['Team Beta', 'Tampa', '7', '3', '2', '$290']
+      ];
+      rows.forEach((row, idx) => {
+        if (idx < defaults.length) {
+          const cells = row.querySelectorAll('td');
+          if (cells.length >= 7) {
+            cells[1].textContent = defaults[idx][0];
+            cells[2].textContent = defaults[idx][1];
+            cells[3].textContent = defaults[idx][2];
+            cells[4].textContent = defaults[idx][3];
+            cells[5].textContent = defaults[idx][4];
+            cells[6].textContent = defaults[idx][5];
+          }
+        }
+      });
+    }
+
+    function resetMeeting() {
+      const trackers = document.querySelectorAll('#tab-meeting .glass p[contenteditable="true"]');
+      const vals = ['127', 'Sarah J.', '91.7%', '87%'];
+      trackers.forEach((el, i) => { if (i < vals.length) el.textContent = vals[i]; });
+      // Teams
+      const teams = document.querySelectorAll('#tab-meeting .glass .font-medium');
+      const teamNames = ['Team Alpha', 'Team Beta', 'Team Gamma', 'Team Delta'];
+      teams.forEach((el, i) => { if (i < teamNames.length) el.textContent = teamNames[i]; });
+    }
+
+    // Charts
+    function initCharts() {
+      new Chart(document.getElementById('commissionChart').getContext('2d'), {
+        type: 'line',
+        data: { labels: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], datasets: [{ label: 'Commission', data: [3200,4100,3800,4500,5200,4800,5100], borderColor: '#3B82F6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3, borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#3B82F6' }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#666', font: { size: 9 } } }, y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#666', font: { size: 9 }, callback: v => '$'+v } } } }
+      });
+      new Chart(document.getElementById('productMixChart').getContext('2d'), {
+        type: 'doughnut',
+        data: { labels: ['Premium','Extra','Value','Fiber 1G','Fiber 500','Acc'], datasets: [{ data: [45,20,15,25,12,89], backgroundColor: ['#3B82F6','#A855F7','#06B6D4','#10B981','#F59E0B','#EF4444'], borderColor: '#000', borderWidth: 1.5 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#999', padding: 8, boxWidth: 10, font: { size: 9 } } } } }
+      });
+    }
+
+    function exportPDF() {
+      const element = document.getElementById('reportContent');
+      html2pdf().set({ margin: [0.4,0.4,0.4,0.4], filename: 'FieldOS_Report.pdf', image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, letterRendering: true, useCORS: true, logging: false }, jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' } }).from(element).save();
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      initCharts();
+      // Ensure dashboard tab is active by default
+      const defaultBtn = document.querySelector('.tab-btn[data-tab="dashboard"]');
+      if (defaultBtn) { defaultBtn.classList.add('active'); defaultBtn.classList.remove('inactive'); }
+    });
+  </script>
+</body>
+</html>

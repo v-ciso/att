@@ -1,0 +1,254 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  ASM
+  LEAD
+  REP
+  INTERN
+}
+
+enum StoreType {
+  COSTCO
+  TARGET
+  BJS
+  CUSTOM
+}
+
+enum ExpenseCategory {
+  PAYROLL
+  RENT
+  TRAVEL
+  ROADTRIP
+  MARKETING
+  SOFTWARE
+  OTHER
+}
+
+enum RoadtripStatus {
+  PENDING
+  APPROVED
+  REIMBURSED
+  DENIED
+}
+
+enum CommissionCategory {
+  PHONE
+  FIBER
+  OVERRIDE
+  STORE
+}
+
+enum OverrideType {
+  FLAT
+  PERCENT
+}
+
+enum GoalPeriod {
+  WEEKLY
+  MONTHLY
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+  EXCUSED
+  ROADTRIP
+}
+
+enum SubscriptionTier {
+  STANDARD
+  WHITE_LABEL
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  role          Role      @default(REP)
+  employeeId    String?   @unique
+  avatarUrl     String?
+  teamId        String?
+  team          Team?     @relation("TeamMembers", fields: [teamId], references: [id])
+  marketOwnerId String?
+  marketOwner   MarketOwner? @relation(fields: [marketOwnerId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  attendances         Attendance[]
+  goals               Goal[]
+  commissions         Commission[]
+  ledTeams            Team[]       @relation("TeamLead")
+  leaderboardEntries  LeaderboardEntry[]
+}
+
+model MarketOwner {
+  id                     String    @id @default(cuid())
+  name                   String
+  slug                   String    @unique
+  stripeCustomerId       String?
+  stripeSubscriptionId   String?
+  subscriptionTier       SubscriptionTier @default(STANDARD)
+  theme                  Json      // White-label config
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  users                  User[]
+  teams                  Team[]
+  leaderboardEntries     LeaderboardEntry[]
+  expenses               Expense[]
+  roadtrips              Roadtrip[]
+  commissionRules        CommissionRule[]
+  goals                  Goal[]
+}
+
+model Team {
+  id                String    @id @default(cuid())
+  name              String
+  color             String    @default("#3B82F6")
+  leadId            String
+  lead              User      @relation("TeamLead", fields: [leadId], references: [id])
+  members           User[]    @relation("TeamMembers")
+  marketOwnerId     String
+  marketOwner       MarketOwner @relation(fields: [marketOwnerId], references: [id])
+  goals             Json      // WeeklyGoals
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  leaderboardEntries LeaderboardEntry[]
+  teamGoals          Goal[]    @relation("teamGoals")
+}
+
+model LeaderboardEntry {
+  id            String    @id @default(cuid())
+  marketOwnerId String
+  marketOwner   MarketOwner @relation(fields: [marketOwnerId], references: [id])
+  userId        String?
+  user          User?     @relation(fields: [userId], references: [id])
+  rank          Int
+  name          String
+  store         StoreType
+  lines         Int
+  premium       Int
+  fiber         Int
+  commission    Float
+  role          Role
+  teamId        String?
+  team          Team?     @relation(fields: [teamId], references: [id])
+  date          DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([marketOwnerId, date])
+  @@index([marketOwnerId, rank])
+}
+
+model Expense {
+  id            String          @id @default(cuid())
+  marketOwnerId String
+  marketOwner   MarketOwner     @relation(fields: [marketOwnerId], references: [id])
+  category      ExpenseCategory
+  amount        Float
+  description   String
+  date          DateTime
+  isRecurring   Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+
+  @@index([marketOwnerId, date])
+}
+
+model Roadtrip {
+  id            String          @id @default(cuid())
+  marketOwnerId String
+  marketOwner   MarketOwner     @relation(fields: [marketOwnerId], references: [id])
+  name          String
+  location      String
+  startDate     DateTime
+  endDate       DateTime
+  totalCost     Float
+  reimbursed    Float           // Typically 60%
+  status        RoadtripStatus  @default(PENDING)
+  attendees     String[]        // User IDs
+  createdAt     DateTime        @default(now())
+
+  @@index([marketOwnerId, startDate])
+}
+
+model CommissionRule {
+  id            String             @id @default(cuid())
+  marketOwnerId String
+  marketOwner   MarketOwner        @relation(fields: [marketOwnerId], references: [id])
+  category      CommissionCategory
+  planName      String
+  baseAmount    Float
+  multiplier    Float              @default(1.0)
+  overrideType  OverrideType?
+  overrideValue Float?
+  appliesToRole Role?
+  isActive      Boolean            @default(true)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([marketOwnerId, category])
+}
+
+model Goal {
+  id              String      @id @default(cuid())
+  marketOwnerId   String
+  marketOwner     MarketOwner @relation(fields: [marketOwnerId], references: [id])
+  userId          String?
+  user            User?       @relation(fields: [userId], references: [id])
+  teamId          String?
+  team            Team?       @relation("teamGoals", fields: [teamId], references: [id])
+  period          GoalPeriod
+  linesTarget     Int
+  premiumTarget   Int
+  fiberTarget     Int
+  revenueTarget   Float
+  attendanceTarget Float     // percentage
+  weekStart       DateTime
+  createdAt       DateTime    @default(now())
+
+  @@index([marketOwnerId, period, weekStart])
+  @@index([marketOwnerId, userId, period])
+  @@index([marketOwnerId, teamId, period])
+}
+
+model Attendance {
+  id        String            @id @default(cuid())
+  userId    String
+  user      User              @relation(fields: [userId], references: [id])
+  date      DateTime
+  status    AttendanceStatus
+  checkInTime  DateTime?
+  checkOutTime DateTime?
+  createdAt DateTime          @default(now())
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+model Commission {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  period        GoalPeriod
+  weekStart     DateTime
+  grossAmount   Float
+  overrideAmount Float
+  netAmount     Float
+  breakdown     Json     // Detailed breakdown
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, period, weekStart])
+  @@index([userId, period])
+}
