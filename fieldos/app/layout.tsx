@@ -4,11 +4,11 @@ import { Providers } from './providers';
 
 export const metadata: Metadata = {
   title: {
-    default: 'FieldOS — Retail Command Center',
-    template: '%s | FieldOS',
+    default: 'Sales Engine — Retail Command Center',
+    template: '%s | Sales Engine',
   },
   description:
-    'The operating system for AT&T retail market owners — leaderboards, commissions, P&L, goals, and team management in one command center.',
+    'The command center for AT&T retail market owners — leaderboards, commissions, P&L, goals, and team management in one dashboard.',
   manifest: '/manifest.json',
   icons: { icon: '/favicon.svg' },
 };

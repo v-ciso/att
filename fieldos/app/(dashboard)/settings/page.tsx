@@ -177,7 +177,7 @@ export default function SettingsPage() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold neon-text-blue">Settings</h1>
-          <p className="text-text-secondary mt-1">Manage your FieldOS configuration</p>
+          <p className="text-text-secondary mt-1">Manage your Sales Engine configuration</p>
         </div>
 
         {message && (
@@ -230,7 +230,7 @@ export default function SettingsPage() {
                 <Input
                   value={theme.companyName}
                   onChange={(e) => handleInputChange('companyName', e.target.value)}
-                  placeholder="FieldOS"
+                  placeholder="Sales Engine"
                 />
               </div>
 

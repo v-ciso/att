@@ -17,7 +17,7 @@ export interface WhiteLabelTheme {
 }
 
 const DEFAULT_THEME: WhiteLabelTheme = {
-  companyName: 'FieldOS',
+  companyName: 'Sales Engine',
   primaryColor: '#3B82F6',
   secondaryColor: '#A855F7',
   featureFlags: {
@@ -76,7 +76,7 @@ export function ThemeProvider({ children, initialTheme = DEFAULT_THEME }: ThemeP
     style.textContent = generateCSSVariables(theme);
     document.head.appendChild(style);
 
-    document.title = `${theme.companyName} - FieldOS`;
+    document.title = `${theme.companyName} — Retail Command Center`;
 
     if (theme.faviconUrl) {
       let favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
@@ -98,7 +98,7 @@ export function ThemeProvider({ children, initialTheme = DEFAULT_THEME }: ThemeP
     if (mounted) {
       const style = document.getElementById('whitelabel-theme');
       if (style) style.textContent = generateCSSVariables(theme);
-      document.title = `${theme.companyName} - FieldOS`;
+      document.title = `${theme.companyName} — Retail Command Center`;
     }
   }, [theme, mounted]);
 
@@ -127,7 +127,7 @@ export function useTheme() {
 
 export function getTheme(): WhiteLabelTheme {
   if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem('whitelabel-theme');
+    const stored = localStorage.getItem('se-theme-v1');
     if (stored) return JSON.parse(stored);
   }
   return DEFAULT_THEME;
@@ -135,7 +135,7 @@ export function getTheme(): WhiteLabelTheme {
 
 export function applyTheme(theme: WhiteLabelTheme) {
   if (typeof window !== 'undefined') {
-    localStorage.setItem('whitelabel-theme', JSON.stringify(theme));
+    localStorage.setItem('se-theme-v1', JSON.stringify(theme));
     let style = document.getElementById('whitelabel-theme') as HTMLStyleElement | null;
     if (!style) {
       style = document.createElement('style');
@@ -144,8 +144,8 @@ export function applyTheme(theme: WhiteLabelTheme) {
     }
     style.textContent = generateCSSVariables(theme);
     document.title =
-      theme.companyName === 'FieldOS'
-        ? 'FieldOS — Retail Command Center'
-        : `${theme.companyName} — Powered by FieldOS`;
+      theme.companyName === 'Sales Engine'
+        ? 'Sales Engine — Retail Command Center'
+        : `${theme.companyName} — Powered by Sales Engine`;
   }
 }

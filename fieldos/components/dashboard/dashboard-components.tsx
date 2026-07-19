@@ -2,46 +2,71 @@
 
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils';
+import { Trash2 } from 'lucide-react';
 
-interface LeaderboardRowProps {
-  entry: {
-    rank: number;
-    name: string;
-    store: string;
-    lines: number;
-    premium: number;
-    fiber: number;
-    commission: number;
-    role: string;
-  };
-  index: number;
+export interface LeaderboardEntry {
+  name: string;
+  store: string;
+  lines: number;
+  premium: number;
+  fiber: number;
+  commission: number;
+  role: string;
 }
 
-export function LeaderboardRow({ entry }: LeaderboardRowProps) {
-  const rankColors = ['text-yellow-400', 'text-gray-400', 'text-orange-400', 'text-gray-500', 'text-gray-500'];
+interface LeaderboardRowProps {
+  entry: LeaderboardEntry & { rank: number };
+  onEdit: (field: keyof LeaderboardEntry, value: string) => void;
+  onRemove: () => void;
+}
+
+export function LeaderboardRow({ entry, onEdit, onRemove }: LeaderboardRowProps) {
+  const rankColors = ['text-yellow-400', 'text-gray-400', 'text-orange-400'];
+
+  const cell = (field: keyof LeaderboardEntry) => ({
+    contentEditable: true,
+    suppressContentEditableWarning: true,
+    onBlur: (e: React.FocusEvent<HTMLTableCellElement>) =>
+      onEdit(field, e.currentTarget.textContent ?? ''),
+    onKeyDown: (e: React.KeyboardEvent<HTMLTableCellElement>) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        (e.currentTarget as HTMLElement).blur();
+      }
+    },
+  });
 
   return (
-    <tr className="hover:bg-white/2 transition-colors">
+    <tr className="group hover:bg-white/5 transition-colors">
       <td className="py-2">
         <span className={cn('font-bold', rankColors[entry.rank - 1] || 'text-gray-500')}>#{entry.rank}</span>
       </td>
-      <td className="py-2 font-medium" contentEditable suppressContentEditableWarning>
+      <td className="py-2 font-medium" {...cell('name')}>
         {entry.name}
       </td>
-      <td className="py-2 text-text-secondary" contentEditable suppressContentEditableWarning>
+      <td className="py-2 text-text-secondary" {...cell('store')}>
         {entry.store}
       </td>
-      <td className="py-2 font-semibold" contentEditable suppressContentEditableWarning>
+      <td className="py-2 font-semibold" {...cell('lines')}>
         {entry.lines}
       </td>
-      <td className="py-2 text-accent-purple" contentEditable suppressContentEditableWarning>
+      <td className="py-2 text-accent-purple" {...cell('premium')}>
         {entry.premium}
       </td>
-      <td className="py-2 text-accent-cyan" contentEditable suppressContentEditableWarning>
+      <td className="py-2 text-accent-cyan" {...cell('fiber')}>
         {entry.fiber}
       </td>
-      <td className="py-2 text-accent-green font-bold" contentEditable suppressContentEditableWarning>
+      <td className="py-2 text-accent-green font-bold" {...cell('commission')}>
         {formatCurrency(entry.commission)}
+      </td>
+      <td className="py-2 text-right">
+        <button
+          onClick={onRemove}
+          className="p-1.5 rounded-lg text-text-muted opacity-0 group-hover:opacity-100 hover:text-accent-red hover:bg-accent-red/10 transition-all"
+          aria-label={`Remove ${entry.name}`}
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
       </td>
     </tr>
   );

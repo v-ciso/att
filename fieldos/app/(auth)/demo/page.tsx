@@ -56,7 +56,7 @@ export default function DemoPage() {
       <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border-subtle px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Building2 className="w-6 h-6 text-accent-blue" />
-          <span className="text-lg font-bold neon-text-blue">FieldOS</span>
+          <span className="text-lg font-bold neon-text-blue">Sales Engine</span>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="ghost" onClick={() => router.push('/login')}>Sign In</Button>
@@ -158,7 +158,7 @@ export default function DemoPage() {
       {/* CTA */}
       <section className="text-center px-6 pb-20">
         <h2 className="text-3xl font-bold mb-4">Ready to <span className="neon-text-blue">Command Your Field</span>?</h2>
-        <p className="text-text-secondary mb-8">Join market owners who trust FieldOS to run their business.</p>
+        <p className="text-text-secondary mb-8">Join market owners who trust Sales Engine to run their business.</p>
         <div className="flex items-center justify-center gap-4 flex-wrap">
           <Button size="lg" onClick={() => setShowDashboard(true)}>
             <Zap className="w-5 h-5" /> Try Live Demo
@@ -171,7 +171,7 @@ export default function DemoPage() {
 
       {/* Footer */}
       <footer className="border-t border-border-subtle py-8 text-center text-text-muted text-sm">
-        FieldOS · AT&T Retail Sales Management Platform · {new Date().getFullYear()}
+        Sales Engine · AT&T Retail Sales Management Platform · {new Date().getFullYear()}
       </footer>
     </div>
   );
@@ -195,7 +195,7 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
           <div>
             <div className="flex items-center gap-2 mb-2">
               <Building2 className="w-6 h-6 text-accent-blue" />
-              <span className="text-xl font-bold text-text-primary">FieldOS Demo</span>
+              <span className="text-xl font-bold text-text-primary">Sales Engine Demo</span>
             </div>
             <p className="text-text-secondary text-sm">Interactive preview with sample data</p>
           </div>

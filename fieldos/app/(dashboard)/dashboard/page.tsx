@@ -8,10 +8,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabList, Tab, TabPanel } from '@/components/ui/tabs';
 import { Avatar, AvatarGroup } from '@/components/ui/badge-avatar';
-import { LineChart, DoughnutChart } from '@/components/charts/chart-wrapper';
+import { LineChart } from '@/components/charts/chart-wrapper';
+import { PieChart3D } from '@/components/charts/chart-3d';
 import { formatCurrency, formatNumber, formatPercent, getInitials, ROLE_LABELS, ROLE_COLORS, STORE_LABELS, cn } from '@/lib/utils';
 import { FileText, TrendingUp, Zap, DollarSign, Star, Trophy, CalendarCheck, Target, Users, Building2, MapPin, Zap as ZapIcon, Receipt, PieChart } from 'lucide-react';
-import { LeaderboardRow, MeetingTracker, MeetingTeam, PNLCard, CommissionCategory } from '@/components/dashboard/dashboard-components';
+import { LeaderboardRow, MeetingTracker, MeetingTeam, PNLCard, CommissionCategory, LeaderboardEntry } from '@/components/dashboard/dashboard-components';
 
 // Stats Data
 const stats = [
@@ -37,24 +38,23 @@ const commissionData = {
   }],
 };
 
-const productMixData = {
+const productMix = {
   labels: ['Premium', 'Extra', 'Value', 'Fiber 1G', 'Fiber 500', 'Accessories'],
-  datasets: [{
-    data: [45, 20, 15, 25, 12, 89],
-    backgroundColor: ['#3B82F6', '#A855F7', '#06B6D4', '#10B981', '#F59E0B', '#EF4444'],
-    borderColor: '#000',
-    borderWidth: 1.5,
-  }],
+  values: [45, 20, 15, 25, 12, 18],
+  colors: ['#3B82F6', '#A855F7', '#06B6D4', '#10B981', '#F59E0B', '#EF4444'],
 };
 
-// Leaderboard Data
-const leaderboardData = [
-  { rank: 1, name: 'Sarah Johnson', store: 'Costco', lines: 12, premium: 8, fiber: 3, commission: 480, role: 'rep' },
-  { rank: 2, name: 'Mike Chen', store: 'Target', lines: 10, premium: 6, fiber: 4, commission: 410, role: 'rep' },
-  { rank: 3, name: "Jessica Williams", store: "BJ's", lines: 9, premium: 5, fiber: 3, commission: 375, role: 'rep' },
-  { rank: 4, name: 'Team Alpha', store: 'Orlando', lines: 8, premium: 4, fiber: 2, commission: 320, role: 'team' },
-  { rank: 5, name: 'Team Beta', store: 'Tampa', lines: 7, premium: 3, fiber: 2, commission: 290, role: 'team' },
+// Leaderboard Data — default roster; user edits persist to localStorage
+const DEFAULT_LEADERBOARD: LeaderboardEntry[] = [
+  { name: 'Sarah Johnson', store: 'Costco', lines: 12, premium: 8, fiber: 3, commission: 480, role: 'rep' },
+  { name: 'Mike Chen', store: 'Target', lines: 10, premium: 6, fiber: 4, commission: 410, role: 'rep' },
+  { name: "Jessica Williams", store: "BJ's", lines: 9, premium: 5, fiber: 3, commission: 375, role: 'rep' },
+  { name: 'Team Alpha', store: 'Orlando', lines: 8, premium: 4, fiber: 2, commission: 320, role: 'team' },
+  { name: 'Team Beta', store: 'Tampa', lines: 7, premium: 3, fiber: 2, commission: 290, role: 'team' },
 ];
+
+const LEADERBOARD_STORAGE_KEY = 'se-leaderboard-v1';
+const NUMERIC_FIELDS: (keyof LeaderboardEntry)[] = ['lines', 'premium', 'fiber', 'commission'];
 
 // Top Performers
 const topPerformers = [
@@ -226,13 +226,62 @@ function DashboardContent() {
     router.replace(tab === 'dashboard' ? '/dashboard' : `/dashboard?tab=${tab}`, { scroll: false });
   };
 
+  // Leaderboard roster — editable, persisted to localStorage
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(DEFAULT_LEADERBOARD);
+  const [rosterLoaded, setRosterLoaded] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LEADERBOARD_STORAGE_KEY);
+      if (saved) setLeaderboard(JSON.parse(saved));
+    } catch {
+      // corrupted storage — keep defaults
+    }
+    setRosterLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (rosterLoaded) {
+      localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(leaderboard));
+    }
+  }, [leaderboard, rosterLoaded]);
+
+  const addRep = () => {
+    setLeaderboard(prev => [
+      ...prev,
+      { name: 'New Rep', store: 'Store', lines: 0, premium: 0, fiber: 0, commission: 0, role: 'rep' },
+    ]);
+  };
+
+  const removeRep = (index: number) => {
+    setLeaderboard(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const editRep = (index: number, field: keyof LeaderboardEntry, value: string) => {
+    setLeaderboard(prev =>
+      prev.map((entry, i) => {
+        if (i !== index) return entry;
+        if (NUMERIC_FIELDS.includes(field)) {
+          const num = parseFloat(value.replace(/[^0-9.-]/g, ''));
+          return { ...entry, [field]: Number.isFinite(num) ? num : 0 };
+        }
+        return { ...entry, [field]: value.trim() || entry[field] };
+      })
+    );
+  };
+
+  const resetRoster = () => {
+    setLeaderboard(DEFAULT_LEADERBOARD);
+    localStorage.removeItem(LEADERBOARD_STORAGE_KEY);
+  };
+
   const exportPDF = () => {
     const element = document.getElementById('reportContent');
     if (element) {
       import('html2pdf.js').then(({ default: html2pdf }) => {
         html2pdf().set({
           margin: [0.4, 0.4, 0.4, 0.4],
-          filename: 'FieldOS_Report.pdf',
+          filename: 'Sales_Engine_Report.pdf',
           image: { type: 'jpeg', quality: 0.98 },
           html2canvas: { scale: 2, letterRendering: true, useCORS: true, logging: false },
           jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
@@ -280,9 +329,31 @@ function DashboardContent() {
         <ChartCard title="Commission Trend" icon={TrendingUp} color="blue">
           <LineChart data={commissionData} />
         </ChartCard>
-        <ChartCard title="Product Mix" icon={PieChart} color="purple">
-          <DoughnutChart data={productMixData} />
-        </ChartCard>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2">
+              <PieChart className="w-4 h-4 text-accent-purple" />
+              Product Mix
+              <span className="text-[10px] text-text-muted font-normal uppercase tracking-wider">3D · hover a slice</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PieChart3D
+              data={productMix.values}
+              labels={productMix.labels}
+              colors={productMix.colors}
+              height={150}
+            />
+            <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-2">
+              {productMix.labels.map((label, i) => (
+                <span key={label} className="flex items-center gap-1.5 text-[10px] text-text-secondary">
+                  <span className="w-2 h-2 rounded-full" style={{ background: productMix.colors[i] }} />
+                  {label}
+                </span>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Tabs */}
@@ -391,12 +462,15 @@ function DashboardContent() {
       {activeTab === 'leaderboard' && (
         <div id="tab-leaderboard" className="tab-panel">
           <Card className="p-5">
-            <div className="flex flex-wrap items-center justify-between mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h2 className="text-xl font-bold neon-text-purple">
                 Team Leaderboard
                 <span className="text-xs text-text-muted font-normal ml-2">(click any text to edit)</span>
               </h2>
-              <Button variant="ghost" size="sm" onClick={() => alert('Reset to defaults')}>↻ Reset</Button>
+              <div className="flex items-center gap-2">
+                <Button size="sm" onClick={addRep}>+ Add Rep</Button>
+                <Button variant="ghost" size="sm" onClick={resetRoster}>↻ Reset</Button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -409,18 +483,24 @@ function DashboardContent() {
                     <th className="pb-2">Premium</th>
                     <th className="pb-2">Fiber</th>
                     <th className="pb-2">Commission</th>
+                    <th className="pb-2"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody id="leaderboardBody" className="divide-y divide-border-subtle">
-                  {leaderboardData.map((entry, index) => (
-                    <LeaderboardRow key={entry.rank} entry={entry} index={index} />
+                  {leaderboard.map((entry, index) => (
+                    <LeaderboardRow
+                      key={index}
+                      entry={{ ...entry, rank: index + 1 }}
+                      onEdit={(field, value) => editRep(index, field, value)}
+                      onRemove={() => removeRep(index)}
+                    />
                   ))}
                 </tbody>
               </table>
             </div>
             <div className="mt-3 text-xs text-text-secondary flex items-center gap-2">
               <Users className="w-3 h-3" />
-              Click any cell to edit stats or names
+              Click any cell to edit · hover a row to remove · changes save automatically
             </div>
           </Card>
         </div>

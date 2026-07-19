@@ -118,6 +118,7 @@
 
   .tab-btn.active {
     @apply bg-blue-500/20 text-blue-400 border-blue-500/30;
+    box-shadow: 0 0 16px rgba(59, 130, 246, 0.25);
   }
 
   .tab-btn.inactive {
@@ -138,10 +139,13 @@
 
   .stat-card {
     @apply card-3d p-4 transition-all duration-300;
+    will-change: transform;
   }
 
   .stat-card:hover {
-    @apply border-border-strong shadow-glass;
+    @apply border-border-strong;
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 30px rgba(59, 130, 246, 0.12);
   }
 
   .neon-text-blue {
@@ -166,6 +170,23 @@
 
   .orb {
     @apply fixed rounded-full filter blur-[100px] opacity-15 pointer-events-none;
+    animation: orb-float 18s ease-in-out infinite alternate;
+  }
+  .orb:nth-of-type(2) {
+    animation-duration: 26s;
+    animation-delay: -8s;
+  }
+  .orb:nth-of-type(3) {
+    animation-duration: 32s;
+    animation-delay: -15s;
+  }
+  @keyframes orb-float {
+    from {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    to {
+      transform: translate3d(50px, -40px, 0) scale(1.2);
+    }
   }
 
   .slide-in {

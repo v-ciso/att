@@ -18,7 +18,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setMounted(true);
-    const saved = localStorage.getItem('whitelabel-theme');
+    const saved = localStorage.getItem('se-theme-v1');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -33,7 +33,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isLoading && mounted) {
       applyTheme(theme);
-      localStorage.setItem('whitelabel-theme', JSON.stringify(theme));
+      localStorage.setItem('se-theme-v1', JSON.stringify(theme));
     }
   }, [theme, isLoading, mounted]);
 
