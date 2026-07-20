@@ -365,7 +365,6 @@ export interface PnlState {
 
 export const DEFAULT_PNL: PnlState = {
   revenue: [
-    { name: 'Commission', amount: 142500 },
     { name: 'Bonuses', amount: 12300 },
   ],
   expenses: [
@@ -445,7 +444,7 @@ function MoneyList({
   );
 }
 
-export function PnlEditor() {
+export function PnlEditor({ derivedCommission = 0 }: { derivedCommission?: number }) {
   const { state, setState, reset } = useLocalState<PnlState>('se-pnl-v1', DEFAULT_PNL);
 
   const editList =
@@ -471,7 +470,7 @@ export function PnlEditor() {
   const rate = Math.min(100, Math.max(0, state.reimburseRate)) / 100;
   const roadtripCost = state.roadtrips.reduce((a, b) => a + b.amount, 0);
   const reimbursement = roadtripCost * rate;
-  const totalRevenue = state.revenue.reduce((a, b) => a + b.amount, 0) + reimbursement;
+  const totalRevenue = state.revenue.reduce((a, b) => a + b.amount, 0) + reimbursement + derivedCommission;
   const totalExpenses = state.expenses.reduce((a, b) => a + b.amount, 0) + roadtripCost;
   const net = totalRevenue - totalExpenses;
   const margin = totalRevenue > 0 ? ((net / totalRevenue) * 100).toFixed(1) : '0.0';
@@ -488,10 +487,16 @@ export function PnlEditor() {
           title="Revenue" icon={DollarSign} color="green" items={state.revenue}
           onEdit={editList('revenue')} onAdd={addTo('revenue', 'New revenue')} onRemove={removeFrom('revenue')}
           footer={
-            <div className="mt-2 p-2 rounded-lg bg-accent-green/5 border border-accent-green/20 flex justify-between text-xs">
-              <span className="text-text-secondary">Roadtrip reimbursement</span>
-              <span className="text-accent-green font-semibold">{formatCurrency(reimbursement)}</span>
-            </div>
+            <>
+              <div className="mt-2 p-2 rounded-lg bg-accent-green/5 border border-accent-green/20 flex justify-between text-xs">
+                <span className="text-text-secondary">Sales commission <span className="text-text-muted">(auto · Daily Tracker, this month)</span></span>
+                <span className="text-accent-green font-semibold">{formatCurrency(derivedCommission)}</span>
+              </div>
+              <div className="mt-1.5 p-2 rounded-lg bg-accent-green/5 border border-accent-green/20 flex justify-between text-xs">
+                <span className="text-text-secondary">Roadtrip reimbursement <span className="text-text-muted">(auto)</span></span>
+                <span className="text-accent-green font-semibold">{formatCurrency(reimbursement)}</span>
+              </div>
+            </>
           }
         />
         <MoneyList

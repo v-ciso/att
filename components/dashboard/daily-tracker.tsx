@@ -1,0 +1,213 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { cn, formatCurrency } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Plus, Trash2, Sparkles, ClipboardList, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  SaleEntry, loadSales, saveSales, loadCommission, entryRevenue, todayStr, generateDemoSales,
+} from '@/lib/sales';
+import { loadPeople } from './roster';
+
+interface DailyTrackerProps {
+  onDataChange: () => void; // tells the dashboard to recompute derived stats
+}
+
+const selectClass =
+  'bg-bg-tertiary border border-border-subtle rounded-lg px-2.5 py-2 text-xs text-white ' +
+  'focus:outline-none focus:border-accent-blue/50 focus:ring-1 focus:ring-accent-blue/30';
+
+export function DailyTracker({ onDataChange }: DailyTrackerProps) {
+  const [sales, setSales] = useState<SaleEntry[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const commission = useMemo(loadCommission, [sales]); // reread after changes
+  const people = useMemo(loadPeople, [sales]);
+  const plans = useMemo(
+    () => [...commission.phonePlans.map(p => p.name), ...commission.internet.map(p => p.name)],
+    [commission]
+  );
+
+  // Entry form
+  const [date, setDate] = useState(todayStr());
+  const [person, setPerson] = useState('');
+  const [plan, setPlan] = useState('');
+  const [qty, setQty] = useState(1);
+  const [nextUps, setNextUps] = useState(0);
+  const [insurance, setInsurance] = useState(0);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSales(loadSales());
+    setLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (loaded) {
+      saveSales(sales);
+      onDataChange();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sales, loaded]);
+
+  const selectedPerson = people.find(p => p.name === person) ?? people[0];
+
+  const addEntry = () => {
+    const who = person || people[0]?.name;
+    const what = plan || plans[0];
+    if (!who || !what || qty < 1) return;
+    setSales(prev => [
+      {
+        id: `s-${Date.now()}`,
+        date,
+        person: who,
+        store: people.find(p => p.name === who)?.store ?? 'Costco',
+        plan: what,
+        qty,
+        nextUps: Math.min(nextUps, qty),
+        insurance: Math.min(insurance, qty),
+      },
+      ...prev,
+    ]);
+    setQty(1); setNextUps(0); setInsurance(0);
+  };
+
+  const removeEntry = (id: string) => setSales(prev => prev.filter(e => e.id !== id));
+
+  const generateDemo = () => setSales(generateDemoSales(people, commission));
+  const clearAll = () => setSales([]);
+
+  const dayEntries = sales.filter(e => e.date === date);
+  const dayTotal = dayEntries.reduce((a, e) => a + entryRevenue(e, commission).total, 0);
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <h2 className="text-xl font-bold neon-text-blue flex items-center gap-2">
+          <ClipboardList className="w-5 h-5 text-accent-blue" /> Daily Tracker
+        </h2>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={generateDemo}>
+            <Sparkles className="w-3.5 h-3.5" /> Generate Demo Data
+          </Button>
+          <Button variant="ghost" size="sm" onClick={clearAll}>↻ Clear All</Button>
+        </div>
+      </div>
+
+      {/* Entry form — the morning workflow: pick rep, pick plan, pick counts */}
+      <div className="p-4 rounded-xl glass border border-accent-blue/20 mb-4">
+        <p className="text-[10px] text-text-muted uppercase tracking-wider mb-2.5">
+          Log a sale — revenue, leaderboard &amp; dashboard update automatically at your current payouts
+        </p>
+        <div className="flex flex-wrap items-end gap-2.5">
+          <label className="flex flex-col gap-1 text-[10px] text-text-muted uppercase tracking-wider">
+            Date
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} className={selectClass} />
+          </label>
+          <label className="flex flex-col gap-1 text-[10px] text-text-muted uppercase tracking-wider">
+            Rep
+            <select value={person || selectedPerson?.name || ''} onChange={e => setPerson(e.target.value)} className={selectClass}>
+              {people.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[10px] text-text-muted uppercase tracking-wider">
+            Plan
+            <select value={plan || plans[0] || ''} onChange={e => setPlan(e.target.value)} className={selectClass}>
+              <optgroup label="Phone Lines">
+                {commission.phonePlans.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+              </optgroup>
+              <optgroup label="Internet">
+                {commission.internet.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+              </optgroup>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[10px] text-text-muted uppercase tracking-wider">
+            Qty
+            <input type="number" min={1} max={99} value={qty} onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))} className={cn(selectClass, 'w-16')} />
+          </label>
+          <label className="flex flex-col gap-1 text-[10px] text-text-muted uppercase tracking-wider">
+            Next Ups
+            <input type="number" min={0} max={99} value={nextUps} onChange={e => setNextUps(Math.max(0, parseInt(e.target.value) || 0))} className={cn(selectClass, 'w-16')} />
+          </label>
+          <label className="flex flex-col gap-1 text-[10px] text-text-muted uppercase tracking-wider">
+            Insurance
+            <input type="number" min={0} max={99} value={insurance} onChange={e => setInsurance(Math.max(0, parseInt(e.target.value) || 0))} className={cn(selectClass, 'w-16')} />
+          </label>
+          <Button size="sm" onClick={addEntry}><Plus className="w-3.5 h-3.5" /> Add Sale</Button>
+        </div>
+      </div>
+
+      {/* Day summary + entries with revenue breakdown */}
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs text-text-secondary">
+          {dayEntries.length} entr{dayEntries.length === 1 ? 'y' : 'ies'} on{' '}
+          <span className="text-white font-medium">{date}</span>
+        </p>
+        <p className="text-xs">
+          Day revenue: <span className="text-accent-green font-bold">{formatCurrency(dayTotal)}</span>
+        </p>
+      </div>
+
+      <div className="space-y-1.5">
+        {dayEntries.length === 0 && (
+          <p className="text-xs text-text-muted p-4 rounded-xl bg-white/5 text-center">
+            No sales logged for this date yet — add one above, or Generate Demo Data to fill the whole tool with sample numbers.
+          </p>
+        )}
+        {dayEntries.map(entry => {
+          const { total, parts } = entryRevenue(entry, commission);
+          const isOpen = expanded === entry.id;
+          return (
+            <div key={entry.id} className="group rounded-xl glass border border-border-subtle overflow-hidden">
+              <div className="flex items-center gap-3 px-3 py-2 text-xs">
+                <span className="font-semibold min-w-[110px]">{entry.person}</span>
+                <span className="text-text-secondary">{entry.store}</span>
+                <span className="px-2 py-0.5 rounded-full bg-accent-blue/10 text-accent-blue border border-accent-blue/20 text-[10px]">
+                  {entry.qty} × {entry.plan}
+                </span>
+                {entry.nextUps > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-accent-red/10 text-accent-red border border-accent-red/20 text-[10px]">
+                    {entry.nextUps} Next Up
+                  </span>
+                )}
+                {entry.insurance > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-accent-purple/10 text-accent-purple border border-accent-purple/20 text-[10px]">
+                    {entry.insurance} Ins.
+                  </span>
+                )}
+                <span className="ml-auto text-accent-green font-bold">{formatCurrency(total)}</span>
+                <button
+                  onClick={() => setExpanded(isOpen ? null : entry.id)}
+                  className="p-1 rounded text-text-muted hover:text-white transition-colors"
+                  aria-label="Show revenue breakdown"
+                >
+                  {isOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+                <button
+                  onClick={() => removeEntry(entry.id)}
+                  className="p-1 rounded text-text-muted opacity-0 group-hover:opacity-100 hover:text-accent-red transition-all"
+                  aria-label="Remove entry"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              {isOpen && (
+                <div className="px-4 pb-2.5 pt-1 border-t border-border-subtle bg-white/[0.02]">
+                  <p className="text-[9px] text-text-muted uppercase tracking-wider mb-1">Where this money comes from</p>
+                  {parts.map((part, i) => (
+                    <div key={i} className="flex justify-between text-[11px] py-0.5">
+                      <span className="text-text-secondary">{part.label}</span>
+                      <span className="text-accent-green">{formatCurrency(part.amount)}</span>
+                    </div>
+                  ))}
+                  <p className="text-[9px] text-text-muted mt-1">
+                    Priced at Tier {commission.tier} with {entry.store}&apos;s multiplier — change payouts in the Commission tab and totals recompute.
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

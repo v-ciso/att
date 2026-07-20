@@ -1,302 +1,39 @@
 'use client';
 
-import { Suspense, useState, useEffect, useRef, useMemo } from 'react';
+import { Suspense, useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard/layout';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabList, Tab, TabPanel } from '@/components/ui/tabs';
-import { Avatar, AvatarGroup } from '@/components/ui/badge-avatar';
 import { LineChart } from '@/components/charts/chart-wrapper';
 import { PieChart3D } from '@/components/charts/chart-3d';
-import { formatCurrency, formatNumber, formatPercent, getInitials, ROLE_LABELS, ROLE_COLORS, STORE_LABELS, cn } from '@/lib/utils';
-import { FileText, TrendingUp, Zap, DollarSign, Star, Trophy, CalendarCheck, Target, Users, Building2, MapPin, PieChart, Maximize2 } from 'lucide-react';
-import { LeaderboardRow, MeetingTracker, LeaderboardEntry } from '@/components/dashboard/dashboard-components';
-import { CommissionEngine, PnlEditor, TeamsEditor } from '@/components/dashboard/editable-sections';
+import { formatCurrency, formatNumber, cn } from '@/lib/utils';
+import {
+  FileText, TrendingUp, Zap, DollarSign, Star, Trophy, CalendarCheck, Target, Users,
+  Building2, MapPin, PieChart, Maximize2, ChevronDown, Sparkles, ClipboardList,
+} from 'lucide-react';
+import { MeetingTracker } from '@/components/dashboard/dashboard-components';
+import { CommissionEngine, PnlEditor, TeamData } from '@/components/dashboard/editable-sections';
 import { ReportTemplate } from '@/components/dashboard/report-template';
-import { RosterManager, loadPeople, loadPromoRules, promotionStatus, Person, ROSTER_ROLE_LABELS, ROLE_LADDER } from '@/components/dashboard/roster';
+import { RosterManager, loadPeople } from '@/components/dashboard/roster';
+import { ProfileDrawer } from '@/components/dashboard/profile-drawer';
+import { DailyTracker } from '@/components/dashboard/daily-tracker';
+import {
+  Period, PERIOD_LABELS, aggregateSales, loadSales, saveSales, loadCommission,
+  generateDemoSales, planPayout, Aggregate, PersonStats,
+} from '@/lib/sales';
 
-// Stats Data
-const stats = [
-  { label: 'Daily Prod', value: '127', change: '+12.5%', icon: TrendingUp, color: 'blue', trend: 'up' },
-  { label: 'Weekly Prod', value: '843', change: '+8.2%', icon: Zap, color: 'purple', trend: 'up' },
-  { label: 'Revenue', value: '$142K', change: '+15.3%', icon: DollarSign, color: 'green', trend: 'up' },
-  { label: 'Premium Mix', value: '68.4%', change: '+2.1%', icon: Star, color: 'yellow', trend: 'up' },
-] as const;
+// Categorical palette — validated colorblind-safe on black (dataviz six-checks).
+// Color follows the plan (fixed order), never the rank.
+const PIE_PALETTE = ['#3B82F6', '#D97706', '#0891B2', '#A855F7', '#059669', '#EF4444', '#7C3AED', '#DB2777'];
 
-// Chart Data
-const commissionData = {
-  labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-  datasets: [{
-    label: 'Commission',
-    data: [3200, 4100, 3800, 4500, 5200, 4800, 5100],
-    borderColor: '#3B82F6',
-    backgroundColor: 'rgba(59,130,246,0.1)',
-    fill: true,
-    tension: 0.3,
-    borderWidth: 2,
-    pointRadius: 3,
-    pointBackgroundColor: '#3B82F6',
-  }],
-};
+const VALID_TABS = ['dashboard', 'tracker', 'roster', 'leaderboard', 'meeting', 'pnl', 'commission'];
 
-// Slice order + hues validated for colorblind-safe adjacency on black
-// (dataviz six-checks: lightness band, CVD ΔE, normal-vision floor, contrast)
-const productMix = {
-  labels: ['Premium', 'Extra', 'Value', 'Fiber 1G', 'Fiber 500', 'Next Up'],
-  values: [45, 20, 15, 25, 12, 18],
-  colors: ['#3B82F6', '#D97706', '#0891B2', '#A855F7', '#059669', '#EF4444'],
-  // maps each slice to a commission-engine plan name for payout lookup
-  planNames: ['Premium 2.0', 'Extra 2.0', 'Value 2.0', 'Fiber 1GIG', 'Fiber 500', 'Next Up Anytime'],
-};
+// ---------------------------------------------------------------------------
+// Small building blocks
+// ---------------------------------------------------------------------------
 
-// Looks up the current editable payout for a plan from the commission engine's saved state
-function lookupPayout(planName: string): number | null {
-  if (!planName || typeof window === 'undefined') return null;
-  try {
-    const saved = JSON.parse(localStorage.getItem('se-commission-v1') || 'null');
-    const lists = saved ? [saved.phonePlans, saved.internet, saved.addOns] : [];
-    for (const list of lists) {
-      const hit = (list ?? []).find((p: { name: string }) => p.name === planName);
-      if (hit) return hit.payout;
-    }
-  } catch { /* fall through */ }
-  const defaults: Record<string, number> = {
-    'Premium 2.0': 35, 'Extra 2.0': 30, 'Value 2.0': 20, 'Fiber 1GIG': 50, 'Fiber 500': 35,
-  };
-  return defaults[planName] ?? null;
-}
-
-function SliceDrawer({ index, onClose }: { index: number; onClose: () => void }) {
-  const label = productMix.labels[index];
-  const value = productMix.values[index];
-  const color = productMix.colors[index];
-  const total = productMix.values.reduce((a, b) => a + b, 0);
-  const share = ((value / total) * 100).toFixed(1);
-  const payout = lookupPayout(productMix.planNames[index]);
-  // deterministic 7-day sample trend derived from the value (demo data)
-  const week = Array.from({ length: 7 }, (_, i) =>
-    Math.max(1, Math.round(value / 7 + Math.sin(index * 3 + i * 1.7) * (value / 12)))
-  );
-  const weekMax = Math.max(...week);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label={`${label} details`}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:max-w-md glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full" style={{ background: color }} />
-            {label}
-          </h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
-        </div>
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="p-3 rounded-xl bg-white/5 text-center">
-            <p className="text-[10px] text-text-muted uppercase tracking-wider">Units</p>
-            <p className="text-xl font-bold" style={{ color }}>{value}</p>
-          </div>
-          <div className="p-3 rounded-xl bg-white/5 text-center">
-            <p className="text-[10px] text-text-muted uppercase tracking-wider">Mix Share</p>
-            <p className="text-xl font-bold text-white">{share}%</p>
-          </div>
-          <div className="p-3 rounded-xl bg-white/5 text-center">
-            <p className="text-[10px] text-text-muted uppercase tracking-wider">Payout/Unit</p>
-            <p className="text-xl font-bold text-accent-green">{payout != null ? formatCurrency(payout) : '—'}</p>
-          </div>
-        </div>
-        {payout != null && (
-          <p className="text-xs text-text-secondary mb-4">
-            Est. revenue this period:{' '}
-            <span className="text-accent-green font-semibold">{formatCurrency(value * payout)}</span>
-            <span className="text-text-muted"> · at current payout settings — edit in the Commission tab</span>
-          </p>
-        )}
-        <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1.5">Last 7 days</p>
-        <div className="flex items-end gap-1.5 h-16">
-          {week.map((v, i) => (
-            <div key={i} className="flex-1 rounded-t" style={{ height: `${(v / weekMax) * 100}%`, background: color, opacity: 0.35 + (i / 7) * 0.65 }} />
-          ))}
-        </div>
-        <div className="flex justify-between text-[9px] text-text-muted mt-1">
-          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ProfileDrawer({ name, entry, onClose }: { name: string; entry?: LeaderboardEntry; onClose: () => void }) {
-  const person = loadPeople().find(p => p.name.trim().toLowerCase() === name.trim().toLowerCase());
-  const rules = loadPromoRules();
-  const status = person ? promotionStatus(person, rules) : null;
-  const roleIndex = person ? ROLE_LADDER.indexOf(person.role) : -1;
-  const profitMax = person ? Math.max(...person.weeklyProfit, rules.profitPerWeek) : 1;
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label={`${name} profile`}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:max-w-lg glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent-blue to-accent-purple flex items-center justify-center font-bold">
-              {getInitials(name)}
-            </div>
-            <div>
-              <h3 className="text-lg font-bold">{name}</h3>
-              <p className="text-xs text-text-secondary">
-                {person
-                  ? `${ROSTER_ROLE_LABELS[person.role]} · ${person.store}${person.team ? ` · ${person.team}` : ' · no team'}`
-                  : 'Not in roster yet'}
-              </p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
-        </div>
-
-        {entry && (
-          <div className="grid grid-cols-4 gap-2 mb-4">
-            {[
-              { label: 'Lines', value: String(entry.lines), color: 'text-accent-blue' },
-              { label: 'Premium', value: String(entry.premium), color: 'text-accent-purple' },
-              { label: 'Fiber', value: String(entry.fiber), color: 'text-accent-cyan' },
-              { label: 'Commission', value: formatCurrency(entry.commission), color: 'text-accent-green' },
-            ].map(s => (
-              <div key={s.label} className="p-2.5 rounded-xl bg-white/5 text-center">
-                <p className="text-[9px] text-text-muted uppercase tracking-wider">{s.label}</p>
-                <p className={cn('text-base font-bold', s.color)}>{s.value}</p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {person && status ? (
-          <>
-            {/* Leadership roadmap ladder */}
-            <p className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Leadership Roadmap</p>
-            <div className="flex items-center gap-1 mb-4">
-              {ROLE_LADDER.map((role, i) => (
-                <div key={role} className="flex-1 flex items-center gap-1">
-                  <div className={cn(
-                    'flex-1 text-center py-1.5 rounded-lg text-[10px] font-semibold border transition-all',
-                    i < roleIndex && 'bg-accent-green/10 text-accent-green border-accent-green/30',
-                    i === roleIndex && 'bg-accent-blue/20 text-accent-blue border-accent-blue/40 shadow-neon-blue',
-                    i > roleIndex && 'bg-white/5 text-text-muted border-border-subtle'
-                  )}>
-                    {ROSTER_ROLE_LABELS[role]}
-                  </div>
-                  {i < ROLE_LADDER.length - 1 && <span className="text-text-muted text-[10px]">→</span>}
-                </div>
-              ))}
-            </div>
-
-            {/* Promotion progress */}
-            <div className={cn('p-3 rounded-xl border mb-4', status.ready ? 'bg-accent-green/10 border-accent-green/30' : 'bg-white/5 border-border-subtle')}>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-semibold">{status.ready ? '🎉 ' : ''}{status.label}</span>
-                <span className="text-[10px] text-text-muted">
-                  needs {formatCurrency(rules.profitPerWeek)}/wk × {rules.weeks} wks + {rules.minAttendance}% attendance
-                </span>
-              </div>
-              <div className="w-full h-1.5 rounded-full bg-bg-tertiary">
-                <div className={cn('h-full rounded-full', status.ready ? 'bg-accent-green' : 'bg-gradient-to-r from-accent-blue to-accent-green')} style={{ width: `${status.progress}%` }} />
-              </div>
-            </div>
-
-            {/* Weekly profit + attendance */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-xl bg-white/5">
-                <p className="text-[9px] text-text-muted uppercase tracking-wider mb-2">Weekly Profit</p>
-                <div className="flex items-end gap-2 h-14">
-                  {person.weeklyProfit.map((w, i) => (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                      <div className="w-full rounded-t bg-accent-green/80" style={{ height: `${Math.max(6, (w / profitMax) * 100)}%`, opacity: w >= rules.profitPerWeek ? 1 : 0.45 }} />
-                      <span className="text-[8px] text-text-muted">{formatCurrency(w)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="p-3 rounded-xl bg-white/5 flex flex-col items-center justify-center">
-                <p className="text-[9px] text-text-muted uppercase tracking-wider mb-1">Attendance</p>
-                <p className={cn('text-2xl font-bold', person.attendance >= rules.minAttendance ? 'text-accent-green' : 'text-accent-yellow')}>
-                  {person.attendance}%
-                </p>
-                <p className="text-[9px] text-text-muted">target {rules.minAttendance}%</p>
-              </div>
-            </div>
-          </>
-        ) : (
-          <p className="text-xs text-text-secondary p-3 rounded-xl bg-white/5">
-            This rep isn&apos;t in the roster yet. Add them on the <span className="text-accent-blue font-medium">Roster</span> tab
-            (same name) to track their store, team, promotions, and leadership roadmap here.
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Leaderboard Data — default roster; user edits persist to localStorage
-const DEFAULT_LEADERBOARD: LeaderboardEntry[] = [
-  { name: 'Sarah Johnson', store: 'Costco', lines: 12, premium: 8, fiber: 3, commission: 480, role: 'rep' },
-  { name: 'Mike Chen', store: 'Target', lines: 10, premium: 6, fiber: 4, commission: 410, role: 'rep' },
-  { name: "Jessica Williams", store: "BJ's", lines: 9, premium: 5, fiber: 3, commission: 375, role: 'rep' },
-  { name: 'Team Alpha', store: 'Orlando', lines: 8, premium: 4, fiber: 2, commission: 320, role: 'team' },
-  { name: 'Team Beta', store: 'Tampa', lines: 7, premium: 3, fiber: 2, commission: 290, role: 'team' },
-];
-
-const LEADERBOARD_STORAGE_KEY = 'se-leaderboard-v1';
-const NUMERIC_FIELDS: (keyof LeaderboardEntry)[] = ['lines', 'premium', 'fiber', 'commission'];
-
-// Top Performers
-const topPerformers = [
-  { rank: 1, name: 'Sarah Johnson', store: 'Costco · Clearwater', lines: 12, commission: 480, color: 'yellow' },
-  { rank: 2, name: 'Mike Chen', store: 'Target · Tampa', lines: 10, commission: 410, color: 'gray' },
-  { rank: 3, name: "Jessica Williams", store: "BJ's · Orlando", lines: 9, commission: 375, color: 'orange' },
-];
-
-// Attendance Data
-const attendanceData = { present: 22, late: 1, absent: 1 };
-const attendancePercent = Math.round((attendanceData.present / (attendanceData.present + attendanceData.late + attendanceData.absent)) * 100 * 10) / 10;
-
-// Goals Data
-const goals = [
-  { label: 'Total Lines', current: 843, target: 1000, color: 'blue' },
-  { label: 'Premium', current: 287, target: 350, color: 'purple' },
-];
-
-// Meeting Trackers
-const meetingTrackers = [
-  { label: "Today's Lines", value: '127', color: 'blue', size: '2xl' },
-  { label: 'Top Rep', value: 'Sarah J.', color: 'purple', size: 'lg' },
-  { label: 'Attendance', value: '91.7%', color: 'green', size: '2xl' },
-  { label: 'Goal Progress', value: '87%', color: 'yellow', size: '2xl' },
-];
-
-// Stats Card Component
-interface StatCardProps {
-  label: string;
-  value: string;
-  change: string;
-  icon: React.ComponentType<{ className?: string }>;
-  color: 'blue' | 'purple' | 'green' | 'yellow';
-  className?: string;
-}
-
-// Animates "127", "$142K", "68.4%" from 0 to target on mount (respects reduced motion)
 function CountUpValue({ value }: { value: string }) {
   const [display, setDisplay] = useState(value);
 
@@ -315,8 +52,7 @@ function CountUpValue({ value }: { value: string }) {
     const tick = (now: number) => {
       const t = Math.min(1, (now - start) / duration);
       const eased = 1 - Math.pow(1 - t, 3);
-      const current = target * eased;
-      setDisplay(`${prefix}${current.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}${suffix}`);
+      setDisplay(`${prefix}${(target * eased).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}${suffix}`);
       if (t < 1) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -326,201 +62,394 @@ function CountUpValue({ value }: { value: string }) {
   return <>{display}</>;
 }
 
-function StatCard({ label, value, change, icon: Icon, color, className }: StatCardProps) {
-  const colorClasses = {
-    blue: 'text-accent-blue',
-    purple: 'text-accent-purple',
-    green: 'text-accent-green',
-    yellow: 'text-accent-yellow',
-  };
+interface StatCardProps {
+  label: string;
+  value: string;
+  sub: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: 'blue' | 'purple' | 'green' | 'yellow';
+  onClick?: () => void;
+  className?: string;
+}
 
-  const neonClasses = {
-    blue: 'neon-text-blue',
-    purple: 'neon-text-purple',
-    green: 'neon-text-green',
-    yellow: 'neon-text-yellow',
-  };
+function StatCard({ label, value, sub, icon: Icon, color, onClick, className }: StatCardProps) {
+  const colorClasses = { blue: 'text-accent-blue', purple: 'text-accent-purple', green: 'text-accent-green', yellow: 'text-accent-yellow' };
+  const neonClasses = { blue: 'neon-text-blue', purple: 'neon-text-purple', green: 'neon-text-green', yellow: 'neon-text-yellow' };
 
   return (
-    <Card className={`stat-card pulse-glow ${className || ''}`}>
+    <Card
+      className={cn('stat-card pulse-glow', onClick && 'cursor-pointer', className)}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      title={onClick ? 'Click to see who did what' : undefined}
+    >
       <div className="flex items-start justify-between mb-1">
         <p className="text-[10px] text-text-muted uppercase tracking-wider">{label}</p>
         <div className="p-1.5 rounded-lg bg-white/5">
-          <Icon className={`w-3 h-3 ${colorClasses[color as keyof typeof colorClasses]}`} />
+          <Icon className={`w-3 h-3 ${colorClasses[color]}`} />
         </div>
       </div>
-      <p className={`text-2xl font-bold ${neonClasses[color as keyof typeof neonClasses]}`}>
+      <p className={`text-2xl font-bold ${neonClasses[color]}`}>
         <CountUpValue value={value} />
       </p>
-      <p className="text-[10px] text-accent-green">{change}</p>
-    </Card>
-  );
-}
-
-function ChartCard({ title, icon: Icon, color, children }: { title: string; icon: any; color: string; children: React.ReactNode }) {
-  const colorClasses = {
-    cyan: 'text-accent-cyan',
-    purple: 'text-accent-purple',
-    blue: 'text-accent-blue',
-    green: 'text-accent-green',
-  };
-
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2">
-          <Icon className={`w-4 h-4 ${colorClasses[color as keyof typeof colorClasses]}`} />
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="chart-container" style={{ position: 'relative', height: '180px', width: '100%' }}>
-          {children}
-        </div>
-      </CardContent>
+      <p className="text-[10px] text-text-secondary">{sub}</p>
     </Card>
   );
 }
 
 function TabButton({ children, isActive, onClick }: { children: React.ReactNode; isActive: boolean; onClick: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      className={`tab-btn px-3 py-1.5 rounded-lg text-xs font-medium border transition ${isActive ? 'active' : 'inactive'}`}
-    >
+    <button onClick={onClick} className={`tab-btn px-3 py-1.5 rounded-lg text-xs font-medium border transition ${isActive ? 'active' : 'inactive'}`}>
       {children}
     </button>
   );
 }
 
-const VALID_TABS = ['dashboard', 'roster', 'leaderboard', 'meeting', 'pnl', 'commission'];
+function PeriodChips({ period, onChange, options }: { period: Period; onChange: (p: Period) => void; options?: Period[] }) {
+  const list = options ?? (['daily', 'weekly', 'monthly', 'all'] as Period[]);
+  return (
+    <div className="flex gap-1.5">
+      {list.map(p => (
+        <button key={p} onClick={() => onChange(p)} className={cn('tab-btn', period === p ? 'active' : 'inactive')}>
+          {PERIOD_LABELS[p]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Multi-select store dropdown: one store, several, or all
+function StoreSelect({ options, selected, onChange }: { options: string[]; selected: string[]; onChange: (s: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
+
+  const label = selected.length === 0 ? 'All Stores' : selected.length === 1 ? selected[0] : `${selected[0]} +${selected.length - 1}`;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={() => setOpen(o => !o)} className="tab-btn inactive flex items-center gap-1.5">
+        <MapPin className="w-3 h-3" /> {label} <ChevronDown className={cn('w-3 h-3 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 z-40 w-48 p-2 rounded-xl bg-bg-secondary border border-border-strong shadow-glass space-y-0.5">
+          <button
+            onClick={() => onChange([])}
+            className={cn('w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors', selected.length === 0 ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-secondary hover:bg-white/5 hover:text-white')}
+          >
+            All Stores
+          </button>
+          {options.map(store => {
+            const active = selected.includes(store);
+            return (
+              <button
+                key={store}
+                onClick={() => onChange(active ? selected.filter(s => s !== store) : [...selected, store])}
+                className={cn('w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors flex items-center justify-between', active ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-secondary hover:bg-white/5 hover:text-white')}
+              >
+                {store} {active && '✓'}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// "Who did what" — opens from any KPI tile
+function ProductionDrawer({ agg, period, onClose, onOpenProfile }: { agg: Aggregate; period: Period; onClose: () => void; onOpenProfile: (name: string) => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label="Production breakdown">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full sm:max-w-lg glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold">{PERIOD_LABELS[period]} Production — who did what</h3>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
+        </div>
+        {agg.perPerson.length === 0 ? (
+          <p className="text-xs text-text-muted p-3 rounded-xl bg-white/5">No sales in this period yet — log them in the Daily Tracker.</p>
+        ) : (
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
+                <th className="pb-2">Rep</th><th className="pb-2 text-right">Lines</th><th className="pb-2 text-right">Internet</th>
+                <th className="pb-2 text-right">Next Up</th><th className="pb-2 text-right">Payout</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-subtle">
+              {agg.perPerson.map(p => (
+                <tr key={p.person} className="hover:bg-white/5 transition-colors">
+                  <td className="py-2">
+                    <button onClick={() => onOpenProfile(p.person)} className="font-medium hover:text-accent-blue transition-colors">{p.person}</button>
+                  </td>
+                  <td className="py-2 text-right">{p.lines}</td>
+                  <td className="py-2 text-right text-accent-cyan">{p.internet}</td>
+                  <td className="py-2 text-right text-accent-red">{p.nextUps}</td>
+                  <td className="py-2 text-right text-accent-green font-bold">{formatCurrency(p.revenue)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Pie slice drill-down with the line/Next-Up attach breakdown
+function SliceDrawer({ plan, agg, onClose }: { plan: string; agg: Aggregate; onClose: () => void }) {
+  const commission = loadCommission();
+  const stats = agg.perPlan.get(plan);
+  const totalQty = Array.from(agg.perPlan.values()).reduce((a, b) => a + b.qty, 0);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  if (!stats) return null;
+  const share = totalQty > 0 ? ((stats.qty / totalQty) * 100).toFixed(1) : '0';
+  const payout = planPayout(commission, plan);
+  const nextUpPer = planPayout(commission, 'Next Up Anytime');
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label={`${plan} details`}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full sm:max-w-md glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold">{plan}</h3>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
+        </div>
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="p-3 rounded-xl bg-white/5 text-center">
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Sold</p>
+            <p className="text-xl font-bold text-accent-blue">{stats.qty}</p>
+          </div>
+          <div className="p-3 rounded-xl bg-white/5 text-center">
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Mix Share</p>
+            <p className="text-xl font-bold text-white">{share}%</p>
+          </div>
+          <div className="p-3 rounded-xl bg-white/5 text-center">
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Revenue</p>
+            <p className="text-xl font-bold text-accent-green">{formatCurrency(stats.revenue)}</p>
+          </div>
+        </div>
+        {/* Attach breakdown: how many of these lines carried Next Up */}
+        <div className="p-3 rounded-xl bg-white/5 mb-2">
+          <div className="flex justify-between text-xs mb-1.5">
+            <span className="text-text-secondary">Next Up attached</span>
+            <span className="text-accent-red font-semibold">{stats.nextUps} of {stats.qty} ({stats.qty > 0 ? Math.round((stats.nextUps / stats.qty) * 100) : 0}%)</span>
+          </div>
+          <div className="w-full h-1.5 rounded-full bg-bg-tertiary">
+            <div className="h-full rounded-full bg-accent-red" style={{ width: `${stats.qty > 0 ? (stats.nextUps / stats.qty) * 100 : 0}%` }} />
+          </div>
+          {stats.nextUps > 0 && (
+            <p className="text-[10px] text-text-muted mt-1.5">
+              +{formatCurrency(stats.nextUps * nextUpPer)} from Next Up attaches (${nextUpPer} each)
+            </p>
+          )}
+        </div>
+        <p className="text-xs text-text-secondary">
+          Base payout <span className="text-accent-green font-semibold">{formatCurrency(payout)}</span>/unit at Tier {commission.tier} —
+          edit in the Commission tab, everything recomputes.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
 
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState(
-    tabParam && VALID_TABS.includes(tabParam) ? tabParam : 'dashboard'
-  );
+  const [activeTab, setActiveTab] = useState(tabParam && VALID_TABS.includes(tabParam) ? tabParam : 'dashboard');
 
   useEffect(() => {
-    if (tabParam && VALID_TABS.includes(tabParam)) {
-      setActiveTab(tabParam);
-    } else if (!tabParam) {
-      setActiveTab('dashboard');
-    }
+    if (tabParam && VALID_TABS.includes(tabParam)) setActiveTab(tabParam);
+    else if (!tabParam) setActiveTab('dashboard');
   }, [tabParam]);
 
   const [pendingPresent, setPendingPresent] = useState(false);
-  const [drillIndex, setDrillIndex] = useState<number | null>(null);
 
   const switchTab = (tab: string) => {
     setActiveTab(tab);
-    // Meeting Mode auto-presents: entering the tab fullscreens the panel
     if (tab === 'meeting') setPendingPresent(true);
     router.replace(tab === 'dashboard' ? '/dashboard' : `/dashboard?tab=${tab}`, { scroll: false });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Leaderboard roster — editable, persisted to localStorage
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(DEFAULT_LEADERBOARD);
-  const [rosterLoaded, setRosterLoaded] = useState(false);
+  // ---- Derived data core: sales entries → everything -----------------------
+  const [dataVersion, setDataVersion] = useState(0);
+  const bump = useCallback(() => setDataVersion(v => v + 1), []);
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(LEADERBOARD_STORAGE_KEY);
-      if (saved) setLeaderboard(JSON.parse(saved));
-    } catch {
-      // corrupted storage — keep defaults
+  // Re-read on tab return too (edits on other tabs change commission/roster)
+  useEffect(() => { bump(); }, [activeTab, bump]);
+
+  const [period, setPeriod] = useState<Period>('weekly');
+  const [storeSel, setStoreSel] = useState<string[]>([]);
+
+  const commission = useMemo(loadCommission, [dataVersion]);
+  const people = useMemo(loadPeople, [dataVersion]);
+  const sales = useMemo(loadSales, [dataVersion]);
+
+  const storeOptions = useMemo(() => {
+    const set = new Set<string>();
+    commission.stores.forEach(s => set.add(s.name));
+    people.forEach(p => p.store && set.add(p.store));
+    sales.forEach(s => s.store && set.add(s.store));
+    return Array.from(set);
+  }, [commission, people, sales]);
+
+  const agg = useMemo(
+    () => aggregateSales(sales, commission, { period, stores: storeSel }),
+    [sales, commission, period, storeSel]
+  );
+  const aggDaily = useMemo(
+    () => aggregateSales(sales, commission, { period: 'daily', stores: storeSel }),
+    [sales, commission, storeSel]
+  );
+  const aggWeekly = useMemo(
+    () => aggregateSales(sales, commission, { period: 'weekly', stores: storeSel }),
+    [sales, commission, storeSel]
+  );
+  const aggMonthly = useMemo(
+    () => aggregateSales(sales, commission, { period: 'monthly', stores: storeSel }),
+    [sales, commission, storeSel]
+  );
+
+  const hasData = sales.length > 0;
+  const premiumMix = agg.lines > 0 ? ((agg.premium / agg.lines) * 100).toFixed(1) : '0.0';
+
+  const generateDemo = () => {
+    saveSales(generateDemoSales(people, commission));
+    bump();
+  };
+
+  // Trend: last 7 days of revenue (respects store selection)
+  const trendData = useMemo(() => {
+    const days: string[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      days.push(d.toISOString().slice(0, 10));
     }
-    setRosterLoaded(true);
-  }, []);
+    return {
+      labels: days.map(d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' })),
+      datasets: [{
+        label: 'Revenue',
+        data: days.map(d => aggWeekly.perDay.get(d) ?? 0),
+        borderColor: '#3B82F6',
+        backgroundColor: 'rgba(59,130,246,0.1)',
+        fill: true, tension: 0.3, borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#3B82F6',
+      }],
+    };
+  }, [aggWeekly]);
 
-  useEffect(() => {
-    if (rosterLoaded) {
-      localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(leaderboard));
-    }
-  }, [leaderboard, rosterLoaded]);
+  // Pie: per-plan mix for the selected period (fixed plan order = stable colors)
+  const pie = useMemo(() => {
+    const planOrder = [...commission.phonePlans.map(p => p.name), ...commission.internet.map(p => p.name)];
+    const slices = planOrder
+      .map((plan, i) => ({ plan, color: PIE_PALETTE[i % PIE_PALETTE.length], stats: agg.perPlan.get(plan) }))
+      .filter(s => s.stats && s.stats.qty > 0) as Array<{ plan: string; color: string; stats: { qty: number } }>;
+    return {
+      labels: slices.map(s => s.plan),
+      values: slices.map(s => s.stats.qty),
+      colors: slices.map(s => s.color),
+    };
+  }, [agg, commission]);
 
-  const addRep = () => {
-    setLeaderboard(prev => [
-      ...prev,
-      { name: 'New Rep', store: 'Store', lines: 0, premium: 0, fiber: 0, commission: 0, role: 'rep' },
-    ]);
-  };
-
-  const removeRep = (index: number) => {
-    setLeaderboard(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const editRep = (index: number, field: keyof LeaderboardEntry, value: string) => {
-    setLeaderboard(prev =>
-      prev.map((entry, i) => {
-        if (i !== index) return entry;
-        if (NUMERIC_FIELDS.includes(field)) {
-          const num = parseFloat(value.replace(/[^0-9.-]/g, ''));
-          return { ...entry, [field]: Number.isFinite(num) ? num : 0 };
-        }
-        return { ...entry, [field]: value.trim() || entry[field] };
-      })
-    );
-  };
-
-  const resetRoster = () => {
-    setLeaderboard(DEFAULT_LEADERBOARD);
-    localStorage.removeItem(LEADERBOARD_STORAGE_KEY);
-  };
-
-  // Roster join: team names on leaderboard rows + rep profiles
-  const [people, setPeople] = useState<Person[]>([]);
-  useEffect(() => {
-    setPeople(loadPeople());
-  }, [activeTab]); // refresh after edits made on the Roster tab
-
-  const teamByName = useMemo(() => {
-    const map = new Map<string, string>();
-    people.forEach(p => { if (p.team) map.set(p.name.toLowerCase(), p.team); });
-    return map;
-  }, [people]);
-
+  const [drillPlan, setDrillPlan] = useState<string | null>(null);
+  const [showProduction, setShowProduction] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
 
-  // Store filter: view one store, several, or all
-  const [storeFilter, setStoreFilter] = useState<string[]>([]);
-  const storeOptions = useMemo(
-    () => Array.from(new Set(leaderboard.map(e => e.store.trim()).filter(Boolean))),
-    [leaderboard]
-  );
-  const toggleStore = (store: string) =>
-    setStoreFilter(prev => prev.includes(store) ? prev.filter(s => s !== store) : [...prev, store]);
-  const visibleRows = useMemo(
-    () => leaderboard
-      .map((entry, index) => ({ entry, index }))
-      .filter(({ entry }) => storeFilter.length === 0 || storeFilter.includes(entry.store.trim())),
-    [leaderboard, storeFilter]
-  );
+  // Leaderboard rows: roster people + their derived period stats
+  const leaderboardRows = useMemo(() => {
+    const statsByName = new Map(agg.perPerson.map(p => [p.person.toLowerCase(), p]));
+    const rows = people.map(person => {
+      const s = statsByName.get(person.name.toLowerCase());
+      return {
+        person,
+        stats: s ?? { person: person.name, store: person.store, lines: 0, premium: 0, internet: 0, nextUps: 0, insurance: 0, revenue: 0 } as PersonStats,
+      };
+    });
+    return rows.sort((a, b) => b.stats.revenue - a.stats.revenue);
+  }, [people, agg]);
 
-  // Presentation mode — fullscreen the meeting panel for TV / AirPlay sharing
+  // Meeting mode: its own period + live team stats from members' sales
+  const [meetingPeriod, setMeetingPeriod] = useState<Period>('daily');
+  const meetingAgg = useMemo(
+    () => aggregateSales(sales, commission, { period: meetingPeriod, stores: storeSel }),
+    [sales, commission, meetingPeriod, storeSel]
+  );
+  const meetingTeams = useMemo(() => {
+    let teams: TeamData[] = [];
+    try { teams = JSON.parse(localStorage.getItem('se-teams-v2') || '[]'); } catch { /* none */ }
+    const statsByName = new Map(meetingAgg.perPerson.map(p => [p.person.toLowerCase(), p]));
+    return teams.map(team => {
+      const memberNames = people
+        .filter(p => p.team === team.name)
+        .map(p => p.name)
+        .concat([team.lead, team.asm].filter(n => people.some(p => p.name.toLowerCase() === n.toLowerCase())));
+      const unique = Array.from(new Set(memberNames.map(n => n.toLowerCase())));
+      const sum = unique.reduce(
+        (acc, n) => {
+          const s = statsByName.get(n);
+          if (s) { acc.lines += s.lines; acc.premium += s.premium; acc.internet += s.internet; acc.revenue += s.revenue; }
+          return acc;
+        },
+        { lines: 0, premium: 0, internet: 0, revenue: 0 }
+      );
+      return { ...team, derived: sum };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meetingAgg, people, dataVersion]);
+
+  const avgAttendance = people.length
+    ? Math.round(people.reduce((a, p) => a + p.attendance, 0) / people.length * 10) / 10
+    : 0;
+  const topRepDaily = aggDaily.perPerson[0]?.person ?? '—';
+
+  // Weekly goals (targets static for now; progress derived)
+  const goals = [
+    { label: 'Total Lines', current: aggWeekly.lines, target: 200, color: 'blue' },
+    { label: 'Premium', current: aggWeekly.premium, target: 80, color: 'purple' },
+  ];
+
+  // Presentation mode
   const meetingRef = useRef<HTMLDivElement>(null);
   const togglePresentation = () => {
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
-    } else {
-      meetingRef.current?.requestFullscreen?.().catch(() => {});
-    }
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else meetingRef.current?.requestFullscreen?.().catch(() => {});
   };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (activeTab !== 'meeting') return;
       if ((document.activeElement as HTMLElement | null)?.isContentEditable) return;
+      const tag = (document.activeElement as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT') return;
       if (e.key === 'f' || e.key === 'F') togglePresentation();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [activeTab]);
 
-  // Auto-present: fires right after the meeting panel mounts, while the
-  // click's transient user activation is still valid for the Fullscreen API.
   useEffect(() => {
     if (activeTab === 'meeting' && pendingPresent) {
       setPendingPresent(false);
@@ -528,46 +457,48 @@ function DashboardContent() {
     }
   }, [activeTab, pendingPresent]);
 
-  // Branded PDF: renders ReportTemplate off-screen, captures it, then unmounts it
+  // PDF: crisp print-based export (vector text, browser Save as PDF)
   const [exporting, setExporting] = useState(false);
-
   useEffect(() => {
     if (!exporting) return;
-    const timer = setTimeout(() => {
-      const element = document.getElementById('pdf-report');
-      if (!element) { setExporting(false); return; }
-      import('html2pdf.js').then(({ default: html2pdf }) => {
-        html2pdf().set({
-          margin: [0.35, 0.35, 0.45, 0.35],
-          filename: `Sales_Engine_Report_${new Date().toISOString().slice(0, 10)}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, letterRendering: true, useCORS: true, logging: false, backgroundColor: '#FFFFFF' },
-          jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
-          pagebreak: { mode: ['avoid-all', 'css'] },
-        }).from(element).save().finally(() => setExporting(false));
-      }).catch(() => setExporting(false));
-    }, 120);
-    return () => clearTimeout(timer);
+    const prevTitle = document.title;
+    document.title = `Sales_Engine_Report_${new Date().toISOString().slice(0, 10)}`;
+    const done = () => { document.title = prevTitle; setExporting(false); };
+    window.addEventListener('afterprint', done, { once: true });
+    const t = setTimeout(() => window.print(), 150);
+    return () => { clearTimeout(t); window.removeEventListener('afterprint', done); };
   }, [exporting]);
 
-  const exportPDF = () => setExporting(true);
+  const reportRows = useMemo(
+    () => leaderboardRows
+      .filter(r => r.stats.revenue > 0 || r.stats.lines > 0 || r.stats.internet > 0)
+      .map(r => ({
+        name: r.person.name, store: r.person.store,
+        lines: r.stats.lines, premium: r.stats.premium, fiber: r.stats.internet,
+        commission: r.stats.revenue, role: r.person.role.toLowerCase(),
+      })),
+    [leaderboardRows]
+  );
 
   return (
     <DashboardLayout>
       {/* Header */}
-      <div className="slide-in mb-6 flex flex-wrap items-center justify-between">
+      <div className="slide-in mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl lg:text-4xl font-bold neon-text-blue">Dashboard</h1>
           <p className="text-text-secondary text-sm mt-0.5">AT&T campaign · white-label ready</p>
         </div>
-        <Button onClick={exportPDF} className="mt-2 lg:mt-0">
-          <FileText className="w-4 h-4" />
-          Export PDF
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <PeriodChips period={period} onChange={setPeriod} />
+          <StoreSelect options={storeOptions} selected={storeSel} onChange={setStoreSel} />
+          <Button onClick={() => setExporting(true)} size="sm">
+            <FileText className="w-4 h-4" /> Export PDF
+          </Button>
+        </div>
       </div>
 
-      {/* Campaign Badge */}
-      <div className="slide-in mb-6 flex flex-wrap items-center gap-2">
+      {/* Campaign badges */}
+      <div className="slide-in mb-4 flex flex-wrap items-center gap-2">
         <Badge variant="green" className="text-xs flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse" /> Live
         </Badge>
@@ -575,57 +506,15 @@ function DashboardContent() {
           <Building2 className="w-3 h-3" /> AT&T Retailer
         </Badge>
         <Badge variant="gray" className="text-xs flex items-center gap-1.5">
-          <MapPin className="w-3 h-3" /> 8 Stores
+          <MapPin className="w-3 h-3" /> {storeOptions.length} Stores
         </Badge>
+        <Badge variant="blue" className="text-xs">{PERIOD_LABELS[period]} view{storeSel.length ? ` · ${storeSel.join(', ')}` : ' · all stores'}</Badge>
       </div>
 
-      {/* Stats */}
-      <div className="slide-in grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4">
-        {stats.map((stat, i) => (
-          <StatCard key={stat.label} {...stat} className={`stagger-${i + 1}`} />
-        ))}
-      </div>
-
-      {/* Charts */}
-      <div className="slide-in grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-        <ChartCard title="Commission Trend" icon={TrendingUp} color="blue">
-          <LineChart data={commissionData} />
-        </ChartCard>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2">
-              <PieChart className="w-4 h-4 text-accent-purple" />
-              Product Mix
-              <span className="text-[10px] text-text-muted font-normal uppercase tracking-wider">3D · hover a slice</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <PieChart3D
-              data={productMix.values}
-              labels={productMix.labels}
-              colors={productMix.colors}
-              height={150}
-              onSliceClick={(i) => setDrillIndex(i)}
-            />
-            <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-2">
-              {productMix.labels.map((label, i) => (
-                <button
-                  key={label}
-                  onClick={() => setDrillIndex(i)}
-                  className="flex items-center gap-1.5 text-[10px] text-text-secondary hover:text-white transition-colors"
-                >
-                  <span className="w-2 h-2 rounded-full" style={{ background: productMix.colors[i] }} />
-                  {label}
-                </button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tabs */}
-      <div className="slide-in mt-6 mb-4 flex gap-1.5 overflow-x-auto pb-1.5 scrollbar-hide">
+      {/* Tabs — moved above content so switching changes the view immediately */}
+      <div className="slide-in mb-4 flex gap-1.5 overflow-x-auto pb-1.5 scrollbar-hide">
         <TabButton isActive={activeTab === 'dashboard'} onClick={() => switchTab('dashboard')}>Dashboard</TabButton>
+        <TabButton isActive={activeTab === 'tracker'} onClick={() => switchTab('tracker')}>Daily Tracker</TabButton>
         <TabButton isActive={activeTab === 'roster'} onClick={() => switchTab('roster')}>Roster</TabButton>
         <TabButton isActive={activeTab === 'leaderboard'} onClick={() => switchTab('leaderboard')}>Leaderboard</TabButton>
         <TabButton isActive={activeTab === 'meeting'} onClick={() => switchTab('meeting')}>Meeting Mode</TabButton>
@@ -633,34 +522,97 @@ function DashboardContent() {
         <TabButton isActive={activeTab === 'commission'} onClick={() => switchTab('commission')}>Commission</TabButton>
       </div>
 
-      {/* Tab Panels */}
       {activeTab === 'dashboard' && (
         <div id="tab-dashboard" className="tab-panel">
+          {!hasData && (
+            <Card className="mb-4 p-5 border-accent-blue/30">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-sm">No sales logged yet — the whole dashboard derives from the Daily Tracker.</p>
+                  <p className="text-xs text-text-secondary mt-0.5">Log real sales, or fill everything with realistic sample data for a demo.</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => switchTab('tracker')}><ClipboardList className="w-3.5 h-3.5" /> Open Tracker</Button>
+                  <Button variant="secondary" size="sm" onClick={generateDemo}><Sparkles className="w-3.5 h-3.5" /> Generate Demo Data</Button>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* KPIs — derived; click for the who-did-what breakdown */}
+          <div className="slide-in grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4">
+            <StatCard label={`${PERIOD_LABELS[period]} Lines`} value={String(agg.lines)} sub={`${aggDaily.lines} today`} icon={TrendingUp} color="blue" onClick={() => setShowProduction(true)} className="stagger-1" />
+            <StatCard label="Internet" value={String(agg.internet)} sub={`${agg.nextUps} next ups`} icon={Zap} color="purple" onClick={() => setShowProduction(true)} className="stagger-2" />
+            <StatCard label="Revenue" value={formatCurrency(agg.revenue)} sub={`Tier ${commission.tier} payouts`} icon={DollarSign} color="green" onClick={() => setShowProduction(true)} className="stagger-3" />
+            <StatCard label="Premium Mix" value={`${premiumMix}%`} sub={`${agg.premium} premium lines`} icon={Star} color="yellow" onClick={() => setShowProduction(true)} className="stagger-4" />
+          </div>
+
+          {/* Charts */}
+          <div className="slide-in grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-accent-blue" /> Revenue Trend
+                  <span className="text-[10px] text-text-muted font-normal uppercase tracking-wider">last 7 days</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div style={{ position: 'relative', height: '180px', width: '100%' }}>
+                  <LineChart data={trendData} />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2">
+                  <PieChart className="w-4 h-4 text-accent-purple" /> Product Mix
+                  <span className="text-[10px] text-text-muted font-normal uppercase tracking-wider">3D · click a slice for the breakdown</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {pie.values.length > 0 ? (
+                  <>
+                    <PieChart3D data={pie.values} labels={pie.labels} colors={pie.colors} height={150} onSliceClick={(i) => setDrillPlan(pie.labels[i])} />
+                    <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-2">
+                      {pie.labels.map((label, i) => (
+                        <button key={label} onClick={() => setDrillPlan(label)} className="flex items-center gap-1.5 text-[10px] text-text-secondary hover:text-white transition-colors">
+                          <span className="w-2 h-2 rounded-full" style={{ background: pie.colors[i] }} />
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-text-muted text-center py-14">No product mix yet — log sales in the Daily Tracker.</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Top performers + attendance + goals */}
           <div className="slide-in grid grid-cols-1 lg:grid-cols-3 gap-4">
             <Card className="lg:col-span-2 p-5">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2">
-                  <Trophy className="w-4 h-4 text-accent-yellow" />
-                  Top Performers
+                  <Trophy className="w-4 h-4 text-accent-yellow" /> Top Performers · {PERIOD_LABELS[period]}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {topPerformers.map((performer) => (
-                    <div key={performer.rank} className="flex items-center gap-3 p-3 rounded-xl glass border border-border-subtle">
-                      <span className={cn('text-xl font-bold', performer.color === 'yellow' && 'text-accent-yellow', performer.color === 'gray' && 'text-text-secondary', performer.color === 'orange' && 'text-accent-orange')}>
-                        #{performer.rank}
-                      </span>
+                  {agg.perPerson.slice(0, 3).map((p, i) => (
+                    <button key={p.person} onClick={() => setProfileName(p.person)} className="w-full flex items-center gap-3 p-3 rounded-xl glass border border-border-subtle hover:border-border-strong transition-all text-left">
+                      <span className={cn('text-xl font-bold', i === 0 && 'text-accent-yellow', i === 1 && 'text-text-secondary', i === 2 && 'text-accent-orange')}>#{i + 1}</span>
                       <div className="flex-1">
-                        <p className="font-semibold text-sm">{performer.name}</p>
-                        <p className="text-xs text-text-secondary">{performer.store}</p>
+                        <p className="font-semibold text-sm">{p.person}</p>
+                        <p className="text-xs text-text-secondary">{p.store}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-accent-green text-sm">{formatCurrency(performer.commission)}</p>
-                        <p className="text-xs text-text-secondary">{performer.lines} lines</p>
+                        <p className="font-bold text-accent-green text-sm">{formatCurrency(p.revenue)}</p>
+                        <p className="text-xs text-text-secondary">{p.lines} lines · {p.internet} internet</p>
                       </div>
-                    </div>
+                    </button>
                   ))}
+                  {agg.perPerson.length === 0 && <p className="text-xs text-text-muted p-3">No production in this period yet.</p>}
                 </div>
               </CardContent>
             </Card>
@@ -668,54 +620,33 @@ function DashboardContent() {
             <div className="space-y-4">
               <Card className="p-5">
                 <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2">
-                    <CalendarCheck className="w-4 h-4" />
-                    Attendance
-                  </CardTitle>
+                  <CardTitle className="flex items-center gap-2"><CalendarCheck className="w-4 h-4" /> Attendance</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-center">
-                      <p className="text-xl font-bold text-accent-green">{attendanceData.present}</p>
-                      <p className="text-[10px] text-text-muted">Present</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xl font-bold text-accent-yellow">{attendanceData.late}</p>
-                      <p className="text-[10px] text-text-muted">Late</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xl font-bold text-accent-red">{attendanceData.absent}</p>
-                      <p className="text-[10px] text-text-muted">Absent</p>
-                    </div>
+                  <p className="text-3xl font-bold neon-text-green text-center">{avgAttendance}%</p>
+                  <p className="text-[10px] text-text-muted text-center mt-1">team average · per-person on the Roster tab</p>
+                  <div className="w-full h-1.5 rounded-full bg-bg-tertiary mt-2">
+                    <div className="h-full rounded-full bg-gradient-to-r from-accent-green to-accent-blue" style={{ width: `${avgAttendance}%` }} />
                   </div>
-                  <div className="w-full h-1.5 rounded-full bg-bg-tertiary">
-                    <div className="h-full rounded-full bg-gradient-to-r from-accent-green to-accent-blue" style={{ width: `${attendancePercent}%` }} />
-                  </div>
-                  <p className="text-xs text-text-secondary mt-1">{attendancePercent}% Attendance</p>
                 </CardContent>
               </Card>
 
               <Card className="p-5">
                 <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center gap-2">
-                    <Target className="w-4 h-4 text-accent-green" />
-                    Weekly Goals
-                  </CardTitle>
+                  <CardTitle className="flex items-center gap-2"><Target className="w-4 h-4 text-accent-green" /> Weekly Goals</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {goals.map((goal) => (
+                    {goals.map(goal => (
                       <div key={goal.label}>
                         <div className="flex justify-between text-xs mb-0.5">
                           <span className="text-text-secondary">{goal.label}</span>
-                          <span className={cn('font-medium', goal.color === 'blue' && 'text-accent-blue', goal.color === 'purple' && 'text-accent-purple')}>
+                          <span className={cn('font-medium', goal.color === 'blue' ? 'text-accent-blue' : 'text-accent-purple')}>
                             {formatNumber(goal.current)} / {formatNumber(goal.target)}
                           </span>
                         </div>
                         <div className="w-full h-1.5 rounded-full bg-bg-tertiary">
-                          <div className="h-full rounded-full" style={{ width: `${(goal.current / goal.target) * 100}%` }}>
-                            <div className="h-full rounded-full" style={{ background: goal.color === 'blue' ? 'linear-gradient(to right, #3B82F6, #60A5FA)' : 'linear-gradient(to right, #A855F7, #C084FC)' }} />
-                          </div>
+                          <div className="h-full rounded-full" style={{ width: `${Math.min(100, (goal.current / goal.target) * 100)}%`, background: goal.color === 'blue' ? 'linear-gradient(to right, #3B82F6, #60A5FA)' : 'linear-gradient(to right, #A855F7, #C084FC)' }} />
                         </div>
                       </div>
                     ))}
@@ -727,10 +658,18 @@ function DashboardContent() {
         </div>
       )}
 
+      {activeTab === 'tracker' && (
+        <div id="tab-tracker" className="tab-panel">
+          <Card className="p-5">
+            <DailyTracker onDataChange={bump} />
+          </Card>
+        </div>
+      )}
+
       {activeTab === 'roster' && (
         <div id="tab-roster" className="tab-panel">
           <Card className="p-5">
-            <RosterManager />
+            <RosterManager onOpenProfile={(name) => setProfileName(name)} />
           </Card>
         </div>
       )}
@@ -741,64 +680,51 @@ function DashboardContent() {
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h2 className="text-xl font-bold neon-text-purple">
                 Team Leaderboard
-                <span className="text-xs text-text-muted font-normal ml-2">(click any text to edit)</span>
+                <span className="text-xs text-text-muted font-normal ml-2">{PERIOD_LABELS[period]} · derived from the Daily Tracker</span>
               </h2>
               <div className="flex items-center gap-2">
-                <Button size="sm" onClick={addRep}>+ Add Rep</Button>
-                <Button variant="ghost" size="sm" onClick={resetRoster}>↻ Reset</Button>
+                <PeriodChips period={period} onChange={setPeriod} />
+                <Button size="sm" onClick={() => switchTab('roster')}>+ Add Rep (Roster)</Button>
               </div>
-            </div>
-            {/* Store filter — one store, several, or all */}
-            <div className="flex flex-wrap items-center gap-1.5 mb-3">
-              <span className="text-[10px] text-text-muted uppercase tracking-wider mr-1">Stores:</span>
-              <button
-                onClick={() => setStoreFilter([])}
-                className={cn('tab-btn', storeFilter.length === 0 ? 'active' : 'inactive')}
-              >
-                All
-              </button>
-              {storeOptions.map(store => (
-                <button
-                  key={store}
-                  onClick={() => toggleStore(store)}
-                  className={cn('tab-btn', storeFilter.includes(store) ? 'active' : 'inactive')}
-                >
-                  {store}
-                </button>
-              ))}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
-                    <th className="pb-2">Rank</th>
-                    <th className="pb-2">Rep / Team</th>
-                    <th className="pb-2">Store</th>
-                    <th className="pb-2">Team</th>
-                    <th className="pb-2">Lines</th>
-                    <th className="pb-2">Premium</th>
-                    <th className="pb-2">Fiber</th>
-                    <th className="pb-2">Commission</th>
-                    <th className="pb-2"><span className="sr-only">Actions</span></th>
+                    <th className="pb-2">Rank</th><th className="pb-2">Rep</th><th className="pb-2">Store</th><th className="pb-2">Team</th>
+                    <th className="pb-2 text-right">Lines</th><th className="pb-2 text-right">Premium</th>
+                    <th className="pb-2 text-right">Internet</th><th className="pb-2 text-right">Next Up</th>
+                    <th className="pb-2 text-right">Payout</th>
                   </tr>
                 </thead>
-                <tbody id="leaderboardBody" className="divide-y divide-border-subtle">
-                  {visibleRows.map(({ entry, index }, vi) => (
-                    <LeaderboardRow
-                      key={index}
-                      entry={{ ...entry, rank: vi + 1 }}
-                      teamName={teamByName.get(entry.name.trim().toLowerCase())}
-                      onEdit={(field, value) => editRep(index, field, value)}
-                      onRemove={() => removeRep(index)}
-                      onOpenProfile={() => setProfileName(entry.name)}
-                    />
-                  ))}
+                <tbody className="divide-y divide-border-subtle">
+                  {leaderboardRows
+                    .filter(r => storeSel.length === 0 || storeSel.some(s => s.toLowerCase() === r.person.store.toLowerCase()))
+                    .map((row, i) => (
+                      <tr key={row.person.id} className="hover:bg-white/5 transition-colors">
+                        <td className="py-2"><span className={cn('font-bold', i === 0 && 'text-yellow-400', i === 1 && 'text-gray-400', i === 2 && 'text-orange-400', i > 2 && 'text-gray-500')}>#{i + 1}</span></td>
+                        <td className="py-2">
+                          <button onClick={() => setProfileName(row.person.name)} className="font-medium hover:text-accent-blue transition-colors">{row.person.name}</button>
+                        </td>
+                        <td className="py-2 text-text-secondary">{row.person.store}</td>
+                        <td className="py-2">
+                          {row.person.team
+                            ? <span className="px-2 py-0.5 rounded-full bg-accent-purple/10 text-accent-purple border border-accent-purple/20 text-[10px]">{row.person.team}</span>
+                            : <span className="text-text-muted text-[10px]">—</span>}
+                        </td>
+                        <td className="py-2 text-right font-semibold">{row.stats.lines}</td>
+                        <td className="py-2 text-right text-accent-purple">{row.stats.premium}</td>
+                        <td className="py-2 text-right text-accent-cyan">{row.stats.internet}</td>
+                        <td className="py-2 text-right text-accent-red">{row.stats.nextUps}</td>
+                        <td className="py-2 text-right text-accent-green font-bold">{formatCurrency(row.stats.revenue)}</td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>
             <div className="mt-3 text-xs text-text-secondary flex items-center gap-2">
               <Users className="w-3 h-3" />
-              Click any cell to edit · hover a row: person icon = profile &amp; roadmap, trash = remove · changes save automatically
+              Click a name for profile &amp; roadmap · numbers come from the Daily Tracker priced at your Commission settings
             </div>
           </Card>
         </div>
@@ -808,28 +734,46 @@ function DashboardContent() {
         <div id="tab-meeting" ref={meetingRef} className="tab-panel">
           <Card className="p-5">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-              <h2 className="text-xl font-bold neon-text-blue">
-                Meeting Mode · Daily Trackers
-                <span className="text-xs text-text-muted font-normal ml-2">(click to edit)</span>
-              </h2>
-              <Button size="sm" onClick={togglePresentation}>
-                <Maximize2 className="w-3.5 h-3.5" />
-                Present
-              </Button>
+              <h2 className="text-xl font-bold neon-text-blue">Meeting Mode</h2>
+              <div className="flex items-center gap-2">
+                <PeriodChips period={meetingPeriod} onChange={setMeetingPeriod} options={['daily', 'weekly', 'all']} />
+                <Button size="sm" onClick={togglePresentation}><Maximize2 className="w-3.5 h-3.5" /> Present</Button>
+              </div>
             </div>
 
-            {/* Daily Trackers */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-              {meetingTrackers.map((tracker, i) => (
-                <MeetingTracker key={i} {...tracker} />
-              ))}
+              <MeetingTracker label={`${PERIOD_LABELS[meetingPeriod]} Lines`} value={String(meetingAgg.lines)} color="blue" size="2xl" />
+              <MeetingTracker label="Top Rep Today" value={topRepDaily} color="purple" size="lg" />
+              <MeetingTracker label="Attendance" value={`${avgAttendance}%`} color="green" size="2xl" />
+              <MeetingTracker label="Revenue" value={formatCurrency(meetingAgg.revenue)} color="yellow" size="2xl" />
             </div>
 
-            <TeamsEditor />
-
+            <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-2">
+              <Users className="w-4 h-4" /> Teams · live from members&apos; sales
+              <span className="text-[10px] text-text-muted font-normal">(build teams on the Roster tab)</span>
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {meetingTeams.map((team, i) => (
+                <div key={i} className={cn('glass rounded-xl p-4 border', { blue: 'border-accent-blue/10', purple: 'border-accent-purple/10', cyan: 'border-accent-cyan/10', yellow: 'border-accent-yellow/10' }[team.color] ?? 'border-accent-blue/10')}>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="font-medium">{team.name}</span>
+                    <span className="text-xs text-accent-green font-semibold">{formatCurrency(team.derived.revenue)}</span>
+                  </div>
+                  <p className="text-[10px] text-text-muted mb-2">Lead: <span className="text-accent-purple">{team.lead}</span> · ASM: <span className="text-accent-yellow">{team.asm}</span></p>
+                  <div className="flex justify-between text-xs text-text-secondary">
+                    <span>Lines: <span className="text-white">{team.derived.lines}</span></span>
+                    <span>Premium: <span className="text-white">{team.derived.premium}</span></span>
+                    <span>Internet: <span className="text-white">{team.derived.internet}</span></span>
+                  </div>
+                </div>
+              ))}
+              {meetingTeams.length === 0 && (
+                <p className="text-xs text-text-muted p-3 rounded-xl bg-white/5 md:col-span-2">No teams yet — build them with drag &amp; drop on the Roster tab.</p>
+              )}
+            </div>
             <div className="mt-3 text-xs text-text-secondary flex items-center gap-2">
               <Users className="w-3 h-3" />
-              Click any number or name to edit for your daily standup · Present = fullscreen for the TV · Esc exits
+              Auto-fullscreen on entry · Present button or F toggles · Esc exits
             </div>
           </Card>
         </div>
@@ -838,32 +782,24 @@ function DashboardContent() {
       {activeTab === 'pnl' && (
         <div id="tab-pnl" className="tab-panel">
           <Card className="p-5">
-            <PnlEditor />
+            <PnlEditor derivedCommission={aggMonthly.revenue} />
           </Card>
         </div>
       )}
 
       {activeTab === 'commission' && (
         <div id="tab-commission" className="tab-panel">
-          <Card className="p-5">
-            <CommissionEngine />
-          </Card>
+          <Card className="p-5"><CommissionEngine /></Card>
         </div>
       )}
 
-      {drillIndex !== null && <SliceDrawer index={drillIndex} onClose={() => setDrillIndex(null)} />}
-
-      {profileName && (
-        <ProfileDrawer
-          name={profileName}
-          entry={leaderboard.find(e => e.name === profileName)}
-          onClose={() => setProfileName(null)}
-        />
-      )}
+      {drillPlan && <SliceDrawer plan={drillPlan} agg={agg} onClose={() => setDrillPlan(null)} />}
+      {showProduction && <ProductionDrawer agg={agg} period={period} onClose={() => setShowProduction(false)} onOpenProfile={(n) => { setShowProduction(false); setProfileName(n); }} />}
+      {profileName && <ProfileDrawer name={profileName} period={period} onClose={() => setProfileName(null)} />}
 
       {exporting && (
-        <div style={{ position: 'absolute', left: -10000, top: 0 }} aria-hidden="true">
-          <ReportTemplate leaderboard={leaderboard} />
+        <div id="print-root">
+          <ReportTemplate leaderboard={reportRows} />
         </div>
       )}
     </DashboardLayout>

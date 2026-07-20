@@ -73,7 +73,7 @@ export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[
   ];
 
   return (
-    <div id="pdf-report" style={{ width: 760, background: '#FFFFFF', fontFamily: 'Inter, Arial, sans-serif', color: INK }}>
+    <div id="pdf-report" style={{ width: '100%', maxWidth: 780, margin: '0 auto', background: '#FFFFFF', fontFamily: 'Inter, Arial, sans-serif', color: INK }}>
       {/* Header band */}
       <div style={{ background: '#000000', padding: '20px 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>

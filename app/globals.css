@@ -238,6 +238,37 @@
   .stagger-6 { animation-delay: 300ms; }
 }
 
+/* PDF export: #print-root is hidden on screen; when printing, ONLY the report
+   is visible — vector text, exact colors, no rasterization */
+#print-root {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #print-root {
+    display: block;
+    visibility: visible;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  #print-root * {
+    visibility: visible;
+  }
+  #print-root,
+  #print-root * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .orb {
+    display: none !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

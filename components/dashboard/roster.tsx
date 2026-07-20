@@ -1,9 +1,11 @@
 'use client';
 
+import { useState } from 'react';
 import { useLocalState, Editable, parseNum } from './editable-sections';
 import { cn, formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, TrendingUp, Award, UserPlus } from 'lucide-react';
+import { Trash2, TrendingUp, Award, UserPlus, Pencil } from 'lucide-react';
+import { TeamTree } from './team-tree';
 
 // ---------------------------------------------------------------------------
 // People — the single roster every view joins against (leaderboard, teams,
@@ -104,12 +106,16 @@ export function promotionStatus(person: Person, rules: PromotionRules) {
 
 let personCounter = 100;
 
-export function RosterManager() {
+export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string) => void }) {
   const { state: people, setState: setPeople, reset: resetPeople } = useLocalState<Person[]>(PEOPLE_KEY, DEFAULT_PEOPLE);
   const { state: rules, setState: setRules, reset: resetRules } = useLocalState<PromotionRules>(PROMO_RULES_KEY, DEFAULT_PROMO_RULES);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const edit = (id: string, patch: Partial<Person>) =>
     setPeople(prev => prev.map(p => (p.id === id ? { ...p, ...patch } : p)));
+
+  const assignTeam = (name: string, team: string) =>
+    setPeople(prev => prev.map(p => (p.name.toLowerCase() === name.toLowerCase() ? { ...p, team } : p)));
 
   const addPerson = () =>
     setPeople(prev => [...prev, {
@@ -186,7 +192,30 @@ export function RosterManager() {
               return (
                 <tr key={person.id} className="group hover:bg-white/5 transition-colors">
                   <td className="py-2 pr-2 font-medium">
-                    <Editable value={person.name} onCommit={(v) => edit(person.id, { name: v.trim() || person.name })} />
+                    {editingId === person.id ? (
+                      <Editable
+                        value={person.name}
+                        onCommit={(v) => { edit(person.id, { name: v.trim() || person.name }); setEditingId(null); }}
+                      />
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5">
+                        <button
+                          onClick={() => onOpenProfile(person.name)}
+                          className="hover:text-accent-blue transition-colors text-left"
+                          title="View profile, stats & roadmap"
+                        >
+                          {person.name}
+                        </button>
+                        <button
+                          onClick={() => setEditingId(person.id)}
+                          className="p-0.5 rounded text-text-muted opacity-0 group-hover:opacity-100 hover:text-white transition-all"
+                          aria-label={`Rename ${person.name}`}
+                          title="Rename"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
                   </td>
                   <td className="py-2 pr-2">
                     <button
@@ -251,9 +280,11 @@ export function RosterManager() {
         </table>
       </div>
       <p className="mt-3 text-xs text-text-secondary">
-        Click any value to edit · click a role badge to change role · when someone meets the roadmap rules a green Promote button appears ·
-        unassigned employees auto-fill new teams in Meeting Mode
+        Click a name for their profile &amp; stats · pencil to rename · click a role badge to change role ·
+        when someone meets the roadmap rules a green Promote button appears
       </p>
+
+      <TeamTree people={people} assignTeam={assignTeam} />
     </div>
   );
 }

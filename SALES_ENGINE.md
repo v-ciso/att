@@ -11,33 +11,44 @@ required in preview mode. Design system: `DESIGN.md` · visual prototype: `engin
 
 ## Pages & features
 
+**The core principle: you never type revenue.** You log *what was sold* in the Daily
+Tracker (rep, plan, qty, next-ups, insurance) and every other number — revenue,
+leaderboard, KPIs, product mix, meeting stats, P&L commission — derives automatically,
+priced through the editable Commission Engine (tier × store multiplier), with the
+breakdown of where each dollar came from always visible.
+
 | Where | What it does |
 |---|---|
 | `/` | Redirects to the dashboard (no login gate in preview mode) |
-| **Dashboard tab** | KPI tiles (animated count-up), commission trend line, **3D product-mix pie** — click a slice or legend chip → drill-down drawer (units, mix %, payout/unit *live from the Commission engine*, est. revenue, 7-day trend). Top performers, attendance ring, weekly goals |
-| **Roster tab** | The **single source of truth for people**: add/remove employees, click role badge to change role, assign store + team, weekly profit + attendance per person, and the **Leadership Roadmap** — editable rules (default: $5,000 profit/wk × 2 wks + ≥90% attendance). When someone qualifies, a green **Promote** button appears; ladder is Intern → Sales Rep → Lead → ASM/AD |
-| **Leaderboard tab** | Editable rep table (click any cell), add/remove reps, auto-ranked. **Team column auto-joins from the Roster** by name. **Store filter chips** — view All, one store, or several. Hover a row: 👤 opens the rep's **profile drawer** (stats, role/store/team, roadmap ladder, weekly profit vs. target, attendance) |
-| **Meeting Mode tab** | **Auto-fullscreens on entry** (Present button / F key / Esc as controls) for TV·AirPlay. Editable daily trackers. **Teams**: Add Team **auto-populates unassigned people from the Roster** (picks an available Lead and ASM too); appoint Lead/ASM by clicking names; member chips add/remove |
-| **P&L tab** | Add/remove/edit revenue, expenses, roadtrips. Roadtrip reimbursement (editable %, default 60%) auto-flows to revenue. Live net profit + margin |
-| **Commission tab** | The payout engine: **Tiers 1–5** (Tier 5 highest, editable $-per-tier drop, default $5), **stores** add/remove with per-store multipliers, three editable payout groups — Phone (Premium/Extra/Value 2.0, Upgrades), Internet (Internet Air, Fiber 300→5GIG), Add-Ons (Next Up Anytime $10, Insurance) — plus the role structure (Lead +$5/line, ASM % override, Owner) |
-| **Export PDF** (header) | Branded report: company header, KPI tiles, leaderboard table, full P&L, payout structure at current tier/store, **and the roster + roadmap table** — all pulled from live data, dated filename |
-| `/settings` | White-label: company name, colors, logo, feature toggles (drives the whole UI + PDF header) |
+| **Dashboard tab** | **Period selector (Daily/Weekly/Monthly/All) + multi-store dropdown** (one, several, or all stores) — every widget respects both. Derived KPI tiles (count-up animated); **clicking any KPI opens the "who did what" production drawer**. 7-day revenue trend, **3D product-mix pie** — click a slice → sold count, mix %, revenue, and the **Next Up attach breakdown** ("6 of 15 lines carried Next Up, +$60"). Top performers (click → profile), team-average attendance, weekly goals with derived progress. Empty state offers **Generate Demo Data** |
+| **Daily Tracker tab** | The morning workflow: date + rep dropdown + plan dropdown (from your Commission lists) + qty/next-ups/insurance → Add Sale. Each entry shows its payout with an expandable **"where this money comes from"** breakdown. Generate Demo Data / Clear All |
+| **Roster tab** | Single source of truth for people: add/remove, **click a name → full profile & stats**, pencil to rename, role badges, store + team, weekly profit + attendance. **Leadership Roadmap** — editable rules (default $5,000/wk × 2 wks + ≥90% attendance) → green **Promote** button when met. Below it, the **Team Builder: drag & drop people** between an Unassigned pool and team cards with an **org tree** (ASM → Lead → members) |
+| **Leaderboard tab** | Derived, auto-ranked by payout for the selected period + stores. Team chips joined from roster. Click a name → profile drawer (period production, roadmap ladder, attendance) |
+| **Meeting Mode tab** | **Auto-fullscreens on entry** (Present / F / Esc). Own period chips (Daily/Weekly/All). Trackers and **team cards compute live from members' sales**. Team membership managed in the Roster's Team Builder |
+| **P&L tab** | Manual revenue/expense/roadtrip line items + **auto rows**: this month's sales commission (derived) and the roadtrip reimbursement (editable %, default 60%). Live net profit + margin |
+| **Commission tab** | The pricing brain: Tiers 1–5 (editable $-per-tier drop), stores add/remove with multipliers, editable payout groups — Phone (Premium/Extra/Value 2.0, Upgrades), Internet (Internet Air, Fiber 300→5GIG), Add-Ons (Next Up Anytime, Insurance), role structure. **Change a number here and every derived stat recomputes** |
+| **Export PDF** (header) | Crisp print-based export (vector text, not screenshots): branded header, derived KPI tiles, leaderboard, P&L, payout structure, roster + roadmap. Print dialog → Save as PDF |
+| `/settings` | White-label: company name, colors, logo, feature toggles |
 | `/demo` | Public marketing page with pricing |
 
-**Every edit saves automatically** (browser localStorage in preview mode) and every section has a Reset.
+**Every edit saves automatically** (browser localStorage in preview mode) and every section has a Reset that recomputes all derived views.
 
 ## Data model (joined by design)
 
 ```
+SaleEntry { date, person, store, plan, qty, nextUps, insurance }      ← the ONLY thing you enter
 Person { name, role: INTERN|REP|LEAD|ASM, store, team, weeklyProfit[], attendance% }
-Team { name, lead, asm, members[], lines, premium, fiber, progress }
-LeaderboardEntry { name, store, lines, premium, fiber, commission }   ← team joined from Person by name
+Team { name, color, lead, asm }                                        ← membership lives on Person.team
 CommissionState { tier 1-5, tierDelta, stores[{name, multiplier}], phonePlans[], internet[], addOns[], roles[] }
-PnlState { revenue[], expenses[], roadtrips[], reimburseRate% }
+PnlState { revenue[], expenses[], roadtrips[], reimburseRate% }        ← + auto commission from sales
 PromotionRules { profitPerWeek, weeks, minAttendance }
+
+Derivation (lib/sales.ts): revenue = Σ qty × payout(plan, tier, store-multiplier)
+                                    + nextUps × payout(NextUp) + insurance × payout(Insurance)
+aggregateSales(period, stores) → lines/premium/internet/nextUps/revenue, per-person, per-plan, per-day
 ```
 
-localStorage keys: `se-people-v1`, `se-teams-v2`, `se-leaderboard-v1`, `se-commission-v1`,
+localStorage keys: `se-sales-v1`, `se-people-v1`, `se-teams-v2`, `se-commission-v1`,
 `se-pnl-v1`, `se-promo-rules-v1`, `se-theme-v1`.
 
 ## Payout economics (owner's model)
