@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/utils';
-import { Trash2 } from 'lucide-react';
+import { Trash2, User } from 'lucide-react';
 
 export interface LeaderboardEntry {
   name: string;
@@ -16,19 +16,21 @@ export interface LeaderboardEntry {
 
 interface LeaderboardRowProps {
   entry: LeaderboardEntry & { rank: number };
+  teamName?: string;
   onEdit: (field: keyof LeaderboardEntry, value: string) => void;
   onRemove: () => void;
+  onOpenProfile?: () => void;
 }
 
-export function LeaderboardRow({ entry, onEdit, onRemove }: LeaderboardRowProps) {
+export function LeaderboardRow({ entry, teamName, onEdit, onRemove, onOpenProfile }: LeaderboardRowProps) {
   const rankColors = ['text-yellow-400', 'text-gray-400', 'text-orange-400'];
 
   const cell = (field: keyof LeaderboardEntry) => ({
     contentEditable: true,
     suppressContentEditableWarning: true,
-    onBlur: (e: React.FocusEvent<HTMLTableCellElement>) =>
+    onBlur: (e: React.FocusEvent<HTMLElement>) =>
       onEdit(field, e.currentTarget.textContent ?? ''),
-    onKeyDown: (e: React.KeyboardEvent<HTMLTableCellElement>) => {
+    onKeyDown: (e: React.KeyboardEvent<HTMLElement>) => {
       if (e.key === 'Enter') {
         e.preventDefault();
         (e.currentTarget as HTMLElement).blur();
@@ -41,11 +43,30 @@ export function LeaderboardRow({ entry, onEdit, onRemove }: LeaderboardRowProps)
       <td className="py-2">
         <span className={cn('font-bold', rankColors[entry.rank - 1] || 'text-gray-500')}>#{entry.rank}</span>
       </td>
-      <td className="py-2 font-medium" {...cell('name')}>
-        {entry.name}
+      <td className="py-2 font-medium">
+        <span className="inline-flex items-center gap-1.5">
+          <span {...cell('name')}>{entry.name}</span>
+          {onOpenProfile && (
+            <button
+              onClick={onOpenProfile}
+              className="p-0.5 rounded text-text-muted opacity-0 group-hover:opacity-100 hover:text-accent-blue transition-all"
+              aria-label={`View ${entry.name}'s profile`}
+              title="View profile & roadmap"
+            >
+              <User className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </span>
       </td>
       <td className="py-2 text-text-secondary" {...cell('store')}>
         {entry.store}
+      </td>
+      <td className="py-2">
+        {teamName ? (
+          <span className="px-2 py-0.5 rounded-full bg-accent-purple/10 text-accent-purple border border-accent-purple/20 text-[10px]">{teamName}</span>
+        ) : (
+          <span className="text-text-muted text-[10px]">—</span>
+        )}
       </td>
       <td className="py-2 font-semibold" {...cell('lines')}>
         {entry.lines}

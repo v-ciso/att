@@ -574,12 +574,34 @@ export function TeamsEditor() {
     }));
 
   const addTeam = () =>
-    setTeams(prev => [...prev, {
-      name: `Team ${String.fromCharCode(65 + (prev.length % 26))}`,
-      change: '+0%', lines: 0, premium: 0, fiber: 0, progress: 0,
-      color: TEAM_COLORS[prev.length % TEAM_COLORS.length],
-      lead: 'Appoint lead', asm: 'Appoint ASM', members: [],
-    }]);
+    setTeams(prev => {
+      // Auto-populate from roster: people not already on any team here
+      let members: string[] = [];
+      let lead = 'Appoint lead';
+      let asm = 'Appoint ASM';
+      try {
+        const people: Array<{ name: string; role: string }> =
+          JSON.parse(localStorage.getItem('se-people-v1') || '[]');
+        const taken = new Set<string>();
+        prev.forEach(t => {
+          t.members.forEach(m => taken.add(m.toLowerCase()));
+          taken.add(t.lead.toLowerCase());
+          taken.add(t.asm.toLowerCase());
+        });
+        const available = people.filter(p => !taken.has(p.name.toLowerCase()));
+        lead = available.find(p => p.role === 'LEAD')?.name ?? lead;
+        asm = available.find(p => p.role === 'ASM')?.name ?? asm;
+        members = available
+          .filter(p => p.name !== lead && p.name !== asm)
+          .map(p => p.name);
+      } catch { /* roster unavailable — start empty */ }
+      return [...prev, {
+        name: `Team ${String.fromCharCode(65 + (prev.length % 26))}`,
+        change: '+0%', lines: 0, premium: 0, fiber: 0, progress: 0,
+        color: TEAM_COLORS[prev.length % TEAM_COLORS.length],
+        lead, asm, members,
+      }];
+    });
 
   const removeTeam = (index: number) => setTeams(prev => prev.filter((_, i) => i !== index));
 

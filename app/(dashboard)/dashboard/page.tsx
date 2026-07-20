@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import { FileText, TrendingUp, Zap, DollarSign, Star, Trophy, CalendarCheck, Tar
 import { LeaderboardRow, MeetingTracker, LeaderboardEntry } from '@/components/dashboard/dashboard-components';
 import { CommissionEngine, PnlEditor, TeamsEditor } from '@/components/dashboard/editable-sections';
 import { ReportTemplate } from '@/components/dashboard/report-template';
+import { RosterManager, loadPeople, loadPromoRules, promotionStatus, Person, ROSTER_ROLE_LABELS, ROLE_LADDER } from '@/components/dashboard/roster';
 
 // Stats Data
 const stats = [
@@ -43,11 +44,11 @@ const commissionData = {
 // Slice order + hues validated for colorblind-safe adjacency on black
 // (dataviz six-checks: lightness band, CVD ΔE, normal-vision floor, contrast)
 const productMix = {
-  labels: ['Premium', 'Extra', 'Value', 'Fiber 1G', 'Fiber 500', 'Accessories'],
+  labels: ['Premium', 'Extra', 'Value', 'Fiber 1G', 'Fiber 500', 'Next Up'],
   values: [45, 20, 15, 25, 12, 18],
   colors: ['#3B82F6', '#D97706', '#0891B2', '#A855F7', '#059669', '#EF4444'],
   // maps each slice to a commission-engine plan name for payout lookup
-  planNames: ['Premium 2.0', 'Extra 2.0', 'Value 2.0', 'Fiber 1GIG', 'Fiber 500', ''],
+  planNames: ['Premium 2.0', 'Extra 2.0', 'Value 2.0', 'Fiber 1GIG', 'Fiber 500', 'Next Up Anytime'],
 };
 
 // Looks up the current editable payout for a plan from the commission engine's saved state
@@ -115,7 +116,7 @@ function SliceDrawer({ index, onClose }: { index: number; onClose: () => void })
           <p className="text-xs text-text-secondary mb-4">
             Est. revenue this period:{' '}
             <span className="text-accent-green font-semibold">{formatCurrency(value * payout)}</span>
-            <span className="text-text-muted"> · at current Tier 5 payout — edit in the Commission tab</span>
+            <span className="text-text-muted"> · at current payout settings — edit in the Commission tab</span>
           </p>
         )}
         <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1.5">Last 7 days</p>
@@ -127,6 +128,122 @@ function SliceDrawer({ index, onClose }: { index: number; onClose: () => void })
         <div className="flex justify-between text-[9px] text-text-muted mt-1">
           <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ProfileDrawer({ name, entry, onClose }: { name: string; entry?: LeaderboardEntry; onClose: () => void }) {
+  const person = loadPeople().find(p => p.name.trim().toLowerCase() === name.trim().toLowerCase());
+  const rules = loadPromoRules();
+  const status = person ? promotionStatus(person, rules) : null;
+  const roleIndex = person ? ROLE_LADDER.indexOf(person.role) : -1;
+  const profitMax = person ? Math.max(...person.weeklyProfit, rules.profitPerWeek) : 1;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label={`${name} profile`}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full sm:max-w-lg glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent-blue to-accent-purple flex items-center justify-center font-bold">
+              {getInitials(name)}
+            </div>
+            <div>
+              <h3 className="text-lg font-bold">{name}</h3>
+              <p className="text-xs text-text-secondary">
+                {person
+                  ? `${ROSTER_ROLE_LABELS[person.role]} · ${person.store}${person.team ? ` · ${person.team}` : ' · no team'}`
+                  : 'Not in roster yet'}
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
+        </div>
+
+        {entry && (
+          <div className="grid grid-cols-4 gap-2 mb-4">
+            {[
+              { label: 'Lines', value: String(entry.lines), color: 'text-accent-blue' },
+              { label: 'Premium', value: String(entry.premium), color: 'text-accent-purple' },
+              { label: 'Fiber', value: String(entry.fiber), color: 'text-accent-cyan' },
+              { label: 'Commission', value: formatCurrency(entry.commission), color: 'text-accent-green' },
+            ].map(s => (
+              <div key={s.label} className="p-2.5 rounded-xl bg-white/5 text-center">
+                <p className="text-[9px] text-text-muted uppercase tracking-wider">{s.label}</p>
+                <p className={cn('text-base font-bold', s.color)}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {person && status ? (
+          <>
+            {/* Leadership roadmap ladder */}
+            <p className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Leadership Roadmap</p>
+            <div className="flex items-center gap-1 mb-4">
+              {ROLE_LADDER.map((role, i) => (
+                <div key={role} className="flex-1 flex items-center gap-1">
+                  <div className={cn(
+                    'flex-1 text-center py-1.5 rounded-lg text-[10px] font-semibold border transition-all',
+                    i < roleIndex && 'bg-accent-green/10 text-accent-green border-accent-green/30',
+                    i === roleIndex && 'bg-accent-blue/20 text-accent-blue border-accent-blue/40 shadow-neon-blue',
+                    i > roleIndex && 'bg-white/5 text-text-muted border-border-subtle'
+                  )}>
+                    {ROSTER_ROLE_LABELS[role]}
+                  </div>
+                  {i < ROLE_LADDER.length - 1 && <span className="text-text-muted text-[10px]">→</span>}
+                </div>
+              ))}
+            </div>
+
+            {/* Promotion progress */}
+            <div className={cn('p-3 rounded-xl border mb-4', status.ready ? 'bg-accent-green/10 border-accent-green/30' : 'bg-white/5 border-border-subtle')}>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold">{status.ready ? '🎉 ' : ''}{status.label}</span>
+                <span className="text-[10px] text-text-muted">
+                  needs {formatCurrency(rules.profitPerWeek)}/wk × {rules.weeks} wks + {rules.minAttendance}% attendance
+                </span>
+              </div>
+              <div className="w-full h-1.5 rounded-full bg-bg-tertiary">
+                <div className={cn('h-full rounded-full', status.ready ? 'bg-accent-green' : 'bg-gradient-to-r from-accent-blue to-accent-green')} style={{ width: `${status.progress}%` }} />
+              </div>
+            </div>
+
+            {/* Weekly profit + attendance */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-xl bg-white/5">
+                <p className="text-[9px] text-text-muted uppercase tracking-wider mb-2">Weekly Profit</p>
+                <div className="flex items-end gap-2 h-14">
+                  {person.weeklyProfit.map((w, i) => (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                      <div className="w-full rounded-t bg-accent-green/80" style={{ height: `${Math.max(6, (w / profitMax) * 100)}%`, opacity: w >= rules.profitPerWeek ? 1 : 0.45 }} />
+                      <span className="text-[8px] text-text-muted">{formatCurrency(w)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-white/5 flex flex-col items-center justify-center">
+                <p className="text-[9px] text-text-muted uppercase tracking-wider mb-1">Attendance</p>
+                <p className={cn('text-2xl font-bold', person.attendance >= rules.minAttendance ? 'text-accent-green' : 'text-accent-yellow')}>
+                  {person.attendance}%
+                </p>
+                <p className="text-[9px] text-text-muted">target {rules.minAttendance}%</p>
+              </div>
+            </div>
+          </>
+        ) : (
+          <p className="text-xs text-text-secondary p-3 rounded-xl bg-white/5">
+            This rep isn&apos;t in the roster yet. Add them on the <span className="text-accent-blue font-medium">Roster</span> tab
+            (same name) to track their store, team, promotions, and leadership roadmap here.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -276,7 +393,7 @@ function TabButton({ children, isActive, onClick }: { children: React.ReactNode;
   );
 }
 
-const VALID_TABS = ['dashboard', 'leaderboard', 'meeting', 'pnl', 'commission'];
+const VALID_TABS = ['dashboard', 'roster', 'leaderboard', 'meeting', 'pnl', 'commission'];
 
 function DashboardContent() {
   const router = useRouter();
@@ -353,6 +470,35 @@ function DashboardContent() {
     localStorage.removeItem(LEADERBOARD_STORAGE_KEY);
   };
 
+  // Roster join: team names on leaderboard rows + rep profiles
+  const [people, setPeople] = useState<Person[]>([]);
+  useEffect(() => {
+    setPeople(loadPeople());
+  }, [activeTab]); // refresh after edits made on the Roster tab
+
+  const teamByName = useMemo(() => {
+    const map = new Map<string, string>();
+    people.forEach(p => { if (p.team) map.set(p.name.toLowerCase(), p.team); });
+    return map;
+  }, [people]);
+
+  const [profileName, setProfileName] = useState<string | null>(null);
+
+  // Store filter: view one store, several, or all
+  const [storeFilter, setStoreFilter] = useState<string[]>([]);
+  const storeOptions = useMemo(
+    () => Array.from(new Set(leaderboard.map(e => e.store.trim()).filter(Boolean))),
+    [leaderboard]
+  );
+  const toggleStore = (store: string) =>
+    setStoreFilter(prev => prev.includes(store) ? prev.filter(s => s !== store) : [...prev, store]);
+  const visibleRows = useMemo(
+    () => leaderboard
+      .map((entry, index) => ({ entry, index }))
+      .filter(({ entry }) => storeFilter.length === 0 || storeFilter.includes(entry.store.trim())),
+    [leaderboard, storeFilter]
+  );
+
   // Presentation mode — fullscreen the meeting panel for TV / AirPlay sharing
   const meetingRef = useRef<HTMLDivElement>(null);
   const togglePresentation = () => {
@@ -422,7 +568,7 @@ function DashboardContent() {
 
       {/* Campaign Badge */}
       <div className="slide-in mb-6 flex flex-wrap items-center gap-2">
-        <Badge variant="blue" dot className="text-xs">
+        <Badge variant="green" className="text-xs flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse" /> Live
         </Badge>
         <Badge variant="gray" className="text-xs flex items-center gap-1.5">
@@ -480,6 +626,7 @@ function DashboardContent() {
       {/* Tabs */}
       <div className="slide-in mt-6 mb-4 flex gap-1.5 overflow-x-auto pb-1.5 scrollbar-hide">
         <TabButton isActive={activeTab === 'dashboard'} onClick={() => switchTab('dashboard')}>Dashboard</TabButton>
+        <TabButton isActive={activeTab === 'roster'} onClick={() => switchTab('roster')}>Roster</TabButton>
         <TabButton isActive={activeTab === 'leaderboard'} onClick={() => switchTab('leaderboard')}>Leaderboard</TabButton>
         <TabButton isActive={activeTab === 'meeting'} onClick={() => switchTab('meeting')}>Meeting Mode</TabButton>
         <TabButton isActive={activeTab === 'pnl'} onClick={() => switchTab('pnl')}>P&L</TabButton>
@@ -580,6 +727,14 @@ function DashboardContent() {
         </div>
       )}
 
+      {activeTab === 'roster' && (
+        <div id="tab-roster" className="tab-panel">
+          <Card className="p-5">
+            <RosterManager />
+          </Card>
+        </div>
+      )}
+
       {activeTab === 'leaderboard' && (
         <div id="tab-leaderboard" className="tab-panel">
           <Card className="p-5">
@@ -593,6 +748,25 @@ function DashboardContent() {
                 <Button variant="ghost" size="sm" onClick={resetRoster}>↻ Reset</Button>
               </div>
             </div>
+            {/* Store filter — one store, several, or all */}
+            <div className="flex flex-wrap items-center gap-1.5 mb-3">
+              <span className="text-[10px] text-text-muted uppercase tracking-wider mr-1">Stores:</span>
+              <button
+                onClick={() => setStoreFilter([])}
+                className={cn('tab-btn', storeFilter.length === 0 ? 'active' : 'inactive')}
+              >
+                All
+              </button>
+              {storeOptions.map(store => (
+                <button
+                  key={store}
+                  onClick={() => toggleStore(store)}
+                  className={cn('tab-btn', storeFilter.includes(store) ? 'active' : 'inactive')}
+                >
+                  {store}
+                </button>
+              ))}
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
@@ -600,6 +774,7 @@ function DashboardContent() {
                     <th className="pb-2">Rank</th>
                     <th className="pb-2">Rep / Team</th>
                     <th className="pb-2">Store</th>
+                    <th className="pb-2">Team</th>
                     <th className="pb-2">Lines</th>
                     <th className="pb-2">Premium</th>
                     <th className="pb-2">Fiber</th>
@@ -608,12 +783,14 @@ function DashboardContent() {
                   </tr>
                 </thead>
                 <tbody id="leaderboardBody" className="divide-y divide-border-subtle">
-                  {leaderboard.map((entry, index) => (
+                  {visibleRows.map(({ entry, index }, vi) => (
                     <LeaderboardRow
                       key={index}
-                      entry={{ ...entry, rank: index + 1 }}
+                      entry={{ ...entry, rank: vi + 1 }}
+                      teamName={teamByName.get(entry.name.trim().toLowerCase())}
                       onEdit={(field, value) => editRep(index, field, value)}
                       onRemove={() => removeRep(index)}
+                      onOpenProfile={() => setProfileName(entry.name)}
                     />
                   ))}
                 </tbody>
@@ -621,7 +798,7 @@ function DashboardContent() {
             </div>
             <div className="mt-3 text-xs text-text-secondary flex items-center gap-2">
               <Users className="w-3 h-3" />
-              Click any cell to edit · hover a row to remove · changes save automatically
+              Click any cell to edit · hover a row: person icon = profile &amp; roadmap, trash = remove · changes save automatically
             </div>
           </Card>
         </div>
@@ -675,6 +852,14 @@ function DashboardContent() {
       )}
 
       {drillIndex !== null && <SliceDrawer index={drillIndex} onClose={() => setDrillIndex(null)} />}
+
+      {profileName && (
+        <ProfileDrawer
+          name={profileName}
+          entry={leaderboard.find(e => e.name === profileName)}
+          onClose={() => setProfileName(null)}
+        />
+      )}
 
       {exporting && (
         <div style={{ position: 'absolute', left: -10000, top: 0 }} aria-hidden="true">

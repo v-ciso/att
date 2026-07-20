@@ -2,6 +2,7 @@
 
 import { LeaderboardEntry } from './dashboard-components';
 import { DEFAULT_COMMISSION, DEFAULT_PNL, CommissionState, PnlState } from './editable-sections';
+import { loadPeople, loadPromoRules, promotionStatus, ROSTER_ROLE_LABELS } from './roster';
 
 // Branded PDF report. Rendered off-screen only during export and captured by
 // html2pdf/html2canvas — so everything uses plain inline styles (no glass
@@ -44,6 +45,8 @@ export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[
   const theme = load<{ companyName?: string; primaryColor?: string }>('se-theme-v1', {});
   const commission = load<CommissionState>('se-commission-v1', DEFAULT_COMMISSION);
   const pnl = load<PnlState>('se-pnl-v1', DEFAULT_PNL);
+  const people = loadPeople();
+  const promoRules = loadPromoRules();
 
   const companyName = theme.companyName || 'Sales Engine';
   const accent = theme.primaryColor || ACCENT;
@@ -90,22 +93,33 @@ export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[
 
       <div style={{ padding: '16px 28px 24px' }}>
         {/* KPI row */}
-        <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
-          {kpis.map(k => (
-            <div key={k.label} style={{ flex: 1, border: `1px solid ${LINE}`, borderLeft: `3px solid ${accent}`, borderRadius: 6, padding: '10px 12px' }}>
-              <p style={{ fontSize: 9, color: MUTED, margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{k.label}</p>
-              <p style={{ fontSize: 18, fontWeight: 800, margin: '3px 0 0', color: INK }}>{k.value}</p>
-            </div>
-          ))}
-        </div>
+        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '5px 0', marginTop: 6, tableLayout: 'fixed' }}>
+          <tbody>
+            <tr>
+              {kpis.map(k => (
+                <td key={k.label} style={{ border: `1px solid ${LINE}`, borderLeft: `3px solid ${accent}`, borderRadius: 6, padding: '10px 12px', verticalAlign: 'top' }}>
+                  <p style={{ fontSize: 9, color: MUTED, margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{k.label}</p>
+                  <p style={{ fontSize: 17, fontWeight: 800, margin: '3px 0 0', color: INK, whiteSpace: 'nowrap' }}>{k.value}</p>
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
 
         {/* Leaderboard */}
         <SectionTitle>Team Leaderboard</SectionTitle>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+          <colgroup>
+            <col style={{ width: '6%' }} /><col style={{ width: '28%' }} /><col style={{ width: '16%' }} />
+            <col style={{ width: '11%' }} /><col style={{ width: '13%' }} /><col style={{ width: '10%' }} />
+            <col style={{ width: '16%' }} />
+          </colgroup>
           <thead>
             <tr>
               <th style={th}>#</th><th style={th}>Rep / Team</th><th style={th}>Store</th>
-              <th style={th}>Lines</th><th style={th}>Premium</th><th style={th}>Fiber</th>
+              <th style={{ ...th, textAlign: 'right' }}>Lines</th>
+              <th style={{ ...th, textAlign: 'right' }}>Premium</th>
+              <th style={{ ...th, textAlign: 'right' }}>Fiber</th>
               <th style={{ ...th, textAlign: 'right' }}>Commission</th>
             </tr>
           </thead>
@@ -115,9 +129,9 @@ export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[
                 <td style={{ ...td, fontWeight: 700, color: i < 3 ? accent : MUTED }}>{i + 1}</td>
                 <td style={{ ...td, fontWeight: 600 }}>{e.name}</td>
                 <td style={{ ...td, color: MUTED }}>{e.store}</td>
-                <td style={td}>{e.lines}</td>
-                <td style={td}>{e.premium}</td>
-                <td style={td}>{e.fiber}</td>
+                <td style={{ ...td, textAlign: 'right' }}>{e.lines}</td>
+                <td style={{ ...td, textAlign: 'right' }}>{e.premium}</td>
+                <td style={{ ...td, textAlign: 'right' }}>{e.fiber}</td>
                 <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: '#047857' }}>{fmt(e.commission)}</td>
               </tr>
             ))}
@@ -126,8 +140,8 @@ export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[
 
         {/* P&L */}
         <SectionTitle>Profit &amp; Loss</SectionTitle>
-        <div style={{ display: 'flex', gap: 16 }}>
-          <div style={{ flex: 1 }}>
+        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '8px 0', tableLayout: 'fixed' }}><tbody><tr>
+          <td style={{ verticalAlign: 'top' }}>
             {pnl.revenue.map(r => (
               <div key={r.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11, borderBottom: `1px solid ${LINE}` }}>
                 <span>{r.name}</span><span style={{ color: '#047857', fontWeight: 600 }}>{fmt(r.amount)}</span>
@@ -140,8 +154,8 @@ export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 12, fontWeight: 800 }}>
               <span>Total Revenue</span><span style={{ color: '#047857' }}>{fmt(totalRevenue)}</span>
             </div>
-          </div>
-          <div style={{ flex: 1 }}>
+          </td>
+          <td style={{ verticalAlign: 'top' }}>
             {pnl.expenses.map(x => (
               <div key={x.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11, borderBottom: `1px solid ${LINE}` }}>
                 <span>{x.name}</span><span style={{ color: '#B91C1C', fontWeight: 600 }}>{fmt(x.amount)}</span>
@@ -153,8 +167,8 @@ export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 12, fontWeight: 800 }}>
               <span>Total Expenses</span><span style={{ color: '#B91C1C' }}>{fmt(totalExpenses)}</span>
             </div>
-          </div>
-        </div>
+          </td>
+        </tr></tbody></table>
         <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 6, background: net >= 0 ? '#ECFDF5' : '#FEF2F2', border: `1px solid ${net >= 0 ? '#A7F3D0' : '#FECACA'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: 13, fontWeight: 800 }}>Net Profit</span>
           <span style={{ fontSize: 16, fontWeight: 800, color: net >= 0 ? '#047857' : '#B91C1C' }}>{fmt(net)} <span style={{ fontSize: 10, color: MUTED, fontWeight: 600 }}>({margin}% margin)</span></span>
@@ -174,6 +188,43 @@ export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[
             </div>
           ))}
         </div>
+
+        {/* Roster & leadership roadmap */}
+        <SectionTitle>Roster &amp; Leadership Roadmap</SectionTitle>
+        <p style={{ fontSize: 9, color: MUTED, margin: '0 0 6px' }}>
+          Promotion rule: {fmt(promoRules.profitPerWeek)}/week profit for {promoRules.weeks} week(s) with ≥{promoRules.minAttendance}% attendance.
+        </p>
+        <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+          <colgroup>
+            <col style={{ width: '22%' }} /><col style={{ width: '13%' }} /><col style={{ width: '12%' }} />
+            <col style={{ width: '15%' }} /><col style={{ width: '12%' }} /><col style={{ width: '9%' }} />
+            <col style={{ width: '17%' }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th style={th}>Employee</th><th style={th}>Role</th><th style={th}>Store</th><th style={th}>Team</th>
+              <th style={{ ...th, textAlign: 'right' }}>Wk Profit</th>
+              <th style={{ ...th, textAlign: 'right' }}>Attend.</th>
+              <th style={th}>Roadmap</th>
+            </tr>
+          </thead>
+          <tbody>
+            {people.map((p, i) => {
+              const status = promotionStatus(p, promoRules);
+              return (
+                <tr key={p.id} style={{ background: i % 2 ? '#F9FAFB' : '#FFFFFF' }}>
+                  <td style={{ ...td, fontWeight: 600 }}>{p.name}</td>
+                  <td style={td}>{ROSTER_ROLE_LABELS[p.role]}</td>
+                  <td style={{ ...td, color: MUTED }}>{p.store}</td>
+                  <td style={{ ...td, color: MUTED }}>{p.team || '—'}</td>
+                  <td style={{ ...td, textAlign: 'right' }}>{fmt(p.weeklyProfit[p.weeklyProfit.length - 1] ?? 0)}</td>
+                  <td style={{ ...td, textAlign: 'right' }}>{p.attendance}%</td>
+                  <td style={{ ...td, fontWeight: 600, color: status.ready ? '#047857' : MUTED }}>{status.label}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
 
         {/* Footer */}
         <div style={{ marginTop: 22, paddingTop: 10, borderTop: `1px solid ${LINE}`, display: 'flex', justifyContent: 'space-between' }}>
