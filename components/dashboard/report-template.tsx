@@ -1,8 +1,9 @@
 'use client';
 
 import { LeaderboardEntry } from './dashboard-components';
-import { DEFAULT_COMMISSION, DEFAULT_PNL, CommissionState, PnlState } from './editable-sections';
+import { DEFAULT_PNL, PnlState } from './editable-sections';
 import { loadPeople, loadPromoRules, promotionStatus, ROSTER_ROLE_LABELS } from './roster';
+import { loadCommission } from '@/lib/sales';
 
 // Branded PDF report. Rendered off-screen only during export and captured by
 // html2pdf/html2canvas — so everything uses plain inline styles (no glass
@@ -43,7 +44,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[] }) {
   const theme = load<{ companyName?: string; primaryColor?: string }>('se-theme-v1', {});
-  const commission = load<CommissionState>('se-commission-v1', DEFAULT_COMMISSION);
+  const commission = loadCommission();
   const pnl = load<PnlState>('se-pnl-v1', DEFAULT_PNL);
   const people = loadPeople();
   const promoRules = loadPromoRules();
@@ -73,7 +74,7 @@ export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[
   ];
 
   return (
-    <div id="pdf-report" style={{ width: '100%', maxWidth: 780, margin: '0 auto', background: '#FFFFFF', fontFamily: 'Inter, Arial, sans-serif', color: INK }}>
+    <div id="pdf-report" style={{ width: '100%', maxWidth: 780, margin: '0 auto', background: '#E9ECF1', fontFamily: 'Inter, Arial, sans-serif', color: INK }}>
       {/* Header band */}
       <div style={{ background: '#000000', padding: '20px 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
@@ -97,7 +98,7 @@ export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[
           <tbody>
             <tr>
               {kpis.map(k => (
-                <td key={k.label} style={{ border: `1px solid ${LINE}`, borderLeft: `3px solid ${accent}`, borderRadius: 6, padding: '10px 12px', verticalAlign: 'top' }}>
+                <td key={k.label} style={{ background: '#FFFFFF', border: `1px solid ${LINE}`, borderLeft: `3px solid ${accent}`, borderRadius: 6, padding: '10px 12px', verticalAlign: 'top' }}>
                   <p style={{ fontSize: 9, color: MUTED, margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{k.label}</p>
                   <p style={{ fontSize: 17, fontWeight: 800, margin: '3px 0 0', color: INK, whiteSpace: 'nowrap' }}>{k.value}</p>
                 </td>
@@ -182,7 +183,10 @@ export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[
               <p style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 4px' }}>{title}</p>
               {items.map(p => (
                 <div key={p.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 10.5, borderBottom: `1px solid ${LINE}` }}>
-                  <span>{p.name}</span><span style={{ fontWeight: 700 }}>{fmt(p.payout)}</span>
+                  <span>{p.name}</span>
+                  <span style={{ fontWeight: 700 }}>
+                    {fmt(p.payout)} <span style={{ fontWeight: 500, color: MUTED }}>· rep {fmt(p.rep ?? 0)}</span>
+                  </span>
                 </div>
               ))}
             </div>

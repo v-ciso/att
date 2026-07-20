@@ -46,13 +46,14 @@ export function ProfileDrawer({ name, period, onClose }: { name: string; period:
         {/* Period production, derived from the Daily Tracker */}
         <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1.5">{PERIOD_LABELS[period]} Production</p>
         {stats ? (
-          <div className="grid grid-cols-5 gap-2 mb-4">
+          <div className="grid grid-cols-3 gap-2 mb-4">
             {[
               { label: 'Lines', value: String(stats.lines), color: 'text-accent-blue' },
               { label: 'Premium', value: String(stats.premium), color: 'text-accent-purple' },
               { label: 'Internet', value: String(stats.internet), color: 'text-accent-cyan' },
               { label: 'Next Up', value: String(stats.nextUps), color: 'text-accent-red' },
-              { label: 'Payout', value: formatCurrency(stats.revenue), color: 'text-accent-green' },
+              { label: 'Generated', value: formatCurrency(stats.revenue), color: 'text-accent-green' },
+              { label: 'Commission', value: formatCurrency(stats.commission), color: 'text-accent-blue' },
             ].map(s => (
               <div key={s.label} className="p-2 rounded-xl bg-white/5 text-center">
                 <p className="text-[9px] text-text-muted uppercase tracking-wider">{s.label}</p>

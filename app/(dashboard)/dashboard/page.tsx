@@ -11,7 +11,7 @@ import { PieChart3D } from '@/components/charts/chart-3d';
 import { formatCurrency, formatNumber, cn } from '@/lib/utils';
 import {
   FileText, TrendingUp, Zap, DollarSign, Star, Trophy, CalendarCheck, Target, Users,
-  Building2, MapPin, PieChart, Maximize2, ChevronDown, Sparkles, ClipboardList,
+  Building2, MapPin, PieChart, Maximize2, Minimize2, ChevronDown, Sparkles, ClipboardList,
 } from 'lucide-react';
 import { MeetingTracker } from '@/components/dashboard/dashboard-components';
 import { CommissionEngine, PnlEditor, TeamData } from '@/components/dashboard/editable-sections';
@@ -21,12 +21,9 @@ import { ProfileDrawer } from '@/components/dashboard/profile-drawer';
 import { DailyTracker } from '@/components/dashboard/daily-tracker';
 import {
   Period, PERIOD_LABELS, aggregateSales, loadSales, saveSales, loadCommission,
-  generateDemoSales, planPayout, Aggregate, PersonStats,
+  generateDemoSales, Aggregate, PersonStats, loadAttendance, attendanceForDate, todayStr,
 } from '@/lib/sales';
-
-// Categorical palette — validated colorblind-safe on black (dataviz six-checks).
-// Color follows the plan (fixed order), never the rank.
-const PIE_PALETTE = ['#3B82F6', '#D97706', '#0891B2', '#A855F7', '#059669', '#EF4444', '#7C3AED', '#DB2777'];
+import { Editable, parseNum, useLocalState } from '@/components/dashboard/editable-sections';
 
 const VALID_TABS = ['dashboard', 'tracker', 'roster', 'leaderboard', 'meeting', 'pnl', 'commission'];
 
@@ -185,7 +182,7 @@ function ProductionDrawer({ agg, period, onClose, onOpenProfile }: { agg: Aggreg
             <thead>
               <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
                 <th className="pb-2">Rep</th><th className="pb-2 text-right">Lines</th><th className="pb-2 text-right">Internet</th>
-                <th className="pb-2 text-right">Next Up</th><th className="pb-2 text-right">Payout</th>
+                <th className="pb-2 text-right">Next Up</th><th className="pb-2 text-right">Generated</th><th className="pb-2 text-right">Commission</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
@@ -198,6 +195,7 @@ function ProductionDrawer({ agg, period, onClose, onOpenProfile }: { agg: Aggreg
                   <td className="py-2 text-right text-accent-cyan">{p.internet}</td>
                   <td className="py-2 text-right text-accent-red">{p.nextUps}</td>
                   <td className="py-2 text-right text-accent-green font-bold">{formatCurrency(p.revenue)}</td>
+                  <td className="py-2 text-right text-accent-blue font-semibold">{formatCurrency(p.commission)}</td>
                 </tr>
               ))}
             </tbody>
@@ -208,63 +206,105 @@ function ProductionDrawer({ agg, period, onClose, onOpenProfile }: { agg: Aggreg
   );
 }
 
-// Pie slice drill-down with the line/Next-Up attach breakdown
-function SliceDrawer({ plan, agg, onClose }: { plan: string; agg: Aggregate; onClose: () => void }) {
-  const commission = loadCommission();
-  const stats = agg.perPlan.get(plan);
-  const totalQty = Array.from(agg.perPlan.values()).reduce((a, b) => a + b.qty, 0);
+// Two-level product mix: top slices are the business categories (New Lines /
+// Upgrades / Internet); clicking one breaks it down into its plans
+// (Premium / Extra / Value…), each with its Next Up attach rate.
+interface MixCategory {
+  key: string;
+  label: string;
+  color: string;
+  plans: string[];
+  qty: number;
+  revenue: number;
+  nextUps: number;
+}
 
+function buildMixCategories(agg: Aggregate, commission: ReturnType<typeof loadCommission>): MixCategory[] {
+  const linePlans = commission.phonePlans.filter(p => !p.name.toLowerCase().includes('upgrade')).map(p => p.name);
+  const upgradePlans = commission.phonePlans.filter(p => p.name.toLowerCase().includes('upgrade')).map(p => p.name);
+  const internetPlans = commission.internet.map(p => p.name);
+  const defs = [
+    { key: 'lines', label: 'New Lines', color: '#3B82F6', plans: linePlans },
+    { key: 'upgrades', label: 'Upgrades', color: '#D97706', plans: upgradePlans },
+    { key: 'internet', label: 'Internet', color: '#0891B2', plans: internetPlans },
+  ];
+  return defs
+    .map(def => {
+      const sums = def.plans.reduce(
+        (acc, plan) => {
+          const s = agg.perPlan.get(plan);
+          if (s) { acc.qty += s.qty; acc.revenue += s.revenue; acc.nextUps += s.nextUps; }
+          return acc;
+        },
+        { qty: 0, revenue: 0, nextUps: 0 }
+      );
+      return { ...def, ...sums };
+    })
+    .filter(c => c.qty > 0);
+}
+
+function SliceDrawer({ category, agg, onClose }: { category: MixCategory; agg: Aggregate; onClose: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  if (!stats) return null;
-  const share = totalQty > 0 ? ((stats.qty / totalQty) * 100).toFixed(1) : '0';
-  const payout = planPayout(commission, plan);
-  const nextUpPer = planPayout(commission, 'Next Up Anytime');
+  const planRows = category.plans
+    .map(plan => ({ plan, stats: agg.perPlan.get(plan) }))
+    .filter(r => r.stats && r.stats.qty > 0) as Array<{ plan: string; stats: { qty: number; revenue: number; nextUps: number } }>;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label={`${plan} details`}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label={`${category.label} details`}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:max-w-md glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95">
+      <div className="relative w-full sm:max-w-md glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 max-h-[85vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold">{plan}</h3>
+          <h3 className="text-lg font-bold flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full" style={{ background: category.color }} />
+            {category.label}
+          </h3>
           <button onClick={onClose} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
         </div>
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="p-3 rounded-xl bg-white/5 text-center">
             <p className="text-[10px] text-text-muted uppercase tracking-wider">Sold</p>
-            <p className="text-xl font-bold text-accent-blue">{stats.qty}</p>
+            <p className="text-xl font-bold" style={{ color: category.color }}>{category.qty}</p>
           </div>
           <div className="p-3 rounded-xl bg-white/5 text-center">
-            <p className="text-[10px] text-text-muted uppercase tracking-wider">Mix Share</p>
-            <p className="text-xl font-bold text-white">{share}%</p>
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Next Ups</p>
+            <p className="text-xl font-bold text-accent-red">{category.nextUps}</p>
           </div>
           <div className="p-3 rounded-xl bg-white/5 text-center">
-            <p className="text-[10px] text-text-muted uppercase tracking-wider">Revenue</p>
-            <p className="text-xl font-bold text-accent-green">{formatCurrency(stats.revenue)}</p>
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Generated</p>
+            <p className="text-xl font-bold text-accent-green">{formatCurrency(category.revenue)}</p>
           </div>
         </div>
-        {/* Attach breakdown: how many of these lines carried Next Up */}
-        <div className="p-3 rounded-xl bg-white/5 mb-2">
-          <div className="flex justify-between text-xs mb-1.5">
-            <span className="text-text-secondary">Next Up attached</span>
-            <span className="text-accent-red font-semibold">{stats.nextUps} of {stats.qty} ({stats.qty > 0 ? Math.round((stats.nextUps / stats.qty) * 100) : 0}%)</span>
-          </div>
-          <div className="w-full h-1.5 rounded-full bg-bg-tertiary">
-            <div className="h-full rounded-full bg-accent-red" style={{ width: `${stats.qty > 0 ? (stats.nextUps / stats.qty) * 100 : 0}%` }} />
-          </div>
-          {stats.nextUps > 0 && (
-            <p className="text-[10px] text-text-muted mt-1.5">
-              +{formatCurrency(stats.nextUps * nextUpPer)} from Next Up attaches (${nextUpPer} each)
-            </p>
-          )}
+
+        <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1.5">Breakdown by plan</p>
+        <div className="space-y-1.5">
+          {planRows.map(({ plan, stats }) => (
+            <div key={plan} className="p-2.5 rounded-lg bg-white/5">
+              <div className="flex justify-between text-xs mb-1">
+                <span className="font-medium">{plan}</span>
+                <span>
+                  <span className="text-white font-semibold">{stats.qty}</span>
+                  <span className="text-text-muted"> sold · </span>
+                  <span className="text-accent-green font-semibold">{formatCurrency(stats.revenue)}</span>
+                </span>
+              </div>
+              {category.key === 'lines' && (
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1 rounded-full bg-bg-tertiary">
+                    <div className="h-full rounded-full bg-accent-red" style={{ width: `${stats.qty > 0 ? (stats.nextUps / stats.qty) * 100 : 0}%` }} />
+                  </div>
+                  <span className="text-[9px] text-text-muted whitespace-nowrap">{stats.nextUps} Next Up ({stats.qty > 0 ? Math.round((stats.nextUps / stats.qty) * 100) : 0}%)</span>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
-        <p className="text-xs text-text-secondary">
-          Base payout <span className="text-accent-green font-semibold">{formatCurrency(payout)}</span>/unit at Tier {commission.tier} —
-          edit in the Commission tab, everything recomputes.
+        <p className="text-[10px] text-text-muted mt-3">
+          Office totals at current tier &amp; store multipliers — edit payouts in the Commission tab.
         </p>
       </div>
     </div>
@@ -361,20 +401,15 @@ function DashboardContent() {
     };
   }, [aggWeekly]);
 
-  // Pie: per-plan mix for the selected period (fixed plan order = stable colors)
-  const pie = useMemo(() => {
-    const planOrder = [...commission.phonePlans.map(p => p.name), ...commission.internet.map(p => p.name)];
-    const slices = planOrder
-      .map((plan, i) => ({ plan, color: PIE_PALETTE[i % PIE_PALETTE.length], stats: agg.perPlan.get(plan) }))
-      .filter(s => s.stats && s.stats.qty > 0) as Array<{ plan: string; color: string; stats: { qty: number } }>;
-    return {
-      labels: slices.map(s => s.plan),
-      values: slices.map(s => s.stats.qty),
-      colors: slices.map(s => s.color),
-    };
-  }, [agg, commission]);
+  // Pie: business categories (New Lines / Upgrades / Internet) — click for plans
+  const mixCategories = useMemo(() => buildMixCategories(agg, commission), [agg, commission]);
+  const pie = useMemo(() => ({
+    labels: mixCategories.map(c => c.label),
+    values: mixCategories.map(c => c.qty),
+    colors: mixCategories.map(c => c.color),
+  }), [mixCategories]);
 
-  const [drillPlan, setDrillPlan] = useState<string | null>(null);
+  const [drillCat, setDrillCat] = useState<MixCategory | null>(null);
   const [showProduction, setShowProduction] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
 
@@ -425,14 +460,35 @@ function DashboardContent() {
     : 0;
   const topRepDaily = aggDaily.perPerson[0]?.person ?? '—';
 
-  // Weekly goals (targets static for now; progress derived)
+  // Attendance card prefers marked records (yesterday, else today) from the tracker
+  const attToday = useMemo(() => {
+    const book = loadAttendance();
+    const yesterday = attendanceForDate(book, todayStr(-1));
+    if (yesterday.marked > 0) return { ...yesterday, date: 'yesterday' };
+    const today = attendanceForDate(book, todayStr());
+    if (today.marked > 0) return { ...today, date: 'today' };
+    return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataVersion]);
+
+  // Goals: set at the morning meeting — targets are editable and persist
+  const { state: goalTargets, setState: setGoalTargets } = useLocalState(
+    'se-goals-v1',
+    { lines: 200, premium: 80 }
+  );
   const goals = [
-    { label: 'Total Lines', current: aggWeekly.lines, target: 200, color: 'blue' },
-    { label: 'Premium', current: aggWeekly.premium, target: 80, color: 'purple' },
+    { key: 'lines' as const, label: 'Total Lines', current: aggWeekly.lines, target: goalTargets.lines, color: 'blue' },
+    { key: 'premium' as const, label: 'Premium', current: aggWeekly.premium, target: goalTargets.premium, color: 'purple' },
   ];
 
-  // Presentation mode
+  // Presentation mode — button flips between Present and Exit
   const meetingRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const onFs = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
   const togglePresentation = () => {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     else meetingRef.current?.requestFullscreen?.().catch(() => {});
@@ -543,7 +599,7 @@ function DashboardContent() {
           <div className="slide-in grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4">
             <StatCard label={`${PERIOD_LABELS[period]} Lines`} value={String(agg.lines)} sub={`${aggDaily.lines} today`} icon={TrendingUp} color="blue" onClick={() => setShowProduction(true)} className="stagger-1" />
             <StatCard label="Internet" value={String(agg.internet)} sub={`${agg.nextUps} next ups`} icon={Zap} color="purple" onClick={() => setShowProduction(true)} className="stagger-2" />
-            <StatCard label="Revenue" value={formatCurrency(agg.revenue)} sub={`Tier ${commission.tier} payouts`} icon={DollarSign} color="green" onClick={() => setShowProduction(true)} className="stagger-3" />
+            <StatCard label="Office Generated" value={formatCurrency(agg.revenue)} sub={`${formatCurrency(agg.commission)} rep commissions`} icon={DollarSign} color="green" onClick={() => setShowProduction(true)} className="stagger-3" />
             <StatCard label="Premium Mix" value={`${premiumMix}%`} sub={`${agg.premium} premium lines`} icon={Star} color="yellow" onClick={() => setShowProduction(true)} className="stagger-4" />
           </div>
 
@@ -572,12 +628,12 @@ function DashboardContent() {
               <CardContent>
                 {pie.values.length > 0 ? (
                   <>
-                    <PieChart3D data={pie.values} labels={pie.labels} colors={pie.colors} height={150} onSliceClick={(i) => setDrillPlan(pie.labels[i])} />
+                    <PieChart3D data={pie.values} labels={pie.labels} colors={pie.colors} height={150} onSliceClick={(i) => setDrillCat(mixCategories[i])} />
                     <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-2">
-                      {pie.labels.map((label, i) => (
-                        <button key={label} onClick={() => setDrillPlan(label)} className="flex items-center gap-1.5 text-[10px] text-text-secondary hover:text-white transition-colors">
-                          <span className="w-2 h-2 rounded-full" style={{ background: pie.colors[i] }} />
-                          {label}
+                      {mixCategories.map(cat => (
+                        <button key={cat.key} onClick={() => setDrillCat(cat)} className="flex items-center gap-1.5 text-[10px] text-text-secondary hover:text-white transition-colors">
+                          <span className="w-2 h-2 rounded-full" style={{ background: cat.color }} />
+                          {cat.label} ({cat.qty})
                         </button>
                       ))}
                     </div>
@@ -623,11 +679,24 @@ function DashboardContent() {
                   <CardTitle className="flex items-center gap-2"><CalendarCheck className="w-4 h-4" /> Attendance</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-3xl font-bold neon-text-green text-center">{avgAttendance}%</p>
-                  <p className="text-[10px] text-text-muted text-center mt-1">team average · per-person on the Roster tab</p>
-                  <div className="w-full h-1.5 rounded-full bg-bg-tertiary mt-2">
-                    <div className="h-full rounded-full bg-gradient-to-r from-accent-green to-accent-blue" style={{ width: `${avgAttendance}%` }} />
-                  </div>
+                  {attToday ? (
+                    <>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-center"><p className="text-xl font-bold text-accent-green">{attToday.present}</p><p className="text-[10px] text-text-muted">Present</p></div>
+                        <div className="text-center"><p className="text-xl font-bold text-accent-yellow">{attToday.late}</p><p className="text-[10px] text-text-muted">Late</p></div>
+                        <div className="text-center"><p className="text-xl font-bold text-accent-red">{attToday.absent}</p><p className="text-[10px] text-text-muted">Absent</p></div>
+                      </div>
+                      <p className="text-[10px] text-text-muted text-center">marked {attToday.date} in the Daily Tracker</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-3xl font-bold neon-text-green text-center">{avgAttendance}%</p>
+                      <p className="text-[10px] text-text-muted text-center mt-1">roster average — mark today in the Daily Tracker</p>
+                      <div className="w-full h-1.5 rounded-full bg-bg-tertiary mt-2">
+                        <div className="h-full rounded-full bg-gradient-to-r from-accent-green to-accent-blue" style={{ width: `${avgAttendance}%` }} />
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -642,7 +711,11 @@ function DashboardContent() {
                         <div className="flex justify-between text-xs mb-0.5">
                           <span className="text-text-secondary">{goal.label}</span>
                           <span className={cn('font-medium', goal.color === 'blue' ? 'text-accent-blue' : 'text-accent-purple')}>
-                            {formatNumber(goal.current)} / {formatNumber(goal.target)}
+                            {formatNumber(goal.current)} /{' '}
+                            <Editable
+                              value={String(goal.target)}
+                              onCommit={(v) => setGoalTargets(prev => ({ ...prev, [goal.key]: Math.max(1, parseNum(v)) }))}
+                            />
                           </span>
                         </div>
                         <div className="w-full h-1.5 rounded-full bg-bg-tertiary">
@@ -694,7 +767,8 @@ function DashboardContent() {
                     <th className="pb-2">Rank</th><th className="pb-2">Rep</th><th className="pb-2">Store</th><th className="pb-2">Team</th>
                     <th className="pb-2 text-right">Lines</th><th className="pb-2 text-right">Premium</th>
                     <th className="pb-2 text-right">Internet</th><th className="pb-2 text-right">Next Up</th>
-                    <th className="pb-2 text-right">Payout</th>
+                    <th className="pb-2 text-right" title="Total office payout this rep generated">Generated</th>
+                    <th className="pb-2 text-right" title="Their commission at your rates">Commission</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
@@ -717,6 +791,7 @@ function DashboardContent() {
                         <td className="py-2 text-right text-accent-cyan">{row.stats.internet}</td>
                         <td className="py-2 text-right text-accent-red">{row.stats.nextUps}</td>
                         <td className="py-2 text-right text-accent-green font-bold">{formatCurrency(row.stats.revenue)}</td>
+                        <td className="py-2 text-right text-accent-blue font-semibold">{formatCurrency(row.stats.commission)}</td>
                       </tr>
                     ))}
                 </tbody>
@@ -737,7 +812,10 @@ function DashboardContent() {
               <h2 className="text-xl font-bold neon-text-blue">Meeting Mode</h2>
               <div className="flex items-center gap-2">
                 <PeriodChips period={meetingPeriod} onChange={setMeetingPeriod} options={['daily', 'weekly', 'all']} />
-                <Button size="sm" onClick={togglePresentation}><Maximize2 className="w-3.5 h-3.5" /> Present</Button>
+                <Button size="sm" onClick={togglePresentation}>
+                  {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                  {isFullscreen ? 'Exit' : 'Present'}
+                </Button>
               </div>
             </div>
 
@@ -793,7 +871,7 @@ function DashboardContent() {
         </div>
       )}
 
-      {drillPlan && <SliceDrawer plan={drillPlan} agg={agg} onClose={() => setDrillPlan(null)} />}
+      {drillCat && <SliceDrawer category={drillCat} agg={agg} onClose={() => setDrillCat(null)} />}
       {showProduction && <ProductionDrawer agg={agg} period={period} onClose={() => setShowProduction(false)} onOpenProfile={(n) => { setShowProduction(false); setProfileName(n); }} />}
       {profileName && <ProfileDrawer name={profileName} period={period} onClose={() => setProfileName(null)} />}
 

@@ -46,8 +46,14 @@ export function saveSales(entries: SaleEntry[]) {
 export function loadCommission(): CommissionState {
   if (typeof window === 'undefined') return DEFAULT_COMMISSION;
   try {
-    const saved = localStorage.getItem('se-commission-v1');
-    return saved ? (JSON.parse(saved) as CommissionState) : DEFAULT_COMMISSION;
+    const saved = localStorage.getItem('se-commission-v2');
+    if (!saved) return DEFAULT_COMMISSION;
+    const state = JSON.parse(saved) as CommissionState;
+    // Normalize: items saved before the office/rep split get a rep cut of 0
+    (['phonePlans', 'addOns', 'internet'] as const).forEach(list => {
+      state[list] = (state[list] ?? []).map(item => ({ ...item, rep: item.rep ?? 0 }));
+    });
+    return state;
   } catch {
     return DEFAULT_COMMISSION;
   }
@@ -65,17 +71,26 @@ export function inPeriod(dateStr: string, period: Period): boolean {
   const now = new Date();
   const msPerDay = 86400000;
   const diffDays = Math.floor((now.getTime() - date.getTime()) / msPerDay);
-  if (period === 'daily') return dateStr === todayStr();
+  // Daily covers yesterday + today: production is logged the morning after,
+  // so the morning meeting reviews yesterday's numbers.
+  if (period === 'daily') return dateStr === todayStr() || dateStr === todayStr(-1);
   if (period === 'weekly') return diffDays >= 0 && diffDays < 7;
   return diffDays >= 0 && diffDays < 30; // monthly
 }
 
-// Effective payout for a plan: tier discount applies, store multiplier from the
-// ENTRY's store (falls back to 1 if the store isn't priced in the engine).
-export function planPayout(commission: CommissionState, planName: string, storeName?: string): number {
+// Effective OFFICE payout for a plan: tier discount + the ENTRY's store
+// multiplier apply to the office total. The rep's cut is the flat dollar
+// amount the owner typed — never scaled or calculated.
+export function planPayout(
+  commission: CommissionState,
+  planName: string,
+  storeName?: string,
+  kind: 'office' | 'rep' = 'office'
+): number {
   const all = [...commission.phonePlans, ...commission.internet, ...commission.addOns];
   const plan = all.find(p => p.name === planName);
   if (!plan) return 0;
+  if (kind === 'rep') return Math.max(0, plan.rep ?? 0);
   const mult = storeName
     ? commission.stores.find(s => s.name.toLowerCase() === storeName.toLowerCase())?.multiplier ?? 1
     : 1;
@@ -87,20 +102,28 @@ export interface RevenuePart {
   amount: number;
 }
 
-// Revenue for one entry, with the visible breakdown of where money came from
-export function entryRevenue(entry: SaleEntry, commission: CommissionState): { total: number; parts: RevenuePart[] } {
+// Money for one entry: OFFICE total (direct deposit generated) with its
+// visible breakdown, plus the rep's commission at the owner's typed rates.
+export function entryRevenue(
+  entry: SaleEntry,
+  commission: CommissionState
+): { total: number; repTotal: number; parts: RevenuePart[] } {
   const parts: RevenuePart[] = [];
   const planPer = planPayout(commission, entry.plan, entry.store);
-  if (entry.qty > 0) parts.push({ label: `${entry.qty} × ${entry.plan} @ $${planPer}`, amount: entry.qty * planPer });
+  if (entry.qty > 0) parts.push({ label: `${entry.qty} × ${entry.plan} @ $${planPer} office`, amount: entry.qty * planPer });
   if (entry.nextUps > 0) {
     const per = planPayout(commission, 'Next Up Anytime', entry.store);
-    parts.push({ label: `${entry.nextUps} × Next Up @ $${per}`, amount: entry.nextUps * per });
+    parts.push({ label: `${entry.nextUps} × Next Up @ $${per} office`, amount: entry.nextUps * per });
   }
   if (entry.insurance > 0) {
     const per = planPayout(commission, 'Insurance', entry.store);
-    parts.push({ label: `${entry.insurance} × Insurance @ $${per}`, amount: entry.insurance * per });
+    parts.push({ label: `${entry.insurance} × Insurance @ $${per} office`, amount: entry.insurance * per });
   }
-  return { total: parts.reduce((a, b) => a + b.amount, 0), parts };
+  const repTotal =
+    entry.qty * planPayout(commission, entry.plan, entry.store, 'rep') +
+    entry.nextUps * planPayout(commission, 'Next Up Anytime', entry.store, 'rep') +
+    entry.insurance * planPayout(commission, 'Insurance', entry.store, 'rep');
+  return { total: parts.reduce((a, b) => a + b.amount, 0), repTotal, parts };
 }
 
 export function isPhonePlan(commission: CommissionState, planName: string): boolean {
@@ -115,7 +138,8 @@ export interface PersonStats {
   internet: number;
   nextUps: number;
   insurance: number;
-  revenue: number;
+  revenue: number;    // office total generated (direct deposit)
+  commission: number; // the rep's cut at the owner's typed rates
 }
 
 export interface Aggregate {
@@ -124,10 +148,11 @@ export interface Aggregate {
   internet: number;
   nextUps: number;
   insurance: number;
-  revenue: number;
+  revenue: number;    // office total generated
+  commission: number; // total rep commissions
   perPerson: PersonStats[]; // sorted by revenue desc
   perPlan: Map<string, { qty: number; nextUps: number; revenue: number }>;
-  perDay: Map<string, number>; // date -> revenue
+  perDay: Map<string, number>; // date -> office revenue
 }
 
 export function aggregateSales(
@@ -141,29 +166,31 @@ export function aggregateSales(
   );
 
   const agg: Aggregate = {
-    lines: 0, premium: 0, internet: 0, nextUps: 0, insurance: 0, revenue: 0,
+    lines: 0, premium: 0, internet: 0, nextUps: 0, insurance: 0, revenue: 0, commission: 0,
     perPerson: [], perPlan: new Map(), perDay: new Map(),
   };
   const personMap = new Map<string, PersonStats>();
 
   for (const e of filtered) {
     const phone = isPhonePlan(commission, e.plan);
-    const { total } = entryRevenue(e, commission);
+    const { total, repTotal } = entryRevenue(e, commission);
     if (phone) agg.lines += e.qty; else agg.internet += e.qty;
     if (e.plan.toLowerCase().includes('premium')) agg.premium += e.qty;
     agg.nextUps += e.nextUps;
     agg.insurance += e.insurance;
     agg.revenue += total;
+    agg.commission += repTotal;
 
     const ps = personMap.get(e.person) ?? {
-      person: e.person, store: e.store, lines: 0, premium: 0, internet: 0, nextUps: 0, insurance: 0, revenue: 0,
+      person: e.person, store: e.store, lines: 0, premium: 0, internet: 0, nextUps: 0, insurance: 0, revenue: 0, commission: 0,
     };
     if (phone) ps.lines += e.qty; else ps.internet += e.qty;
     if (e.plan.toLowerCase().includes('premium')) ps.premium += e.qty;
     ps.nextUps += e.nextUps;
     ps.insurance += e.insurance;
     ps.revenue += total;
-    personMap.set(e.person, ps);
+    ps.commission += repTotal;
+    personMap.set(ps.person, ps);
 
     const pp = agg.perPlan.get(e.plan) ?? { qty: 0, nextUps: 0, revenue: 0 };
     pp.qty += e.qty;
@@ -176,6 +203,38 @@ export function aggregateSales(
 
   agg.perPerson = Array.from(personMap.values()).sort((a, b) => b.revenue - a.revenue);
   return agg;
+}
+
+// ---------------------------------------------------------------------------
+// Attendance: marked per person per date in the Daily Tracker
+// ---------------------------------------------------------------------------
+
+export type AttendanceStatus = 'P' | 'L' | 'A'; // Present / Late / Absent
+export const ATTENDANCE_KEY = 'se-attendance-v1';
+export type AttendanceBook = Record<string, Record<string, AttendanceStatus>>; // date -> person -> status
+
+export function loadAttendance(): AttendanceBook {
+  if (typeof window === 'undefined') return {};
+  try {
+    return JSON.parse(localStorage.getItem(ATTENDANCE_KEY) || '{}') as AttendanceBook;
+  } catch {
+    return {};
+  }
+}
+
+export function saveAttendance(book: AttendanceBook) {
+  localStorage.setItem(ATTENDANCE_KEY, JSON.stringify(book));
+}
+
+export function attendanceForDate(book: AttendanceBook, date: string) {
+  const day = book[date] ?? {};
+  const statuses = Object.values(day);
+  return {
+    present: statuses.filter(s => s === 'P').length,
+    late: statuses.filter(s => s === 'L').length,
+    absent: statuses.filter(s => s === 'A').length,
+    marked: statuses.length,
+  };
 }
 
 // Demo data: a few weeks of plausible entries for the current roster

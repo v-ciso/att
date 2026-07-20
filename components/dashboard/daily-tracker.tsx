@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, Sparkles, ClipboardList, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Trash2, Sparkles, ClipboardList, ChevronDown, ChevronUp, Maximize2, Minimize2, CalendarCheck } from 'lucide-react';
 import {
   SaleEntry, loadSales, saveSales, loadCommission, entryRevenue, todayStr, generateDemoSales,
+  AttendanceBook, AttendanceStatus, loadAttendance, saveAttendance, attendanceForDate,
 } from '@/lib/sales';
 import { loadPeople } from './roster';
 
@@ -27,8 +28,8 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
     [commission]
   );
 
-  // Entry form
-  const [date, setDate] = useState(todayStr());
+  // Entry form — defaults to YESTERDAY: production is logged the morning after
+  const [date, setDate] = useState(todayStr(-1));
   const [person, setPerson] = useState('');
   const [plan, setPlan] = useState('');
   const [qty, setQty] = useState(1);
@@ -36,10 +37,41 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   const [insurance, setInsurance] = useState(0);
   const [expanded, setExpanded] = useState<string | null>(null);
 
+  // Attendance for the selected date
+  const [attendance, setAttendance] = useState<AttendanceBook>({});
+
+  // Presentation mode for the tracker itself
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const onFs = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
+  const togglePresent = () => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else panelRef.current?.requestFullscreen?.().catch(() => {});
+  };
+
   useEffect(() => {
     setSales(loadSales());
+    setAttendance(loadAttendance());
     setLoaded(true);
   }, []);
+
+  const markAttendance = (name: string, status: AttendanceStatus | null) => {
+    setAttendance(prev => {
+      const day = { ...(prev[date] ?? {}) };
+      if (status === null) delete day[name];
+      else day[name] = status;
+      const next = { ...prev, [date]: day };
+      saveAttendance(next);
+      onDataChange();
+      return next;
+    });
+  };
+
+  const attSummary = attendanceForDate(attendance, date);
 
   useEffect(() => {
     if (loaded) {
@@ -80,12 +112,17 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   const dayTotal = dayEntries.reduce((a, e) => a + entryRevenue(e, commission).total, 0);
 
   return (
-    <div>
+    <div ref={panelRef} className="presentable">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h2 className="text-xl font-bold neon-text-blue flex items-center gap-2">
           <ClipboardList className="w-5 h-5 text-accent-blue" /> Daily Tracker
+          <span className="text-xs text-text-muted font-normal">yesterday&apos;s production, logged this morning</span>
         </h2>
         <div className="flex items-center gap-2">
+          <Button size="sm" onClick={togglePresent}>
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            {isFullscreen ? 'Exit' : 'Present'}
+          </Button>
           <Button variant="secondary" size="sm" onClick={generateDemo}>
             <Sparkles className="w-3.5 h-3.5" /> Generate Demo Data
           </Button>
@@ -136,6 +173,48 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
         </div>
       </div>
 
+      {/* Attendance for the selected date */}
+      <div className="p-4 rounded-xl glass border border-accent-green/20 mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+          <p className="text-[10px] text-text-muted uppercase tracking-wider flex items-center gap-1.5">
+            <CalendarCheck className="w-3.5 h-3.5 text-accent-green" /> Attendance · {date}
+          </p>
+          <p className="text-[10px] text-text-secondary">
+            <span className="text-accent-green font-semibold">{attSummary.present} present</span> ·{' '}
+            <span className="text-accent-yellow font-semibold">{attSummary.late} late</span> ·{' '}
+            <span className="text-accent-red font-semibold">{attSummary.absent} absent</span> ·{' '}
+            {people.length - attSummary.marked} unmarked
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+          {people.map(p => {
+            const status = attendance[date]?.[p.name] ?? null;
+            const chip = (s: AttendanceStatus, label: string, active: string) => (
+              <button
+                key={s}
+                onClick={() => markAttendance(p.name, status === s ? null : s)}
+                className={cn(
+                  'px-1.5 py-0.5 rounded text-[9px] font-semibold border transition-all',
+                  status === s ? active : 'border-border-subtle text-text-muted hover:text-white hover:bg-white/5'
+                )}
+              >
+                {label}
+              </button>
+            );
+            return (
+              <div key={p.id} className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white/[0.03]">
+                <span className="text-xs truncate">{p.name}</span>
+                <span className="flex gap-1">
+                  {chip('P', 'Present', 'bg-accent-green/20 text-accent-green border-accent-green/40')}
+                  {chip('L', 'Late', 'bg-accent-yellow/20 text-accent-yellow border-accent-yellow/40')}
+                  {chip('A', 'Absent', 'bg-accent-red/20 text-accent-red border-accent-red/40')}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Day summary + entries with revenue breakdown */}
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs text-text-secondary">
@@ -143,7 +222,7 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
           <span className="text-white font-medium">{date}</span>
         </p>
         <p className="text-xs">
-          Day revenue: <span className="text-accent-green font-bold">{formatCurrency(dayTotal)}</span>
+          Office generated: <span className="text-accent-green font-bold">{formatCurrency(dayTotal)}</span>
         </p>
       </div>
 
@@ -154,7 +233,7 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
           </p>
         )}
         {dayEntries.map(entry => {
-          const { total, parts } = entryRevenue(entry, commission);
+          const { total, repTotal, parts } = entryRevenue(entry, commission);
           const isOpen = expanded === entry.id;
           return (
             <div key={entry.id} className="group rounded-xl glass border border-border-subtle overflow-hidden">
@@ -199,8 +278,12 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
                       <span className="text-accent-green">{formatCurrency(part.amount)}</span>
                     </div>
                   ))}
+                  <div className="flex justify-between text-[11px] py-0.5 border-t border-border-subtle mt-1 pt-1">
+                    <span className="text-text-secondary">Rep&apos;s commission (your rates)</span>
+                    <span className="text-accent-blue font-semibold">{formatCurrency(repTotal)}</span>
+                  </div>
                   <p className="text-[9px] text-text-muted mt-1">
-                    Priced at Tier {commission.tier} with {entry.store}&apos;s multiplier — change payouts in the Commission tab and totals recompute.
+                    Office totals priced at Tier {commission.tier} with {entry.store}&apos;s multiplier — the rep cut is the flat amount you set per plan in the Commission tab.
                   </p>
                 </div>
               )}

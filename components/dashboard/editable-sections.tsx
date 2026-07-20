@@ -70,9 +70,10 @@ export function Editable({ value, onCommit, className }: EditableProps) {
 // Commission / payout engine
 // ---------------------------------------------------------------------------
 
-interface PayItem {
+export interface PayItem {
   name: string;
-  payout: number; // $ at the TOP tier (Tier 5)
+  payout: number; // OFFICE total payout (direct deposit to the company) at Tier 5
+  rep: number;    // what the salesperson is paid out of that — owner sets this
 }
 
 interface RoleRule {
@@ -106,23 +107,26 @@ export const DEFAULT_COMMISSION: CommissionState = {
     { name: 'Target', multiplier: 1.0 },
     { name: "BJ's", multiplier: 1.0 },
   ],
+  // payout = OFFICE total per unit (owner's numbers: Value 120, Extra 130,
+  // Premium 140, Next Up +15 at Tier 5). rep = the salesperson's cut, typed by
+  // the owner — never calculated.
   phonePlans: [
-    { name: 'Premium 2.0', payout: 35 },
-    { name: 'Extra 2.0', payout: 30 },
-    { name: 'Value 2.0', payout: 20 },
-    { name: 'Upgrades', payout: 15 },
+    { name: 'Premium 2.0', payout: 140, rep: 45 },
+    { name: 'Extra 2.0', payout: 130, rep: 40 },
+    { name: 'Value 2.0', payout: 120, rep: 40 },
+    { name: 'Upgrades', payout: 60, rep: 15 },
   ],
   addOns: [
-    { name: 'Next Up Anytime', payout: 10 },
-    { name: 'Insurance', payout: 7 },
+    { name: 'Next Up Anytime', payout: 15, rep: 10 },
+    { name: 'Insurance', payout: 12, rep: 5 },
   ],
   internet: [
-    { name: 'Internet Air', payout: 20 },
-    { name: 'Fiber 300', payout: 25 },
-    { name: 'Fiber 500', payout: 35 },
-    { name: 'Fiber 1GIG', payout: 50 },
-    { name: 'Fiber 2GIG', payout: 75 },
-    { name: 'Fiber 5GIG', payout: 100 },
+    { name: 'Internet Air', payout: 40, rep: 20 },
+    { name: 'Fiber 300', payout: 50, rep: 25 },
+    { name: 'Fiber 500', payout: 70, rep: 35 },
+    { name: 'Fiber 1GIG', payout: 100, rep: 50 },
+    { name: 'Fiber 2GIG', payout: 150, rep: 75 },
+    { name: 'Fiber 5GIG', payout: 200, rep: 100 },
   ],
   roles: [
     { name: 'Sales Rep / Intern', amount: 0, unit: 'base payout' },
@@ -147,7 +151,7 @@ function PayItemList({
   color: string;
   items: PayItem[];
   effective: (base: number) => number;
-  onEdit: (index: number, field: 'name' | 'payout', value: string) => void;
+  onEdit: (index: number, field: 'name' | 'payout' | 'rep', value: string) => void;
   onAdd: () => void;
   onRemove: (index: number) => void;
 }) {
@@ -173,16 +177,23 @@ function PayItemList({
         </button>
       </div>
       <div className="space-y-1.5 text-xs">
+        <div className="flex items-center justify-between text-[9px] text-text-muted uppercase tracking-wider pb-0.5 border-b border-border-subtle">
+          <span>Plan</span>
+          <span className="flex gap-3"><span>Office</span><span>Rep</span></span>
+        </div>
         {items.map((item, i) => (
           <div key={i} className="group flex items-center justify-between gap-2">
             <Editable value={item.name} onCommit={(v) => onEdit(i, 'name', v)} className="flex-1 min-w-0" />
             <span className="flex items-center gap-1.5">
-              <span className="text-accent-green font-semibold">
+              <span className="text-accent-green font-semibold" title="Total office payout / direct deposit per unit">
                 $<Editable value={String(item.payout)} onCommit={(v) => onEdit(i, 'payout', v)} />
               </span>
               {effective(item.payout) !== item.payout && (
                 <span className="text-text-muted">→ {formatCurrency(effective(item.payout))}</span>
               )}
+              <span className="text-accent-blue font-medium" title="Rep's commission per unit — you set this">
+                $<Editable value={String(item.rep ?? 0)} onCommit={(v) => onEdit(i, 'rep', v)} />
+              </span>
               <button
                 onClick={() => onRemove(i)}
                 className="p-0.5 rounded text-text-muted opacity-0 group-hover:opacity-100 hover:text-accent-red transition-all"
@@ -199,28 +210,30 @@ function PayItemList({
 }
 
 export function CommissionEngine() {
-  const { state, setState, reset } = useLocalState<CommissionState>('se-commission-v1', DEFAULT_COMMISSION);
+  const { state, setState, reset } = useLocalState<CommissionState>('se-commission-v2', DEFAULT_COMMISSION);
   const store = state.stores[state.storeIndex] ?? state.stores[0];
   const effective = (base: number) =>
     Math.max(0, (base - (5 - state.tier) * state.tierDelta) * (store?.multiplier ?? 1));
 
   const editList =
     (list: 'phonePlans' | 'addOns' | 'internet') =>
-    (index: number, field: 'name' | 'payout', value: string) => {
+    (index: number, field: 'name' | 'payout' | 'rep', value: string) => {
       setState(prev => ({
         ...prev,
         [list]: prev[list].map((item, i) =>
           i === index
             ? field === 'payout'
               ? { ...item, payout: parseNum(value) }
-              : { ...item, name: value.trim() || item.name }
+              : field === 'rep'
+                ? { ...item, rep: parseNum(value) }
+                : { ...item, name: value.trim() || item.name }
             : item
         ),
       }));
     };
 
   const addTo = (list: 'phonePlans' | 'addOns' | 'internet') => () =>
-    setState(prev => ({ ...prev, [list]: [...prev[list], { name: 'New Item', payout: 0 }] }));
+    setState(prev => ({ ...prev, [list]: [...prev[list], { name: 'New Item', payout: 0, rep: 0 }] }));
 
   const removeFrom = (list: 'phonePlans' | 'addOns' | 'internet') => (index: number) =>
     setState(prev => ({ ...prev, [list]: prev[list].filter((_, i) => i !== index) }));
@@ -340,8 +353,10 @@ export function CommissionEngine() {
       </div>
 
       <p className="mt-3 text-xs text-text-secondary">
-        Showing <span className="text-accent-blue font-medium">Tier {state.tier}</span> payouts at{' '}
-        <span className="text-accent-blue font-medium">{store?.name}</span> — click any name or number to edit. Changes save automatically.
+        <span className="text-accent-green font-medium">Green = total office payout</span> (the direct deposit the company generates per unit) ·{' '}
+        <span className="text-accent-blue font-medium">blue = the rep&apos;s cut</span>, which you type — never auto-calculated.
+        Showing <span className="text-accent-blue font-medium">Tier {state.tier}</span> at{' '}
+        <span className="text-accent-blue font-medium">{store?.name}</span>. Click any number to edit; everything derived recomputes.
       </p>
     </div>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocalState, Editable, parseNum } from './editable-sections';
 import { cn, formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -111,6 +111,15 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
   const { state: rules, setState: setRules, reset: resetRules } = useLocalState<PromotionRules>(PROMO_RULES_KEY, DEFAULT_PROMO_RULES);
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // Store options come from the Commission Engine's store list
+  const [storeOptions, setStoreOptions] = useState<string[]>(['Costco', 'Target', "BJ's"]);
+  useEffect(() => {
+    try {
+      const c = JSON.parse(localStorage.getItem('se-commission-v2') || 'null');
+      if (c?.stores?.length) setStoreOptions(c.stores.map((s: { name: string }) => s.name));
+    } catch { /* keep defaults */ }
+  }, []);
+
   const edit = (id: string, patch: Partial<Person>) =>
     setPeople(prev => prev.map(p => (p.id === id ? { ...p, ...patch } : p)));
 
@@ -120,7 +129,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
   const addPerson = () =>
     setPeople(prev => [...prev, {
       id: `p${Date.now()}-${personCounter++}`,
-      name: 'New Employee', role: 'INTERN', store: 'Costco', team: '',
+      name: 'New Employee', role: 'INTERN', store: storeOptions[0] ?? 'Costco', team: '',
       weeklyProfit: [0, 0], attendance: 100,
     }]);
 
@@ -229,8 +238,16 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                       {ROSTER_ROLE_LABELS[person.role]}
                     </button>
                   </td>
-                  <td className="py-2 pr-2 text-text-secondary">
-                    <Editable value={person.store} onCommit={(v) => edit(person.id, { store: v.trim() || person.store })} />
+                  <td className="py-2 pr-2">
+                    <select
+                      value={person.store}
+                      onChange={(e) => edit(person.id, { store: e.target.value })}
+                      className="bg-bg-tertiary border border-border-subtle rounded-lg px-2 py-1 text-[11px] text-text-secondary focus:outline-none focus:border-accent-blue/50 cursor-pointer"
+                      aria-label={`Store for ${person.name}`}
+                    >
+                      {!storeOptions.includes(person.store) && <option value={person.store}>{person.store}</option>}
+                      {storeOptions.map(store => <option key={store} value={store}>{store}</option>)}
+                    </select>
                   </td>
                   <td className="py-2 pr-2 text-text-secondary">
                     <Editable value={person.team || '—'} onCommit={(v) => edit(person.id, { team: v.trim() === '—' ? '' : v.trim() })} />
