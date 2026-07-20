@@ -39,10 +39,12 @@ const commissionData = {
   }],
 };
 
+// Slice order + hues validated for colorblind-safe adjacency on black
+// (dataviz six-checks: lightness band, CVD ΔE, normal-vision floor, contrast)
 const productMix = {
   labels: ['Premium', 'Extra', 'Value', 'Fiber 1G', 'Fiber 500', 'Accessories'],
   values: [45, 20, 15, 25, 12, 18],
-  colors: ['#3B82F6', '#A855F7', '#06B6D4', '#10B981', '#F59E0B', '#EF4444'],
+  colors: ['#3B82F6', '#D97706', '#0891B2', '#A855F7', '#059669', '#EF4444'],
 };
 
 // Leaderboard Data — default roster; user edits persist to localStorage
@@ -92,6 +94,36 @@ interface StatCardProps {
   className?: string;
 }
 
+// Animates "127", "$142K", "68.4%" from 0 to target on mount (respects reduced motion)
+function CountUpValue({ value }: { value: string }) {
+  const [display, setDisplay] = useState(value);
+
+  useEffect(() => {
+    const match = value.match(/^([^0-9]*)([0-9,.]+)(.*)$/);
+    if (!match || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setDisplay(value);
+      return;
+    }
+    const [, prefix, numStr, suffix] = match;
+    const target = parseFloat(numStr.replace(/,/g, ''));
+    const decimals = numStr.includes('.') ? numStr.split('.')[1].length : 0;
+    const duration = 900;
+    const start = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const current = target * eased;
+      setDisplay(`${prefix}${current.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}${suffix}`);
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+
+  return <>{display}</>;
+}
+
 function StatCard({ label, value, change, icon: Icon, color, className }: StatCardProps) {
   const colorClasses = {
     blue: 'text-accent-blue',
@@ -115,7 +147,9 @@ function StatCard({ label, value, change, icon: Icon, color, className }: StatCa
           <Icon className={`w-3 h-3 ${colorClasses[color as keyof typeof colorClasses]}`} />
         </div>
       </div>
-      <p className={`text-2xl font-bold ${neonClasses[color as keyof typeof neonClasses]}`}>{value}</p>
+      <p className={`text-2xl font-bold ${neonClasses[color as keyof typeof neonClasses]}`}>
+        <CountUpValue value={value} />
+      </p>
       <p className="text-[10px] text-accent-green">{change}</p>
     </Card>
   );
@@ -175,8 +209,12 @@ function DashboardContent() {
     }
   }, [tabParam]);
 
+  const [pendingPresent, setPendingPresent] = useState(false);
+
   const switchTab = (tab: string) => {
     setActiveTab(tab);
+    // Meeting Mode auto-presents: entering the tab fullscreens the panel
+    if (tab === 'meeting') setPendingPresent(true);
     router.replace(tab === 'dashboard' ? '/dashboard' : `/dashboard?tab=${tab}`, { scroll: false });
   };
 
@@ -248,6 +286,15 @@ function DashboardContent() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [activeTab]);
+
+  // Auto-present: fires right after the meeting panel mounts, while the
+  // click's transient user activation is still valid for the Fullscreen API.
+  useEffect(() => {
+    if (activeTab === 'meeting' && pendingPresent) {
+      setPendingPresent(false);
+      meetingRef.current?.requestFullscreen?.().catch(() => {});
+    }
+  }, [activeTab, pendingPresent]);
 
   const exportPDF = () => {
     const element = document.getElementById('reportContent');

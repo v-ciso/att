@@ -252,25 +252,48 @@ export function CommissionEngine() {
           </div>
         </div>
         <div className="p-4 rounded-xl glass border border-border-subtle">
-          <p className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Store (click name/multiplier to edit)</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Stores (click name/multiplier to edit)</p>
+            <button
+              onClick={() => setState(p => ({ ...p, stores: [...p.stores, { name: 'New Store', multiplier: 1 }] }))}
+              className="p-1 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all"
+              aria-label="Add store"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {state.stores.map((s, i) => (
-              <button
-                key={i}
-                onClick={() => setState(p => ({ ...p, storeIndex: i }))}
-                className={cn('tab-btn flex items-center gap-1', state.storeIndex === i ? 'active' : 'inactive')}
-              >
-                <Editable
-                  value={s.name}
-                  onCommit={(v) => setState(p => ({ ...p, stores: p.stores.map((st, j) => j === i ? { ...st, name: v.trim() || st.name } : st) }))}
-                />
-                <span className="text-text-muted">
-                  ×<Editable
-                    value={String(s.multiplier)}
-                    onCommit={(v) => setState(p => ({ ...p, stores: p.stores.map((st, j) => j === i ? { ...st, multiplier: parseNum(v) || 1 } : st) }))}
+              <span key={i} className="group/store relative inline-flex">
+                <button
+                  onClick={() => setState(p => ({ ...p, storeIndex: i }))}
+                  className={cn('tab-btn flex items-center gap-1', state.storeIndex === i ? 'active' : 'inactive')}
+                >
+                  <Editable
+                    value={s.name}
+                    onCommit={(v) => setState(p => ({ ...p, stores: p.stores.map((st, j) => j === i ? { ...st, name: v.trim() || st.name } : st) }))}
                   />
-                </span>
-              </button>
+                  <span className="text-text-muted">
+                    ×<Editable
+                      value={String(s.multiplier)}
+                      onCommit={(v) => setState(p => ({ ...p, stores: p.stores.map((st, j) => j === i ? { ...st, multiplier: parseNum(v) || 1 } : st) }))}
+                    />
+                  </span>
+                </button>
+                {state.stores.length > 1 && (
+                  <button
+                    onClick={() => setState(p => ({
+                      ...p,
+                      stores: p.stores.filter((_, j) => j !== i),
+                      storeIndex: Math.min(p.storeIndex > i ? p.storeIndex - 1 : p.storeIndex, p.stores.length - 2),
+                    }))}
+                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-bg-tertiary border border-border-strong text-[9px] text-text-muted opacity-0 group-hover/store:opacity-100 hover:text-accent-red hover:border-accent-red/50 transition-all flex items-center justify-center"
+                    aria-label={`Remove ${s.name}`}
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
             ))}
           </div>
         </div>
