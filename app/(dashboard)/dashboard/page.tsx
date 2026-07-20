@@ -14,6 +14,7 @@ import { formatCurrency, formatNumber, formatPercent, getInitials, ROLE_LABELS, 
 import { FileText, TrendingUp, Zap, DollarSign, Star, Trophy, CalendarCheck, Target, Users, Building2, MapPin, PieChart, Maximize2 } from 'lucide-react';
 import { LeaderboardRow, MeetingTracker, LeaderboardEntry } from '@/components/dashboard/dashboard-components';
 import { CommissionEngine, PnlEditor, TeamsEditor } from '@/components/dashboard/editable-sections';
+import { ReportTemplate } from '@/components/dashboard/report-template';
 
 // Stats Data
 const stats = [
@@ -45,7 +46,91 @@ const productMix = {
   labels: ['Premium', 'Extra', 'Value', 'Fiber 1G', 'Fiber 500', 'Accessories'],
   values: [45, 20, 15, 25, 12, 18],
   colors: ['#3B82F6', '#D97706', '#0891B2', '#A855F7', '#059669', '#EF4444'],
+  // maps each slice to a commission-engine plan name for payout lookup
+  planNames: ['Premium 2.0', 'Extra 2.0', 'Value 2.0', 'Fiber 1GIG', 'Fiber 500', ''],
 };
+
+// Looks up the current editable payout for a plan from the commission engine's saved state
+function lookupPayout(planName: string): number | null {
+  if (!planName || typeof window === 'undefined') return null;
+  try {
+    const saved = JSON.parse(localStorage.getItem('se-commission-v1') || 'null');
+    const lists = saved ? [saved.phonePlans, saved.internet, saved.addOns] : [];
+    for (const list of lists) {
+      const hit = (list ?? []).find((p: { name: string }) => p.name === planName);
+      if (hit) return hit.payout;
+    }
+  } catch { /* fall through */ }
+  const defaults: Record<string, number> = {
+    'Premium 2.0': 35, 'Extra 2.0': 30, 'Value 2.0': 20, 'Fiber 1GIG': 50, 'Fiber 500': 35,
+  };
+  return defaults[planName] ?? null;
+}
+
+function SliceDrawer({ index, onClose }: { index: number; onClose: () => void }) {
+  const label = productMix.labels[index];
+  const value = productMix.values[index];
+  const color = productMix.colors[index];
+  const total = productMix.values.reduce((a, b) => a + b, 0);
+  const share = ((value / total) * 100).toFixed(1);
+  const payout = lookupPayout(productMix.planNames[index]);
+  // deterministic 7-day sample trend derived from the value (demo data)
+  const week = Array.from({ length: 7 }, (_, i) =>
+    Math.max(1, Math.round(value / 7 + Math.sin(index * 3 + i * 1.7) * (value / 12)))
+  );
+  const weekMax = Math.max(...week);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label={`${label} details`}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full sm:max-w-md glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full" style={{ background: color }} />
+            {label}
+          </h3>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
+        </div>
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="p-3 rounded-xl bg-white/5 text-center">
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Units</p>
+            <p className="text-xl font-bold" style={{ color }}>{value}</p>
+          </div>
+          <div className="p-3 rounded-xl bg-white/5 text-center">
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Mix Share</p>
+            <p className="text-xl font-bold text-white">{share}%</p>
+          </div>
+          <div className="p-3 rounded-xl bg-white/5 text-center">
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Payout/Unit</p>
+            <p className="text-xl font-bold text-accent-green">{payout != null ? formatCurrency(payout) : '—'}</p>
+          </div>
+        </div>
+        {payout != null && (
+          <p className="text-xs text-text-secondary mb-4">
+            Est. revenue this period:{' '}
+            <span className="text-accent-green font-semibold">{formatCurrency(value * payout)}</span>
+            <span className="text-text-muted"> · at current Tier 5 payout — edit in the Commission tab</span>
+          </p>
+        )}
+        <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1.5">Last 7 days</p>
+        <div className="flex items-end gap-1.5 h-16">
+          {week.map((v, i) => (
+            <div key={i} className="flex-1 rounded-t" style={{ height: `${(v / weekMax) * 100}%`, background: color, opacity: 0.35 + (i / 7) * 0.65 }} />
+          ))}
+        </div>
+        <div className="flex justify-between text-[9px] text-text-muted mt-1">
+          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Leaderboard Data — default roster; user edits persist to localStorage
 const DEFAULT_LEADERBOARD: LeaderboardEntry[] = [
@@ -210,6 +295,7 @@ function DashboardContent() {
   }, [tabParam]);
 
   const [pendingPresent, setPendingPresent] = useState(false);
+  const [drillIndex, setDrillIndex] = useState<number | null>(null);
 
   const switchTab = (tab: string) => {
     setActiveTab(tab);
@@ -296,20 +382,29 @@ function DashboardContent() {
     }
   }, [activeTab, pendingPresent]);
 
-  const exportPDF = () => {
-    const element = document.getElementById('reportContent');
-    if (element) {
+  // Branded PDF: renders ReportTemplate off-screen, captures it, then unmounts it
+  const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    if (!exporting) return;
+    const timer = setTimeout(() => {
+      const element = document.getElementById('pdf-report');
+      if (!element) { setExporting(false); return; }
       import('html2pdf.js').then(({ default: html2pdf }) => {
         html2pdf().set({
-          margin: [0.4, 0.4, 0.4, 0.4],
-          filename: 'Sales_Engine_Report.pdf',
+          margin: [0.35, 0.35, 0.45, 0.35],
+          filename: `Sales_Engine_Report_${new Date().toISOString().slice(0, 10)}.pdf`,
           image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2, letterRendering: true, useCORS: true, logging: false },
+          html2canvas: { scale: 2, letterRendering: true, useCORS: true, logging: false, backgroundColor: '#FFFFFF' },
           jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
-        }).from(element).save();
-      });
-    }
-  };
+          pagebreak: { mode: ['avoid-all', 'css'] },
+        }).from(element).save().finally(() => setExporting(false));
+      }).catch(() => setExporting(false));
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [exporting]);
+
+  const exportPDF = () => setExporting(true);
 
   return (
     <DashboardLayout>
@@ -364,13 +459,18 @@ function DashboardContent() {
               labels={productMix.labels}
               colors={productMix.colors}
               height={150}
+              onSliceClick={(i) => setDrillIndex(i)}
             />
             <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-2">
               {productMix.labels.map((label, i) => (
-                <span key={label} className="flex items-center gap-1.5 text-[10px] text-text-secondary">
+                <button
+                  key={label}
+                  onClick={() => setDrillIndex(i)}
+                  className="flex items-center gap-1.5 text-[10px] text-text-secondary hover:text-white transition-colors"
+                >
                   <span className="w-2 h-2 rounded-full" style={{ background: productMix.colors[i] }} />
                   {label}
-                </span>
+                </button>
               ))}
             </div>
           </CardContent>
@@ -571,6 +671,14 @@ function DashboardContent() {
           <Card className="p-5">
             <CommissionEngine />
           </Card>
+        </div>
+      )}
+
+      {drillIndex !== null && <SliceDrawer index={drillIndex} onClose={() => setDrillIndex(null)} />}
+
+      {exporting && (
+        <div style={{ position: 'absolute', left: -10000, top: 0 }} aria-hidden="true">
+          <ReportTemplate leaderboard={leaderboard} />
         </div>
       )}
     </DashboardLayout>

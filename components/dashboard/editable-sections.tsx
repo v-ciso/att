@@ -86,7 +86,7 @@ interface StoreRule {
   multiplier: number;
 }
 
-interface CommissionState {
+export interface CommissionState {
   tier: number; // 1..5 — payouts drop by tierDelta per tier below 5
   tierDelta: number;
   storeIndex: number;
@@ -97,7 +97,7 @@ interface CommissionState {
   roles: RoleRule[];
 }
 
-const DEFAULT_COMMISSION: CommissionState = {
+export const DEFAULT_COMMISSION: CommissionState = {
   tier: 5,
   tierDelta: 5,
   storeIndex: 0,
@@ -356,14 +356,14 @@ interface MoneyItem {
   amount: number;
 }
 
-interface PnlState {
+export interface PnlState {
   revenue: MoneyItem[];
   expenses: MoneyItem[];
   roadtrips: MoneyItem[];
   reimburseRate: number; // 0..100 (%)
 }
 
-const DEFAULT_PNL: PnlState = {
+export const DEFAULT_PNL: PnlState = {
   revenue: [
     { name: 'Commission', amount: 142500 },
     { name: 'Bonuses', amount: 12300 },

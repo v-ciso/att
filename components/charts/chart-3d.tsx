@@ -12,15 +12,19 @@ interface PieChart3DProps {
   height?: number;
   innerRadius?: number;
   animate?: boolean;
+  onSliceClick?: (index: number) => void;
 }
 
-export function PieChart3D({ data, labels, colors, className, height = 300, innerRadius = 0.5, animate = true }: PieChart3DProps) {
+export function PieChart3D({ data, labels, colors, className, height = 300, innerRadius = 0.5, animate = true, onSliceClick }: PieChart3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene>();
   const rendererRef = useRef<THREE.WebGLRenderer>();
   const cameraRef = useRef<THREE.PerspectiveCamera>();
   const meshesRef = useRef<THREE.Mesh[]>([]);
   const animationIdRef = useRef<number>();
+  // Ref so a new inline callback each render doesn't rebuild the scene
+  const onSliceClickRef = useRef(onSliceClick);
+  onSliceClickRef.current = onSliceClick;
 
   const total = useMemo(() => data?.reduce((a, b) => a + b, 0) ?? 0, [data]);
 
@@ -134,18 +138,21 @@ export function PieChart3D({ data, labels, colors, className, height = 300, inne
     animate();
 
     // Interaction
-    const handleMouseMove = (event: MouseEvent) => {
+    const raycastAt = (event: MouseEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
       const mouse = new THREE.Vector2(
         ((event.clientX - rect.left) / rect.width) * 2 - 1,
         -((event.clientY - rect.top) / rect.height) * 2 + 1
       );
-
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(mouse, camera);
+      return raycaster.intersectObjects(meshes);
+    };
 
-      const intersects = raycaster.intersectObjects(meshes);
-      meshes.forEach((mesh, i) => {
+    const handleMouseMove = (event: MouseEvent) => {
+      const intersects = raycastAt(event);
+      renderer.domElement.style.cursor = intersects.length > 0 && onSliceClickRef.current ? 'pointer' : 'default';
+      meshes.forEach((mesh) => {
         const isHovered = intersects.some((intersect) => intersect.object === mesh);
         if (isHovered) {
           mesh.position.z = 30;
@@ -157,7 +164,17 @@ export function PieChart3D({ data, labels, colors, className, height = 300, inne
       });
     };
 
+    const handleClick = (event: MouseEvent) => {
+      if (!onSliceClickRef.current) return;
+      const intersects = raycastAt(event);
+      if (intersects.length > 0) {
+        const index = (intersects[0].object as THREE.Mesh).userData.index as number;
+        onSliceClickRef.current(index);
+      }
+    };
+
     renderer.domElement.addEventListener('mousemove', handleMouseMove);
+    renderer.domElement.addEventListener('click', handleClick);
 
     // Resize handler
     const handleResize = () => {
@@ -173,6 +190,7 @@ export function PieChart3D({ data, labels, colors, className, height = 300, inne
     return () => {
       cancelAnimationFrame(animationIdRef.current!);
       renderer.domElement.removeEventListener('mousemove', handleMouseMove);
+      renderer.domElement.removeEventListener('click', handleClick);
       window.removeEventListener('resize', handleResize);
       renderer.dispose();
       meshes.forEach((m) => {
