@@ -35,6 +35,8 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   const [qty, setQty] = useState(1);
   const [nextUps, setNextUps] = useState(0);
   const [insurance, setInsurance] = useState(0);
+  const [entryStore, setEntryStore] = useState('');
+  const [viewStore, setViewStore] = useState(''); // '' = all stores
   const [expanded, setExpanded] = useState<string | null>(null);
 
   // Attendance for the selected date
@@ -82,17 +84,20 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   }, [sales, loaded]);
 
   const selectedPerson = people.find(p => p.name === person) ?? people[0];
+  const personStores = selectedPerson?.stores?.length ? selectedPerson.stores : ['Costco'];
+  const allStores = Array.from(new Set(people.flatMap(p => p.stores ?? [])));
 
   const addEntry = () => {
     const who = person || people[0]?.name;
     const what = plan || plans[0];
     if (!who || !what || qty < 1) return;
+    const store = personStores.includes(entryStore) ? entryStore : personStores[0];
     setSales(prev => [
       {
         id: `s-${Date.now()}`,
         date,
         person: who,
-        store: people.find(p => p.name === who)?.store ?? 'Costco',
+        store,
         plan: what,
         qty,
         nextUps: Math.min(nextUps, qty),
@@ -108,8 +113,13 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   const generateDemo = () => setSales(generateDemoSales(people, commission));
   const clearAll = () => setSales([]);
 
-  const dayEntries = sales.filter(e => e.date === date);
+  const dayEntries = sales.filter(e =>
+    e.date === date && (!viewStore || e.store.toLowerCase() === viewStore.toLowerCase())
+  );
   const dayTotal = dayEntries.reduce((a, e) => a + entryRevenue(e, commission).total, 0);
+  const visiblePeople = viewStore
+    ? people.filter(p => (p.stores ?? []).some(s => s.toLowerCase() === viewStore.toLowerCase()))
+    : people;
 
   return (
     <div ref={panelRef} className="presentable">
@@ -142,8 +152,14 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
           </label>
           <label className="flex flex-col gap-1 text-[10px] text-text-muted uppercase tracking-wider">
             Rep
-            <select value={person || selectedPerson?.name || ''} onChange={e => setPerson(e.target.value)} className={selectClass}>
+            <select value={person || selectedPerson?.name || ''} onChange={e => { setPerson(e.target.value); setEntryStore(''); }} className={selectClass}>
               {people.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[10px] text-text-muted uppercase tracking-wider">
+            Store
+            <select value={personStores.includes(entryStore) ? entryStore : personStores[0]} onChange={e => setEntryStore(e.target.value)} className={selectClass}>
+              {personStores.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </label>
           <label className="flex flex-col gap-1 text-[10px] text-text-muted uppercase tracking-wider">
@@ -187,7 +203,7 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
-          {people.map(p => {
+          {visiblePeople.map(p => {
             const status = attendance[date]?.[p.name] ?? null;
             const chip = (s: AttendanceStatus, label: string, active: string) => (
               <button
@@ -216,14 +232,26 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
       </div>
 
       {/* Day summary + entries with revenue breakdown */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
         <p className="text-xs text-text-secondary">
           {dayEntries.length} entr{dayEntries.length === 1 ? 'y' : 'ies'} on{' '}
           <span className="text-white font-medium">{date}</span>
+          {viewStore && <span className="text-accent-blue"> · {viewStore}</span>}
         </p>
-        <p className="text-xs">
-          Office generated: <span className="text-accent-green font-bold">{formatCurrency(dayTotal)}</span>
-        </p>
+        <div className="flex items-center gap-2">
+          <select
+            value={viewStore}
+            onChange={e => setViewStore(e.target.value)}
+            className={cn(selectClass, 'py-1')}
+            aria-label="Filter entries by store"
+          >
+            <option value="">All stores</option>
+            {allStores.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <p className="text-xs whitespace-nowrap">
+            Office generated: <span className="text-accent-green font-bold">{formatCurrency(dayTotal)}</span>
+          </p>
+        </div>
       </div>
 
       <div className="space-y-1.5">

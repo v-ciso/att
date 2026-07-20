@@ -52,7 +52,7 @@ export function Editable({ value, onCommit, className }: EditableProps) {
     <span
       contentEditable
       suppressContentEditableWarning
-      className={cn('outline-none focus:bg-white/10 focus:px-1 rounded transition-colors cursor-text', className)}
+      className={cn('outline-none hover:bg-white/5 focus:bg-white/10 focus:px-1 rounded transition-colors cursor-text', className)}
       onBlur={(e) => onCommit(e.currentTarget.textContent ?? '')}
       onKeyDown={(e) => {
         if (e.key === 'Enter') {

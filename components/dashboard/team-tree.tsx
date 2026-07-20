@@ -70,6 +70,20 @@ export function TeamTree({ people, assignTeam }: TeamTreeProps) {
     },
   });
 
+  // Clear a name from any Lead/ASM slot it occupies (so the top two can be
+  // pulled out of a team, not just regular members)
+  const clearSlots = (name: string) =>
+    setTeams(prev => prev.map(t => ({
+      ...t,
+      lead: t.lead.toLowerCase() === name.toLowerCase() ? 'Drop a Lead here' : t.lead,
+      asm: t.asm.toLowerCase() === name.toLowerCase() ? 'Drop an ASM here' : t.asm,
+    })));
+
+  const unassign = (name: string) => {
+    clearSlots(name);
+    assignTeam(name, '');
+  };
+
   const setSlot = (teamIndex: number, slot: 'lead' | 'asm', name: string) => {
     setTeams(prev => prev.map((t, i) => (i === teamIndex ? { ...t, [slot]: name } : t)));
     const team = teams[teamIndex];
@@ -112,7 +126,7 @@ export function TeamTree({ people, assignTeam }: TeamTreeProps) {
 
       {/* Unassigned pool */}
       <div
-        {...dropProps('pool', name => assignTeam(name, ''))}
+        {...dropProps('pool', name => unassign(name))}
         className={cn(
           'p-3 rounded-xl border border-dashed mb-3 transition-all min-h-[52px]',
           dragOver === 'pool' ? 'border-accent-blue bg-accent-blue/10' : 'border-border-strong bg-white/[0.02]'
@@ -164,20 +178,44 @@ export function TeamTree({ people, assignTeam }: TeamTreeProps) {
               {/* ASM level */}
               <div
                 {...dropProps(`asm-${ti}`, name => setSlot(ti, 'asm', name))}
-                className={cn('flex items-center gap-2 p-1.5 rounded-lg transition-all', dragOver === `asm-${ti}` && 'bg-accent-yellow/10 ring-1 ring-accent-yellow/40')}
+                className={cn('group/slot flex items-center gap-2 p-1.5 rounded-lg transition-all', dragOver === `asm-${ti}` && 'bg-accent-yellow/10 ring-1 ring-accent-yellow/40')}
               >
                 <span className="text-[9px] text-accent-yellow uppercase tracking-wider w-10">ASM</span>
-                {asm ? <PersonChip person={asm} small /> : <span className="text-[10px] text-text-muted italic">{team.asm}</span>}
+                {asm ? (
+                  <>
+                    <PersonChip person={asm} small />
+                    <button
+                      onClick={() => unassign(asm.name)}
+                      className="text-[10px] text-text-muted opacity-0 group-hover/slot:opacity-100 hover:text-accent-red transition-all"
+                      aria-label={`Remove ${asm.name} as ASM`}
+                      title="Unassign"
+                    >
+                      ×
+                    </button>
+                  </>
+                ) : <span className="text-[10px] text-text-muted italic">{team.asm}</span>}
               </div>
 
               {/* Lead level */}
               <div className="ml-4 border-l border-border-strong pl-3">
                 <div
                   {...dropProps(`lead-${ti}`, name => setSlot(ti, 'lead', name))}
-                  className={cn('flex items-center gap-2 p-1.5 rounded-lg transition-all', dragOver === `lead-${ti}` && 'bg-accent-purple/10 ring-1 ring-accent-purple/40')}
+                  className={cn('group/slot flex items-center gap-2 p-1.5 rounded-lg transition-all', dragOver === `lead-${ti}` && 'bg-accent-purple/10 ring-1 ring-accent-purple/40')}
                 >
                   <span className="text-[9px] text-accent-purple uppercase tracking-wider w-10">Lead</span>
-                  {lead ? <PersonChip person={lead} small /> : <span className="text-[10px] text-text-muted italic">{team.lead}</span>}
+                  {lead ? (
+                    <>
+                      <PersonChip person={lead} small />
+                      <button
+                        onClick={() => unassign(lead.name)}
+                        className="text-[10px] text-text-muted opacity-0 group-hover/slot:opacity-100 hover:text-accent-red transition-all"
+                        aria-label={`Remove ${lead.name} as Lead`}
+                        title="Unassign"
+                      >
+                        ×
+                      </button>
+                    </>
+                  ) : <span className="text-[10px] text-text-muted italic">{team.lead}</span>}
                 </div>
 
                 {/* Members level */}

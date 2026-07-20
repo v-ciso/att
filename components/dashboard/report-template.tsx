@@ -219,7 +219,7 @@ export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[
                 <tr key={p.id} style={{ background: i % 2 ? '#F9FAFB' : '#FFFFFF' }}>
                   <td style={{ ...td, fontWeight: 600 }}>{p.name}</td>
                   <td style={td}>{ROSTER_ROLE_LABELS[p.role]}</td>
-                  <td style={{ ...td, color: MUTED }}>{p.store}</td>
+                  <td style={{ ...td, color: MUTED }}>{(p.stores ?? []).join(', ')}</td>
                   <td style={{ ...td, color: MUTED }}>{p.team || '—'}</td>
                   <td style={{ ...td, textAlign: 'right' }}>{fmt(p.weeklyProfit[p.weeklyProfit.length - 1] ?? 0)}</td>
                   <td style={{ ...td, textAlign: 'right' }}>{p.attendance}%</td>

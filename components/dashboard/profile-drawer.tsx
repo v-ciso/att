@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { cn, formatCurrency, getInitials } from '@/lib/utils';
-import { loadPeople, loadPromoRules, promotionStatus, ROSTER_ROLE_LABELS, ROLE_LADDER } from './roster';
+import { loadPeople, loadPromoRules, promotionStatus, effectiveAttendance, ROSTER_ROLE_LABELS, ROLE_LADDER } from './roster';
 import { Period, PERIOD_LABELS, aggregateSales, loadSales, loadCommission } from '@/lib/sales';
 
 export function ProfileDrawer({ name, period, onClose }: { name: string; period: Period; onClose: () => void }) {
@@ -35,7 +35,7 @@ export function ProfileDrawer({ name, period, onClose }: { name: string; period:
               <h3 className="text-lg font-bold">{name}</h3>
               <p className="text-xs text-text-secondary">
                 {person
-                  ? `${ROSTER_ROLE_LABELS[person.role]} · ${person.store}${person.team ? ` · ${person.team}` : ' · no team'}`
+                  ? `${ROSTER_ROLE_LABELS[person.role]} · ${(person.stores ?? []).join(', ')}${person.team ? ` · ${person.team}` : ' · no team'}`
                   : 'Not in roster yet'}
               </p>
             </div>
@@ -112,10 +112,19 @@ export function ProfileDrawer({ name, period, onClose }: { name: string; period:
               </div>
               <div className="p-3 rounded-xl bg-white/5 flex flex-col items-center justify-center">
                 <p className="text-[9px] text-text-muted uppercase tracking-wider mb-1">Attendance</p>
-                <p className={cn('text-2xl font-bold', person.attendance >= rules.minAttendance ? 'text-accent-green' : 'text-accent-yellow')}>
-                  {person.attendance}%
-                </p>
-                <p className="text-[9px] text-text-muted">target {rules.minAttendance}%</p>
+                {(() => {
+                  const att = effectiveAttendance(person);
+                  return (
+                    <>
+                      <p className={cn('text-2xl font-bold', att.pct >= rules.minAttendance ? 'text-accent-green' : 'text-accent-yellow')}>
+                        {att.pct}%
+                      </p>
+                      <p className="text-[9px] text-text-muted">
+                        target {rules.minAttendance}%{att.tracked ? ' · from tracker marks' : ''}
+                      </p>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </>

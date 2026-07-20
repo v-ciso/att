@@ -158,11 +158,13 @@ export interface Aggregate {
 export function aggregateSales(
   sales: SaleEntry[],
   commission: CommissionState,
-  opts: { period: Period; stores?: string[] }
+  opts: { period: Period; stores?: string[]; date?: string }
 ): Aggregate {
   const storeSet = opts.stores && opts.stores.length ? new Set(opts.stores.map(s => s.toLowerCase())) : null;
   const filtered = sales.filter(e =>
-    inPeriod(e.date, opts.period) && (!storeSet || storeSet.has(e.store.toLowerCase()))
+    // A specific picked date (e.g. "last Monday") overrides the period window
+    (opts.date ? e.date === opts.date : inPeriod(e.date, opts.period)) &&
+    (!storeSet || storeSet.has(e.store.toLowerCase()))
   );
 
   const agg: Aggregate = {
@@ -256,11 +258,12 @@ export function generateDemoSales(people: Person[], commission: CommissionState)
         const plan = plans[Math.floor(rand() * plans.length)];
         const qty = 1 + Math.floor(rand() * 5);
         const phone = commission.phonePlans.some(p => p.name === plan);
+        const stores = person.stores?.length ? person.stores : ['Costco'];
         entries.push({
           id: `demo-${date}-${person.id}-${id++}`,
           date,
           person: person.name,
-          store: person.store,
+          store: stores[Math.floor(rand() * stores.length)],
           plan,
           qty,
           nextUps: phone ? Math.floor(rand() * (qty + 1)) : 0,

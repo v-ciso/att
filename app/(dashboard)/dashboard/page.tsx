@@ -344,6 +344,7 @@ function DashboardContent() {
 
   const [period, setPeriod] = useState<Period>('weekly');
   const [storeSel, setStoreSel] = useState<string[]>([]);
+  const [pickDate, setPickDate] = useState(''); // specific day report, e.g. last Monday
 
   const commission = useMemo(loadCommission, [dataVersion]);
   const people = useMemo(loadPeople, [dataVersion]);
@@ -352,14 +353,14 @@ function DashboardContent() {
   const storeOptions = useMemo(() => {
     const set = new Set<string>();
     commission.stores.forEach(s => set.add(s.name));
-    people.forEach(p => p.store && set.add(p.store));
+    people.forEach(p => (p.stores ?? []).forEach(s => set.add(s)));
     sales.forEach(s => s.store && set.add(s.store));
     return Array.from(set);
   }, [commission, people, sales]);
 
   const agg = useMemo(
-    () => aggregateSales(sales, commission, { period, stores: storeSel }),
-    [sales, commission, period, storeSel]
+    () => aggregateSales(sales, commission, { period, stores: storeSel, date: pickDate || undefined }),
+    [sales, commission, period, storeSel, pickDate]
   );
   const aggDaily = useMemo(
     () => aggregateSales(sales, commission, { period: 'daily', stores: storeSel }),
@@ -412,6 +413,7 @@ function DashboardContent() {
   const [drillCat, setDrillCat] = useState<MixCategory | null>(null);
   const [showProduction, setShowProduction] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
+  const [teamDrawerName, setTeamDrawerName] = useState<string | null>(null);
 
   // Leaderboard rows: roster people + their derived period stats
   const leaderboardRows = useMemo(() => {
@@ -420,7 +422,7 @@ function DashboardContent() {
       const s = statsByName.get(person.name.toLowerCase());
       return {
         person,
-        stats: s ?? { person: person.name, store: person.store, lines: 0, premium: 0, internet: 0, nextUps: 0, insurance: 0, revenue: 0 } as PersonStats,
+        stats: s ?? { person: person.name, store: person.stores?.[0] ?? '', lines: 0, premium: 0, internet: 0, nextUps: 0, insurance: 0, revenue: 0, commission: 0 } as PersonStats,
       };
     });
     return rows.sort((a, b) => b.stats.revenue - a.stats.revenue);
@@ -529,7 +531,7 @@ function DashboardContent() {
     () => leaderboardRows
       .filter(r => r.stats.revenue > 0 || r.stats.lines > 0 || r.stats.internet > 0)
       .map(r => ({
-        name: r.person.name, store: r.person.store,
+        name: r.person.name, store: (r.person.stores ?? []).join(', '),
         lines: r.stats.lines, premium: r.stats.premium, fiber: r.stats.internet,
         commission: r.stats.revenue, role: r.person.role.toLowerCase(),
       })),
@@ -545,7 +547,20 @@ function DashboardContent() {
           <p className="text-text-secondary text-sm mt-0.5">AT&T campaign · white-label ready</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <PeriodChips period={period} onChange={setPeriod} />
+          <PeriodChips period={period} onChange={(p) => { setPeriod(p); setPickDate(''); }} />
+          <span className="flex items-center gap-1">
+            <input
+              type="date"
+              value={pickDate}
+              onChange={e => setPickDate(e.target.value)}
+              className="bg-bg-tertiary border border-border-subtle rounded-lg px-2 py-1.5 text-xs text-text-secondary focus:outline-none focus:border-accent-blue/50 cursor-pointer"
+              aria-label="Report a specific date"
+              title="Pull one specific day (e.g. last Monday)"
+            />
+            {pickDate && (
+              <button onClick={() => setPickDate('')} className="p-1 rounded text-text-muted hover:text-accent-red transition-colors" aria-label="Clear date">✕</button>
+            )}
+          </span>
           <StoreSelect options={storeOptions} selected={storeSel} onChange={setStoreSel} />
           <Button onClick={() => setExporting(true)} size="sm">
             <FileText className="w-4 h-4" /> Export PDF
@@ -564,7 +579,9 @@ function DashboardContent() {
         <Badge variant="gray" className="text-xs flex items-center gap-1.5">
           <MapPin className="w-3 h-3" /> {storeOptions.length} Stores
         </Badge>
-        <Badge variant="blue" className="text-xs">{PERIOD_LABELS[period]} view{storeSel.length ? ` · ${storeSel.join(', ')}` : ' · all stores'}</Badge>
+        <Badge variant="blue" className="text-xs">
+          {pickDate ? `Date: ${pickDate}` : `${PERIOD_LABELS[period]} view`}{storeSel.length ? ` · ${storeSel.join(', ')}` : ' · all stores'}
+        </Badge>
       </div>
 
       {/* Tabs — moved above content so switching changes the view immediately */}
@@ -597,8 +614,8 @@ function DashboardContent() {
 
           {/* KPIs — derived; click for the who-did-what breakdown */}
           <div className="slide-in grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4">
-            <StatCard label={`${PERIOD_LABELS[period]} Lines`} value={String(agg.lines)} sub={`${aggDaily.lines} today`} icon={TrendingUp} color="blue" onClick={() => setShowProduction(true)} className="stagger-1" />
-            <StatCard label="Internet" value={String(agg.internet)} sub={`${agg.nextUps} next ups`} icon={Zap} color="purple" onClick={() => setShowProduction(true)} className="stagger-2" />
+            <StatCard label={pickDate ? `Lines · ${pickDate}` : `${PERIOD_LABELS[period]} Lines`} value={String(agg.lines)} sub={`${agg.nextUps} next ups attached`} icon={TrendingUp} color="blue" onClick={() => setShowProduction(true)} className="stagger-1" />
+            <StatCard label="Internet" value={String(agg.internet)} sub={`${aggDaily.internet} in daily window`} icon={Zap} color="purple" onClick={() => setShowProduction(true)} className="stagger-2" />
             <StatCard label="Office Generated" value={formatCurrency(agg.revenue)} sub={`${formatCurrency(agg.commission)} rep commissions`} icon={DollarSign} color="green" onClick={() => setShowProduction(true)} className="stagger-3" />
             <StatCard label="Premium Mix" value={`${premiumMix}%`} sub={`${agg.premium} premium lines`} icon={Star} color="yellow" onClick={() => setShowProduction(true)} className="stagger-4" />
           </div>
@@ -773,14 +790,14 @@ function DashboardContent() {
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
                   {leaderboardRows
-                    .filter(r => storeSel.length === 0 || storeSel.some(s => s.toLowerCase() === r.person.store.toLowerCase()))
+                    .filter(r => storeSel.length === 0 || storeSel.some(s => (r.person.stores ?? []).some(ps => ps.toLowerCase() === s.toLowerCase())))
                     .map((row, i) => (
                       <tr key={row.person.id} className="hover:bg-white/5 transition-colors">
                         <td className="py-2"><span className={cn('font-bold', i === 0 && 'text-yellow-400', i === 1 && 'text-gray-400', i === 2 && 'text-orange-400', i > 2 && 'text-gray-500')}>#{i + 1}</span></td>
                         <td className="py-2">
                           <button onClick={() => setProfileName(row.person.name)} className="font-medium hover:text-accent-blue transition-colors">{row.person.name}</button>
                         </td>
-                        <td className="py-2 text-text-secondary">{row.person.store}</td>
+                        <td className="py-2 text-text-secondary">{(row.person.stores ?? []).join(', ')}</td>
                         <td className="py-2">
                           {row.person.team
                             ? <span className="px-2 py-0.5 rounded-full bg-accent-purple/10 text-accent-purple border border-accent-purple/20 text-[10px]">{row.person.team}</span>
@@ -832,7 +849,12 @@ function DashboardContent() {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {meetingTeams.map((team, i) => (
-                <div key={i} className={cn('glass rounded-xl p-4 border', { blue: 'border-accent-blue/10', purple: 'border-accent-purple/10', cyan: 'border-accent-cyan/10', yellow: 'border-accent-yellow/10' }[team.color] ?? 'border-accent-blue/10')}>
+                <button
+                  key={i}
+                  onClick={() => setTeamDrawerName(team.name)}
+                  className={cn('glass rounded-xl p-4 border text-left hover:border-border-strong hover:bg-white/[0.04] transition-all', { blue: 'border-accent-blue/10', purple: 'border-accent-purple/10', cyan: 'border-accent-cyan/10', yellow: 'border-accent-yellow/10' }[team.color] ?? 'border-accent-blue/10')}
+                  title={`Open ${team.name}'s stats`}
+                >
                   <div className="flex justify-between items-center mb-1">
                     <span className="font-medium">{team.name}</span>
                     <span className="text-xs text-accent-green font-semibold">{formatCurrency(team.derived.revenue)}</span>
@@ -843,7 +865,7 @@ function DashboardContent() {
                     <span>Premium: <span className="text-white">{team.derived.premium}</span></span>
                     <span>Internet: <span className="text-white">{team.derived.internet}</span></span>
                   </div>
-                </div>
+                </button>
               ))}
               {meetingTeams.length === 0 && (
                 <p className="text-xs text-text-muted p-3 rounded-xl bg-white/5 md:col-span-2">No teams yet — build them with drag &amp; drop on the Roster tab.</p>
@@ -870,6 +892,61 @@ function DashboardContent() {
           <Card className="p-5"><CommissionEngine /></Card>
         </div>
       )}
+
+      {teamDrawerName && (() => {
+        const team = meetingTeams.find(t => t.name === teamDrawerName);
+        if (!team) return null;
+        const memberNames = Array.from(new Set(
+          people.filter(p => p.team === team.name).map(p => p.name)
+            .concat([team.lead, team.asm].filter(n => people.some(p => p.name.toLowerCase() === n.toLowerCase())))
+        ));
+        const statsByName = new Map(meetingAgg.perPerson.map(p => [p.person.toLowerCase(), p]));
+        return (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label={`${team.name} stats`}>
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setTeamDrawerName(null)} />
+            <div className="relative w-full sm:max-w-lg glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 max-h-[85vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-lg font-bold">{team.name}</h3>
+                <button onClick={() => setTeamDrawerName(null)} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
+              </div>
+              <p className="text-xs text-text-secondary mb-4">
+                Lead <span className="text-accent-purple">{team.lead}</span> · ASM <span className="text-accent-yellow">{team.asm}</span> · {PERIOD_LABELS[meetingPeriod]}
+              </p>
+              <div className="grid grid-cols-4 gap-2 mb-4">
+                {[
+                  { label: 'Lines', value: String(team.derived.lines), color: 'text-accent-blue' },
+                  { label: 'Premium', value: String(team.derived.premium), color: 'text-accent-purple' },
+                  { label: 'Internet', value: String(team.derived.internet), color: 'text-accent-cyan' },
+                  { label: 'Generated', value: formatCurrency(team.derived.revenue), color: 'text-accent-green' },
+                ].map(s => (
+                  <div key={s.label} className="p-2.5 rounded-xl bg-white/5 text-center">
+                    <p className="text-[9px] text-text-muted uppercase tracking-wider">{s.label}</p>
+                    <p className={cn('text-base font-bold', s.color)}>{s.value}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1.5">Members — click for their profile</p>
+              <div className="space-y-1">
+                {memberNames.map(name => {
+                  const s = statsByName.get(name.toLowerCase());
+                  return (
+                    <button
+                      key={name}
+                      onClick={() => { setTeamDrawerName(null); setProfileName(name); }}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-xs"
+                    >
+                      <span className="font-medium">{name}</span>
+                      <span className="text-text-secondary">
+                        {s ? <>{s.lines} lines · {s.internet} internet · <span className="text-accent-green font-semibold">{formatCurrency(s.revenue)}</span></> : 'no sales this period'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {drillCat && <SliceDrawer category={drillCat} agg={agg} onClose={() => setDrillCat(null)} />}
       {showProduction && <ProductionDrawer agg={agg} period={period} onClose={() => setShowProduction(false)} onOpenProfile={(n) => { setShowProduction(false); setProfileName(n); }} />}
