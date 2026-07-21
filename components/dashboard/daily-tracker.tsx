@@ -7,7 +7,7 @@ import { Plus, Trash2, Sparkles, ClipboardList, ChevronDown, ChevronUp, Maximize
 import {
   SaleEntry, loadSales, saveSales, loadCommission, entryRevenue, todayStr, generateDemoSales,
   AttendanceBook, AttendanceStatus, loadAttendance, saveAttendance, attendanceForDate,
-  LateOutBook, loadLateOuts, saveLateOuts, isPhonePlan,
+  LateOutBook, loadLateOuts, saveLateOuts,
 } from '@/lib/sales';
 import { loadPeople } from './roster';
 
@@ -95,17 +95,23 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
     });
   };
 
-  // Preview of the charge: penalty × the marked store's phone lines this date,
+  // Preview of the charge: penalty × ALL units the marked store sold this date
+  // (lines + internet — the carrier charges the whole day's production),
   // split between that store's late reps
-  const latePreview = (name: string): { store: string; amount: number } | null => {
+  const latePreview = (name: string): { store: string; amount: number; units: number; splitWith: number } | null => {
     const day = lateOuts[date] ?? [];
     const mine = day.find(lo => lo.person === name);
     if (!mine) return null;
     const sameStore = day.filter(lo => lo.store.toLowerCase() === mine.store.toLowerCase());
-    const lines = sales
-      .filter(e => e.date === date && e.store.toLowerCase() === mine.store.toLowerCase() && isPhonePlan(commission, e.plan))
+    const units = sales
+      .filter(e => e.date === date && e.store.toLowerCase() === mine.store.toLowerCase())
       .reduce((a, e) => a + e.qty, 0);
-    return { store: mine.store, amount: (lines * (commission.latePenaltyPerLine ?? 15)) / Math.max(1, sameStore.length) };
+    return {
+      store: mine.store,
+      units,
+      splitWith: sameStore.length,
+      amount: (units * (commission.latePenaltyPerLine ?? 15)) / Math.max(1, sameStore.length),
+    };
   };
 
   const markAttendance = (name: string, status: AttendanceStatus | null) => {
@@ -158,7 +164,14 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   const removeEntry = (id: string) => setSales(prev => prev.filter(e => e.id !== id));
 
   const generateDemo = () => setSales(generateDemoSales(people, commission));
-  const clearAll = () => setSales([]);
+  const clearAll = () => {
+    setSales([]);
+    setAttendance({});
+    setLateOuts({});
+    saveAttendance({});
+    saveLateOuts({});
+    onDataChange();
+  };
 
   const dayEntries = sales.filter(e =>
     e.date === date && (!viewStore || e.store.toLowerCase() === viewStore.toLowerCase())
@@ -297,7 +310,9 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
                       {!(p.stores ?? []).includes(late.store) && <option value={late.store}>{late.store}</option>}
                     </select>
                     <span className="text-[10px] text-accent-orange font-semibold">
-                      chargeback −{formatCurrency(late.amount)}
+                      {late.units === 0
+                        ? `no units logged at ${late.store} on ${date} yet — charge appears once sales are in`
+                        : <>chargeback −{formatCurrency(late.amount)}{late.splitWith > 1 && <span className="text-text-muted font-normal"> (split {late.splitWith} ways)</span>}</>}
                     </span>
                   </div>
                 )}

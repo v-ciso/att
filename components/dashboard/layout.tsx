@@ -16,7 +16,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <div className="min-h-screen bg-bg-primary">
-      {/* Background Orbs */}
+      {/* Live ambient background: aurora drift + orbs */}
+      <div className="aurora" aria-hidden="true" />
       <div className="orb w-96 h-96 bg-accent-blue" style={{ top: '-100px', right: '-100px' }} />
       <div className="orb w-64 h-64 bg-accent-purple" style={{ bottom: '20%', left: '-50px' }} />
       <div className="orb w-80 h-80 bg-accent-cyan" style={{ top: '50%', right: '30%' }} />

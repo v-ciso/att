@@ -66,6 +66,23 @@ export function ProfileDrawer({ name, period, onClose }: { name: string; period:
             No sales logged for this period — add them in the <span className="text-accent-blue">Daily Tracker</span>.
           </p>
         )}
+        {person && (() => {
+          // Pay rule: commission-vs-hourly, whichever is greater for the week
+          const weeklyStats = aggregateSales(loadSales(), loadCommission(), { period: 'weekly' })
+            .perPerson.find(p => p.person.trim().toLowerCase() === name.trim().toLowerCase());
+          const weeklyCommission = weeklyStats?.commission ?? 0;
+          const hourly = person.hourlyWeekly ?? 0;
+          if (hourly <= 0) return null;
+          const paid = Math.max(weeklyCommission, hourly);
+          const via = weeklyCommission >= hourly ? 'commission' : 'hourly floor';
+          return (
+            <p className="text-[11px] p-2.5 rounded-lg bg-accent-cyan/5 border border-accent-cyan/20 mb-4 text-text-secondary">
+              💵 This week&apos;s pay: <span className="text-accent-cyan font-bold">{formatCurrency(paid)}</span> via {via}
+              <span className="text-text-muted"> — commission {formatCurrency(weeklyCommission)} vs hourly {formatCurrency(hourly)}; the greater one pays.</span>
+            </p>
+          );
+        })()}
+
         {stats && stats.chargebacks > 0 && (
           <p className="text-[11px] text-accent-red p-2.5 rounded-lg bg-accent-red/5 border border-accent-red/20 mb-4">
             ⏰ Late clock-out chargebacks this period: <span className="font-bold">−{formatCurrency(stats.chargebacks)}</span>

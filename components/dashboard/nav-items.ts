@@ -6,6 +6,7 @@ import {
   DollarSign,
   Settings,
   Users,
+  ClipboardList,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -18,6 +19,7 @@ export interface NavItem {
 // All feature areas live as tabs inside /dashboard; Settings is its own page.
 export const navigation: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', tab: 'dashboard', icon: LayoutDashboard },
+  { name: 'Daily Tracker', href: '/dashboard?tab=tracker', tab: 'tracker', icon: ClipboardList },
   { name: 'Roster', href: '/dashboard?tab=roster', tab: 'roster', icon: Users },
   { name: 'Leaderboard', href: '/dashboard?tab=leaderboard', tab: 'leaderboard', icon: Trophy },
   { name: 'Meeting Mode', href: '/dashboard?tab=meeting', tab: 'meeting', icon: Presentation },

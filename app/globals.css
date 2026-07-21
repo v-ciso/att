@@ -189,6 +189,39 @@
     }
   }
 
+  /* Live ambient layer: two huge soft gradients drifting very slowly under
+     everything — motion you feel more than see */
+  .aurora {
+    @apply fixed inset-0 pointer-events-none;
+    z-index: 0;
+  }
+  .aurora::before,
+  .aurora::after {
+    content: '';
+    position: absolute;
+    inset: -40%;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: 0.07;
+    animation: aurora-drift 46s ease-in-out infinite alternate;
+  }
+  .aurora::before {
+    background: conic-gradient(from 90deg, #3b82f6, #7c3aed, #06b6d4, #3b82f6);
+  }
+  .aurora::after {
+    background: conic-gradient(from 270deg, #06b6d4, #10b981, #3b82f6, #06b6d4);
+    animation-duration: 61s;
+    animation-delay: -20s;
+  }
+  @keyframes aurora-drift {
+    from {
+      transform: translate3d(-6%, -4%, 0) rotate(0deg) scale(1);
+    }
+    to {
+      transform: translate3d(6%, 5%, 0) rotate(38deg) scale(1.12);
+    }
+  }
+
   .slide-in {
     @apply animate-slide-in;
   }

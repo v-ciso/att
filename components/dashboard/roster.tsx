@@ -37,6 +37,7 @@ export interface Person {
   team: string; // team name, '' = unassigned
   weeklyProfit: number[];
   attendance: number; // manual fallback % (tracked records win when present)
+  hourlyWeekly?: number; // guaranteed weekly hourly pay; rep is paid MAX(commission, hourly). 0 = commission-only
 }
 
 export interface PromotionRules {
@@ -78,6 +79,7 @@ export function loadPeople(): Person[] {
     return raw.map(p => ({
       ...p,
       stores: p.stores?.length ? p.stores : [p.store ?? 'Costco'],
+      hourlyWeekly: p.hourlyWeekly ?? 0,
     }));
   } catch {
     return DEFAULT_PEOPLE;
@@ -343,6 +345,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
               <th className="pb-2 pr-2">Role</th>
               <th className="pb-2 pr-2">Stores</th>
               <th className="pb-2 pr-2">Team</th>
+              <th className="pb-2 pr-2" title="Guaranteed weekly hourly pay — rep gets MAX(commission, hourly). 0 = commission-only">Hourly/wk</th>
               <th className="pb-2 pr-2">Wk-1 Profit</th>
               <th className="pb-2 pr-2">Wk-2 Profit</th>
               <th className="pb-2 pr-2">Attend.</th>
@@ -403,6 +406,9 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                   </td>
                   <td className="py-2 pr-2 text-text-secondary">
                     <Editable value={person.team || '—'} onCommit={(v) => edit(person.id, { team: v.trim() === '—' ? '' : v.trim() })} />
+                  </td>
+                  <td className="py-2 pr-2 text-accent-cyan">
+                    $<Editable value={String(person.hourlyWeekly ?? 0)} onCommit={(v) => edit(person.id, { hourlyWeekly: Math.max(0, parseNum(v)) })} />
                   </td>
                   <td className="py-2 pr-2 text-accent-green">
                     $<Editable value={String(person.weeklyProfit[0] ?? 0)} onCommit={(v) => editWeek(person.id, 0, v)} />

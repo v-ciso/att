@@ -258,7 +258,7 @@ export function CommissionEngine() {
             <span className="normal-case block mt-1">
               Late clock-out chargeback: $
               <Editable value={String(state.latePenaltyPerLine ?? 15)} onCommit={(v) => setState(p => ({ ...p, latePenaltyPerLine: parseNum(v) }))} className="text-accent-red font-semibold" />
-              /line on the store&apos;s day — split between late reps, deducted from their pay
+              /unit on the store&apos;s whole day (lines + internet) — split between late reps, deducted from their pay
             </span>
           </p>
           <div className="flex gap-1.5">
@@ -382,32 +382,49 @@ export function CommissionEngine() {
 // P&L editor with roadtrip reimbursement
 // ---------------------------------------------------------------------------
 
+// Every line item carries its billing cadence; views convert automatically
+// (e.g. yearly insurance ÷52 in the weekly view).
+export type Cadence = 'weekly' | 'monthly' | 'yearly';
+export const CADENCE_LABELS: Record<Cadence, string> = { weekly: 'W', monthly: 'M', yearly: 'Y' };
+const CADENCE_ORDER: Cadence[] = ['weekly', 'monthly', 'yearly'];
+
+// per-year multiplier for a cadence, and periods-per-year for a view
+const PER_YEAR: Record<Cadence, number> = { weekly: 52, monthly: 12, yearly: 1 };
+export type PnlView = 'daily' | 'weekly' | 'monthly' | 'yearly';
+const VIEW_DIVISOR: Record<PnlView, number> = { daily: 365, weekly: 52, monthly: 12, yearly: 1 };
+
+export function toView(amount: number, cadence: Cadence, view: PnlView): number {
+  return (amount * PER_YEAR[cadence]) / VIEW_DIVISOR[view];
+}
+
 interface MoneyItem {
   name: string;
   amount: number;
+  cadence?: Cadence; // missing on old saved data → treated as monthly
 }
 
 export interface PnlState {
   revenue: MoneyItem[];
   expenses: MoneyItem[];
-  roadtrips: MoneyItem[];
+  roadtrips: MoneyItem[]; // actual monthly spend
   reimburseRate: number; // 0..100 (%)
 }
 
 export const DEFAULT_PNL: PnlState = {
   revenue: [
-    { name: 'Bonuses', amount: 12300 },
+    { name: 'Bonuses', amount: 12300, cadence: 'monthly' },
   ],
   expenses: [
-    { name: 'Payroll', amount: 85000 },
-    { name: 'Rent', amount: 18000 },
-    { name: 'Travel', amount: 8500 },
-    { name: 'Marketing', amount: 3200 },
-    { name: 'Software', amount: 1100 },
-    { name: 'Other', amount: 5100 },
+    { name: 'Payroll', amount: 85000, cadence: 'monthly' },
+    { name: 'Rent', amount: 18000, cadence: 'monthly' },
+    { name: 'Travel', amount: 8500, cadence: 'monthly' },
+    { name: 'Insurance', amount: 24000, cadence: 'yearly' },
+    { name: 'Marketing', amount: 3200, cadence: 'monthly' },
+    { name: 'Software', amount: 1100, cadence: 'monthly' },
+    { name: 'Other', amount: 5100, cadence: 'monthly' },
   ],
   roadtrips: [
-    { name: 'Orlando roadtrip', amount: 4200 },
+    { name: 'Orlando roadtrip', amount: 4200, cadence: 'monthly' },
   ],
   reimburseRate: 60,
 };
@@ -417,7 +434,9 @@ function MoneyList({
   icon: Icon,
   color,
   items,
+  view,
   onEdit,
+  onCadence,
   onAdd,
   onRemove,
   footer,
@@ -426,7 +445,9 @@ function MoneyList({
   icon: React.ComponentType<{ className?: string }>;
   color: 'green' | 'red' | 'orange';
   items: MoneyItem[];
+  view: PnlView;
   onEdit: (index: number, field: 'name' | 'amount', value: string) => void;
+  onCadence: (index: number) => void;
   onAdd: () => void;
   onRemove: (index: number) => void;
   footer?: React.ReactNode;
@@ -451,32 +472,54 @@ function MoneyList({
           <Plus className="w-3.5 h-3.5" />
         </button>
       </div>
-      <div className="space-y-1.5 text-sm">
-        {items.map((item, i) => (
-          <div key={i} className="group flex items-center justify-between gap-2 p-2 rounded-lg bg-white/5">
-            <Editable value={item.name} onCommit={(v) => onEdit(i, 'name', v)} className="flex-1 min-w-0" />
-            <span className="flex items-center gap-1.5">
-              <span className={cn('font-semibold', colorClasses[color])}>
-                $<Editable value={String(item.amount)} onCommit={(v) => onEdit(i, 'amount', v)} />
+      <div className="space-y-1.5 text-xs">
+        {items.map((item, i) => {
+          const cadence = item.cadence ?? 'monthly';
+          const converted = toView(item.amount, cadence, view);
+          return (
+            <div key={i} className="group flex items-center justify-between gap-2 p-2 rounded-lg bg-white/5">
+              <Editable value={item.name} onCommit={(v) => onEdit(i, 'name', v)} className="flex-1 min-w-0" />
+              <span className="flex items-center gap-1.5">
+                <span className={cn('font-semibold', colorClasses[color])}>
+                  $<Editable value={String(item.amount)} onCommit={(v) => onEdit(i, 'amount', v)} />
+                </span>
+                <button
+                  onClick={() => onCadence(i)}
+                  className="px-1.5 py-0.5 rounded border border-border-subtle text-[9px] font-bold text-text-secondary hover:text-white hover:border-border-strong transition-all"
+                  title={`Billed ${cadence} — click to change (Weekly / Monthly / Yearly)`}
+                >
+                  {CADENCE_LABELS[cadence]}
+                </button>
+                <span className="text-text-muted text-[10px] w-16 text-right" title={`In the ${view} view`}>
+                  = {formatCurrency(converted)}
+                </span>
+                <button
+                  onClick={() => onRemove(i)}
+                  className="p-0.5 rounded text-text-muted opacity-0 group-hover:opacity-100 hover:text-accent-red transition-all"
+                  aria-label={`Remove ${item.name}`}
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
               </span>
-              <button
-                onClick={() => onRemove(i)}
-                className="p-0.5 rounded text-text-muted opacity-0 group-hover:opacity-100 hover:text-accent-red transition-all"
-                aria-label={`Remove ${item.name}`}
-              >
-                <Trash2 className="w-3 h-3" />
-              </button>
-            </span>
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </div>
       {footer}
     </div>
   );
 }
 
-export function PnlEditor({ derivedCommission = 0, derivedChargebacks = 0 }: { derivedCommission?: number; derivedChargebacks?: number }) {
+export interface PnlDerivedByView {
+  daily: { revenue: number; chargebacks: number };
+  weekly: { revenue: number; chargebacks: number };
+  monthly: { revenue: number; chargebacks: number };
+  yearly: { revenue: number; chargebacks: number };
+}
+
+export function PnlEditor({ derived }: { derived: PnlDerivedByView }) {
   const { state, setState, reset } = useLocalState<PnlState>('se-pnl-v1', DEFAULT_PNL);
+  const [view, setView] = useState<PnlView>('monthly');
 
   const editList =
     (list: 'revenue' | 'expenses' | 'roadtrips') =>
@@ -492,17 +535,34 @@ export function PnlEditor({ derivedCommission = 0, derivedChargebacks = 0 }: { d
         ),
       }));
 
+  const cycleCadence = (list: 'revenue' | 'expenses' | 'roadtrips') => (index: number) =>
+    setState(prev => ({
+      ...prev,
+      [list]: prev[list].map((item, i) => {
+        if (i !== index) return item;
+        const current = item.cadence ?? 'monthly';
+        const next = CADENCE_ORDER[(CADENCE_ORDER.indexOf(current) + 1) % CADENCE_ORDER.length];
+        return { ...item, cadence: next };
+      }),
+    }));
+
   const addTo = (list: 'revenue' | 'expenses' | 'roadtrips', name: string) => () =>
-    setState(prev => ({ ...prev, [list]: [...prev[list], { name, amount: 0 }] }));
+    setState(prev => ({ ...prev, [list]: [...prev[list], { name, amount: 0, cadence: 'monthly' as Cadence }] }));
 
   const removeFrom = (list: 'revenue' | 'expenses' | 'roadtrips') => (index: number) =>
     setState(prev => ({ ...prev, [list]: prev[list].filter((_, i) => i !== index) }));
 
+  const sumInView = (items: MoneyItem[]) =>
+    items.reduce((a, b) => a + toView(b.amount, b.cadence ?? 'monthly', view), 0);
+
   const rate = Math.min(100, Math.max(0, state.reimburseRate)) / 100;
-  const roadtripCost = state.roadtrips.reduce((a, b) => a + b.amount, 0);
+  const roadtripCost = sumInView(state.roadtrips);
   const reimbursement = roadtripCost * rate;
-  const totalRevenue = state.revenue.reduce((a, b) => a + b.amount, 0) + reimbursement + derivedCommission;
-  const totalExpenses = state.expenses.reduce((a, b) => a + b.amount, 0) + roadtripCost + derivedChargebacks;
+  // Derived sales money for the same window (gross generated; chargebacks as expense)
+  const derivedCommission = derived[view].revenue + derived[view].chargebacks;
+  const derivedChargebacks = derived[view].chargebacks;
+  const totalRevenue = sumInView(state.revenue) + reimbursement + derivedCommission;
+  const totalExpenses = sumInView(state.expenses) + roadtripCost + derivedChargebacks;
   const net = totalRevenue - totalExpenses;
   const margin = totalRevenue > 0 ? ((net / totalRevenue) * 100).toFixed(1) : '0.0';
 
@@ -510,17 +570,30 @@ export function PnlEditor({ derivedCommission = 0, derivedChargebacks = 0 }: { d
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h2 className="text-xl font-bold neon-text-cyan">Profit &amp; Loss</h2>
-        <Button variant="ghost" size="sm" onClick={reset}>↻ Reset to defaults</Button>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1.5">
+            {(['daily', 'weekly', 'monthly', 'yearly'] as PnlView[]).map(v => (
+              <button key={v} onClick={() => setView(v)} className={cn('tab-btn', view === v ? 'active' : 'inactive')}>
+                {v.charAt(0).toUpperCase() + v.slice(1)}
+              </button>
+            ))}
+          </div>
+          <Button variant="ghost" size="sm" onClick={reset}>↻ Reset to defaults</Button>
+        </div>
       </div>
+      <p className="text-[10px] text-text-muted mb-3">
+        Every line has a billing cadence (W/M/Y chip — click to change). Amounts auto-convert to the selected view:
+        a $24,000/yr insurance shows as {formatCurrency(toView(24000, 'yearly', 'weekly'))}/week.
+      </p>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <MoneyList
-          title="Revenue" icon={DollarSign} color="green" items={state.revenue}
-          onEdit={editList('revenue')} onAdd={addTo('revenue', 'New revenue')} onRemove={removeFrom('revenue')}
+          title="Revenue" icon={DollarSign} color="green" items={state.revenue} view={view}
+          onEdit={editList('revenue')} onCadence={cycleCadence('revenue')} onAdd={addTo('revenue', 'New revenue')} onRemove={removeFrom('revenue')}
           footer={
             <>
               <div className="mt-2 p-2 rounded-lg bg-accent-green/5 border border-accent-green/20 flex justify-between text-xs">
-                <span className="text-text-secondary">Sales commission <span className="text-text-muted">(auto · Daily Tracker, this month)</span></span>
+                <span className="text-text-secondary">Sales commission <span className="text-text-muted">(auto · Daily Tracker, {view})</span></span>
                 <span className="text-accent-green font-semibold">{formatCurrency(derivedCommission)}</span>
               </div>
               <div className="mt-1.5 p-2 rounded-lg bg-accent-green/5 border border-accent-green/20 flex justify-between text-xs">
@@ -531,20 +604,20 @@ export function PnlEditor({ derivedCommission = 0, derivedChargebacks = 0 }: { d
           }
         />
         <MoneyList
-          title="Expenses" icon={Receipt} color="red" items={state.expenses}
-          onEdit={editList('expenses')} onAdd={addTo('expenses', 'New expense')} onRemove={removeFrom('expenses')}
+          title="Expenses" icon={Receipt} color="red" items={state.expenses} view={view}
+          onEdit={editList('expenses')} onCadence={cycleCadence('expenses')} onAdd={addTo('expenses', 'New expense')} onRemove={removeFrom('expenses')}
           footer={
             derivedChargebacks > 0 ? (
               <div className="mt-2 p-2 rounded-lg bg-accent-red/5 border border-accent-red/20 flex justify-between text-xs">
-                <span className="text-text-secondary">Late clock-out chargebacks <span className="text-text-muted">(auto · this month, recouped from reps)</span></span>
+                <span className="text-text-secondary">Late clock-out chargebacks <span className="text-text-muted">(auto · {view}, recouped from reps)</span></span>
                 <span className="text-accent-red font-semibold">{formatCurrency(derivedChargebacks)}</span>
               </div>
             ) : undefined
           }
         />
         <MoneyList
-          title="Roadtrips" icon={MapPin} color="orange" items={state.roadtrips}
-          onEdit={editList('roadtrips')} onAdd={addTo('roadtrips', 'New roadtrip')} onRemove={removeFrom('roadtrips')}
+          title="Roadtrips" icon={MapPin} color="orange" items={state.roadtrips} view={view}
+          onEdit={editList('roadtrips')} onCadence={cycleCadence('roadtrips')} onAdd={addTo('roadtrips', 'New roadtrip')} onRemove={removeFrom('roadtrips')}
           footer={
             <p className="mt-2 text-[11px] text-text-secondary">
               AT&amp;T / parent company reimburses{' '}
@@ -559,11 +632,11 @@ export function PnlEditor({ derivedCommission = 0, derivedChargebacks = 0 }: { d
 
       <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="p-4 rounded-xl glass border border-border-subtle text-center">
-          <p className="text-[10px] text-text-muted uppercase tracking-wider">Revenue</p>
+          <p className="text-[10px] text-text-muted uppercase tracking-wider">{view} Revenue</p>
           <p className="text-xl font-bold text-accent-green">{formatCurrency(totalRevenue)}</p>
         </div>
         <div className="p-4 rounded-xl glass border border-border-subtle text-center">
-          <p className="text-[10px] text-text-muted uppercase tracking-wider">Expenses</p>
+          <p className="text-[10px] text-text-muted uppercase tracking-wider">{view} Expenses</p>
           <p className="text-xl font-bold text-accent-red">{formatCurrency(totalExpenses)}</p>
         </div>
         <div className={cn('p-4 rounded-xl glass border text-center', net >= 0 ? 'border-accent-green/30 bg-accent-green/5' : 'border-accent-red/30 bg-accent-red/5')}>

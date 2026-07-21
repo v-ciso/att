@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -26,6 +27,21 @@ import {
 import { Editable, parseNum, useLocalState } from '@/components/dashboard/editable-sections';
 
 const VALID_TABS = ['dashboard', 'tracker', 'roster', 'leaderboard', 'meeting', 'pnl', 'commission'];
+
+// Renders overlays inside the fullscreened element when presentation mode is
+// active — otherwise drawers opened during Present would be invisible until
+// the user exits fullscreen.
+function FsPortal({ children }: { children: React.ReactNode }) {
+  const [target, setTarget] = useState<Element | null>(null);
+  useEffect(() => {
+    setTarget(document.fullscreenElement ?? document.body);
+    const onFs = () => setTarget(document.fullscreenElement ?? document.body);
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
+  if (!target) return null;
+  return createPortal(children, target);
+}
 
 // ---------------------------------------------------------------------------
 // Small building blocks
@@ -134,7 +150,7 @@ function StoreSelect({ options, selected, onChange }: { options: string[]; selec
         <MapPin className="w-3 h-3" /> {label} <ChevronDown className={cn('w-3 h-3 transition-transform', open && 'rotate-180')} />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 z-40 w-48 p-2 rounded-xl bg-bg-secondary border border-border-strong shadow-glass space-y-0.5">
+        <div className="absolute right-0 top-full mt-1.5 z-50 w-48 max-h-72 overflow-y-auto p-2 rounded-xl bg-bg-secondary border border-border-strong shadow-glass space-y-0.5">
           <button
             onClick={() => onChange([])}
             className={cn('w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors', selected.length === 0 ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-secondary hover:bg-white/5 hover:text-white')}
@@ -382,6 +398,16 @@ function DashboardContent() {
     () => aggregateSales(sales, commission, { period: 'monthly', stores: storeSel }),
     [sales, commission, storeSel]
   );
+  const aggYearly = useMemo(
+    () => aggregateSales(sales, commission, { period: 'yearly', stores: storeSel }),
+    [sales, commission, storeSel]
+  );
+  const pnlDerived = useMemo(() => ({
+    daily: { revenue: aggDaily.revenue, chargebacks: aggDaily.chargebacks },
+    weekly: { revenue: aggWeekly.revenue, chargebacks: aggWeekly.chargebacks },
+    monthly: { revenue: aggMonthly.revenue, chargebacks: aggMonthly.chargebacks },
+    yearly: { revenue: aggYearly.revenue, chargebacks: aggYearly.chargebacks },
+  }), [aggDaily, aggWeekly, aggMonthly, aggYearly]);
 
   const hasData = sales.length > 0;
   const premiumMix = agg.lines > 0 ? ((agg.premium / agg.lines) * 100).toFixed(1) : '0.0';
@@ -391,24 +417,52 @@ function DashboardContent() {
     bump();
   };
 
-  // Trend: last 7 days of revenue (respects store selection)
+  // Trend: switchable range — 7 days / 8 weeks / 12 months (respects stores)
+  const [trendRange, setTrendRange] = useState<'days' | 'weeks' | 'months'>('days');
   const trendData = useMemo(() => {
-    const days: string[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(); d.setDate(d.getDate() - i);
-      days.push(d.toISOString().slice(0, 10));
+    // aggYearly.perDay is already store-filtered office revenue per date
+    const labels: string[] = [];
+    const data: number[] = [];
+    const now = new Date();
+    if (trendRange === 'days') {
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(); d.setDate(now.getDate() - i);
+        const key = d.toISOString().slice(0, 10);
+        labels.push(d.toLocaleDateString('en-US', { weekday: 'short' }));
+        data.push(aggYearly.perDay.get(key) ?? 0);
+      }
+    } else if (trendRange === 'weeks') {
+      for (let w = 7; w >= 0; w--) {
+        const start = new Date(); start.setDate(now.getDate() - (w + 1) * 7 + 1);
+        let sum = 0;
+        for (let d = 0; d < 7; d++) {
+          const day = new Date(start); day.setDate(start.getDate() + d);
+          sum += aggYearly.perDay.get(day.toISOString().slice(0, 10)) ?? 0;
+        }
+        labels.push(start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+        data.push(sum);
+      }
+    } else {
+      for (let m = 11; m >= 0; m--) {
+        const monthStart = new Date(now.getFullYear(), now.getMonth() - m, 1);
+        const prefix = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`;
+        let sum = 0;
+        aggYearly.perDay.forEach((v, k) => { if (k.startsWith(prefix)) sum += v; });
+        labels.push(monthStart.toLocaleDateString('en-US', { month: 'short' }));
+        data.push(sum);
+      }
     }
     return {
-      labels: days.map(d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' })),
+      labels,
       datasets: [{
         label: 'Revenue',
-        data: days.map(d => aggWeekly.perDay.get(d) ?? 0),
+        data,
         borderColor: '#3B82F6',
         backgroundColor: 'rgba(59,130,246,0.1)',
         fill: true, tension: 0.3, borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#3B82F6',
       }],
     };
-  }, [aggWeekly]);
+  }, [trendRange, aggYearly]);
 
   // Pie: business categories (New Lines / Upgrades / Internet) — click for plans
   const mixCategories = useMemo(() => buildMixCategories(agg, commission), [agg, commission]);
@@ -496,6 +550,33 @@ function DashboardContent() {
   const scheduleDays = useMemo(() => Array.from({ length: 7 }, (_, i) => todayStr(i)), []);
   const setShift = (date: string, person: string, store: string) =>
     setSchedule(prev => ({ ...prev, [date]: { ...(prev[date] ?? {}), [person]: store } }));
+
+  // Copy the schedule as clean plain text for Discord / iMessage
+  const [scheduleCopied, setScheduleCopied] = useState(false);
+  const copySchedule = async () => {
+    const lines: string[] = ['📅 Schedule'];
+    for (const d of scheduleDays) {
+      const dayLabel = new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' });
+      const day = schedule[d] ?? {};
+      const byStore = new Map<string, string[]>();
+      const off: string[] = [];
+      people.forEach(p => {
+        const s = day[p.name];
+        if (!s) return;
+        if (s === 'OFF') off.push(p.name);
+        else byStore.set(s, [...(byStore.get(s) ?? []), p.name]);
+      });
+      if (byStore.size === 0 && off.length === 0) continue;
+      lines.push(`\n${dayLabel}`);
+      Array.from(byStore.entries()).forEach(([store, names]) => lines.push(`  ${store}: ${names.join(', ')}`));
+      if (off.length) lines.push(`  OFF: ${off.join(', ')}`);
+    }
+    try {
+      await navigator.clipboard.writeText(lines.join('\n'));
+      setScheduleCopied(true);
+      setTimeout(() => setScheduleCopied(false), 2500);
+    } catch { /* clipboard blocked */ }
+  };
   const goals = [
     { key: 'lines' as const, label: 'Total Lines', current: aggWeekly.lines, target: goalTargets.lines, color: 'blue' },
     { key: 'premium' as const, label: 'Premium', current: aggWeekly.premium, target: goalTargets.premium, color: 'purple' },
@@ -558,8 +639,8 @@ function DashboardContent() {
 
   return (
     <DashboardLayout>
-      {/* Header */}
-      <div className="slide-in mb-4 flex flex-wrap items-center justify-between gap-2">
+      {/* Header — raised stacking context so its dropdowns paint over the cards below */}
+      <div className="slide-in relative z-40 mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl lg:text-4xl font-bold neon-text-blue">Dashboard</h1>
           <p className="text-text-secondary text-sm mt-0.5">AT&T campaign · white-label ready</p>
@@ -645,11 +726,17 @@ function DashboardContent() {
                 <CardTitle className="flex items-center justify-between">
                   <span className="flex items-center gap-2">
                     <TrendingUp className="w-4 h-4 text-accent-blue" /> Revenue Trend
-                    <span className="text-[10px] text-text-muted font-normal uppercase tracking-wider">last 7 days</span>
                   </span>
-                  <button onClick={() => setExpandChart('trend')} className="p-1 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Expand revenue trend" title="Enlarge">
-                    <Maximize2 className="w-3.5 h-3.5" />
-                  </button>
+                  <span className="flex items-center gap-1">
+                    {([['days', '7D'], ['weeks', '8W'], ['months', '12M']] as const).map(([r, label]) => (
+                      <button key={r} onClick={() => setTrendRange(r)} className={cn('tab-btn !px-2 !py-0.5 text-[10px]', trendRange === r ? 'active' : 'inactive')}>
+                        {label}
+                      </button>
+                    ))}
+                    <button onClick={() => setExpandChart('trend')} className="p-1 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Expand revenue trend" title="Enlarge">
+                      <Maximize2 className="w-3.5 h-3.5" />
+                    </button>
+                  </span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -878,6 +965,27 @@ function DashboardContent() {
               <MeetingTracker label={`${PERIOD_LABELS[meetingPeriod]} Generated`} value={formatCurrency(meetingAgg.revenue)} color="yellow" size="2xl" />
             </div>
 
+            {/* Weekly goals — set the targets right here in the meeting */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
+              {goals.map(goal => (
+                <div key={goal.label} className="glass rounded-xl p-3 border border-border-subtle">
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-text-secondary flex items-center gap-1.5"><Target className="w-3.5 h-3.5 text-accent-green" /> Weekly Goal · {goal.label}</span>
+                    <span className={cn('font-medium', goal.color === 'blue' ? 'text-accent-blue' : 'text-accent-purple')}>
+                      {formatNumber(goal.current)} /{' '}
+                      <Editable
+                        value={String(goal.target)}
+                        onCommit={(v) => setGoalTargets(prev => ({ ...prev, [goal.key]: Math.max(1, parseNum(v)) }))}
+                      />
+                    </span>
+                  </div>
+                  <div className="w-full h-1.5 rounded-full bg-bg-tertiary">
+                    <div className="h-full rounded-full" style={{ width: `${Math.min(100, (goal.current / goal.target) * 100)}%`, background: goal.color === 'blue' ? 'linear-gradient(to right, #3B82F6, #60A5FA)' : 'linear-gradient(to right, #A855F7, #C084FC)' }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+
             <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-2">
               <Users className="w-4 h-4" /> Teams · live from members&apos; sales
               <span className="text-[10px] text-text-muted font-normal">(build teams on the Roster tab)</span>
@@ -940,10 +1048,15 @@ function DashboardContent() {
             </div>
 
             {/* Schedule — who's where, next 7 days */}
-            <h3 className="text-sm font-semibold text-text-secondary mt-5 mb-3 flex items-center gap-2">
-              <CalendarCheck className="w-4 h-4 text-accent-cyan" /> Schedule · who&apos;s where
-              <span className="text-[10px] text-text-muted font-normal">(set it in the meeting — everyone knows where they&apos;re going)</span>
-            </h3>
+            <div className="flex flex-wrap items-center justify-between gap-2 mt-5 mb-3">
+              <h3 className="text-sm font-semibold text-text-secondary flex items-center gap-2">
+                <CalendarCheck className="w-4 h-4 text-accent-cyan" /> Schedule · who&apos;s where
+                <span className="text-[10px] text-text-muted font-normal">(set it in the meeting — everyone knows where they&apos;re going)</span>
+              </h3>
+              <Button variant="secondary" size="sm" onClick={copySchedule}>
+                {scheduleCopied ? '✓ Copied — paste into Discord/iMessage' : '📋 Copy for chat'}
+              </Button>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-[11px]">
                 <thead>
@@ -975,7 +1088,9 @@ function DashboardContent() {
                               aria-label={`${p.name} on ${d}`}
                             >
                               <option value="">—</option>
-                              {(p.stores ?? []).map(s => <option key={s} value={s}>{s}</option>)}
+                              {/* any store is selectable — reps can cover locations outside their usual list */}
+                              {storeOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                              {(p.stores ?? []).filter(s => !storeOptions.includes(s)).map(s => <option key={s} value={s}>{s}</option>)}
                               <option value="OFF">OFF</option>
                             </select>
                           </td>
@@ -998,8 +1113,7 @@ function DashboardContent() {
       {activeTab === 'pnl' && (
         <div id="tab-pnl" className="tab-panel">
           <Card className="p-5">
-            {/* gross generated as revenue; the chargeback hit shows as its own expense */}
-            <PnlEditor derivedCommission={aggMonthly.revenue + aggMonthly.chargebacks} derivedChargebacks={aggMonthly.chargebacks} />
+            <PnlEditor derived={pnlDerived} />
           </Card>
         </div>
       )}
@@ -1019,6 +1133,7 @@ function DashboardContent() {
         ));
         const statsByName = new Map(meetingAgg.perPerson.map(p => [p.person.toLowerCase(), p]));
         return (
+          <FsPortal>
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label={`${team.name} stats`}>
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setTeamDrawerName(null)} />
             <div className="relative w-full sm:max-w-lg glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 max-h-[85vh] overflow-y-auto">
@@ -1062,6 +1177,7 @@ function DashboardContent() {
               </div>
             </div>
           </div>
+          </FsPortal>
         );
       })()}
 
@@ -1072,7 +1188,16 @@ function DashboardContent() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center gap-2">
                 {expandChart === 'trend'
-                  ? <><TrendingUp className="w-5 h-5 text-accent-blue" /> Revenue Trend · last 7 days</>
+                  ? <>
+                      <TrendingUp className="w-5 h-5 text-accent-blue" /> Revenue Trend
+                      <span className="flex items-center gap-1 ml-2">
+                        {([['days', '7 Days'], ['weeks', '8 Weeks'], ['months', '12 Months']] as const).map(([r, label]) => (
+                          <button key={r} onClick={() => setTrendRange(r)} className={cn('tab-btn', trendRange === r ? 'active' : 'inactive')}>
+                            {label}
+                          </button>
+                        ))}
+                      </span>
+                    </>
                   : <><PieChart className="w-5 h-5 text-accent-purple" /> Product Mix · {PERIOD_LABELS[period]}</>}
               </h3>
               <button onClick={() => setExpandChart(null)} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
@@ -1098,9 +1223,13 @@ function DashboardContent() {
         </div>
       )}
 
-      {drillCat && <SliceDrawer category={drillCat} agg={agg} onClose={() => setDrillCat(null)} />}
-      {showProduction && <ProductionDrawer agg={agg} period={period} onClose={() => setShowProduction(false)} onOpenProfile={(n) => { setShowProduction(false); setProfileName(n); }} />}
-      {profileName && <ProfileDrawer name={profileName} period={period} onClose={() => setProfileName(null)} />}
+      {drillCat && <FsPortal><SliceDrawer category={drillCat} agg={agg} onClose={() => setDrillCat(null)} /></FsPortal>}
+      {showProduction && <FsPortal><ProductionDrawer agg={agg} period={period} onClose={() => setShowProduction(false)} onOpenProfile={(n) => { setShowProduction(false); setProfileName(n); }} /></FsPortal>}
+      {profileName && (
+        <FsPortal>
+          <ProfileDrawer name={profileName} period={activeTab === 'meeting' ? meetingPeriod : period} onClose={() => setProfileName(null)} />
+        </FsPortal>
+      )}
 
       {exporting && (
         <div id="print-root">
