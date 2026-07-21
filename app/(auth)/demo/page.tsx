@@ -56,7 +56,7 @@ export default function DemoPage() {
       <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border-subtle px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Building2 className="w-6 h-6 text-accent-blue" />
-          <span className="text-lg font-bold neon-text-blue">Sales Engine</span>
+          <span className="text-lg font-bold neon-brand">Sales Engine</span>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="ghost" onClick={() => router.push('/login')}>Sign In</Button>

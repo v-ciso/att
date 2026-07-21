@@ -12,7 +12,7 @@ function Logo() {
   if (theme.logoUrl) {
     return <img src={theme.logoUrl} alt={`${theme.companyName} logo`} className="h-8 w-auto" />;
   }
-  return <span className="text-lg font-bold neon-text-blue">{theme.companyName}</span>;
+  return <span className="text-lg font-bold neon-brand">{theme.companyName}</span>;
 }
 
 export function MobileHeader({ onMenuClick }: { onMenuClick: () => void }) {

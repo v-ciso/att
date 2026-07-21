@@ -20,6 +20,7 @@ import { ReportTemplate } from '@/components/dashboard/report-template';
 import { RosterManager, loadPeople } from '@/components/dashboard/roster';
 import { Competition } from '@/components/dashboard/competition';
 import { ScheduleBoard } from '@/components/dashboard/schedule-board';
+import { ImportReport } from '@/components/dashboard/import-report';
 import { ProfileDrawer } from '@/components/dashboard/profile-drawer';
 import { DailyTracker } from '@/components/dashboard/daily-tracker';
 import {
@@ -28,7 +29,7 @@ import {
 } from '@/lib/sales';
 import { Editable, parseNum, useLocalState } from '@/components/dashboard/editable-sections';
 
-const VALID_TABS = ['dashboard', 'tracker', 'roster', 'leaderboard', 'meeting', 'schedule', 'competition', 'pnl', 'commission'];
+const VALID_TABS = ['dashboard', 'tracker', 'roster', 'leaderboard', 'meeting', 'schedule', 'competition', 'pnl', 'commission', 'import'];
 
 // Renders overlays inside the fullscreened element when presentation mode is
 // active — otherwise drawers opened during Present would be invisible until
@@ -682,6 +683,7 @@ function DashboardContent() {
         <TabButton isActive={activeTab === 'competition'} onClick={() => switchTab('competition')}>Competition</TabButton>
         <TabButton isActive={activeTab === 'pnl'} onClick={() => switchTab('pnl')}>P&L</TabButton>
         <TabButton isActive={activeTab === 'commission'} onClick={() => switchTab('commission')}>Commission</TabButton>
+        <TabButton isActive={activeTab === 'import'} onClick={() => switchTab('import')}>Import</TabButton>
       </div>
 
       {activeTab === 'dashboard' && (
@@ -873,7 +875,7 @@ function DashboardContent() {
         <div id="tab-leaderboard" className="tab-panel">
           <Card className="p-5">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-              <h2 className="text-xl font-bold neon-text-purple">
+              <h2 className="text-xl font-bold neon-brand">
                 Team Leaderboard
                 <span className="text-xs text-text-muted font-normal ml-2">{PERIOD_LABELS[period]} · derived from the Daily Tracker</span>
               </h2>
@@ -931,7 +933,7 @@ function DashboardContent() {
         <div id="tab-meeting" ref={meetingRef} className="tab-panel">
           <Card className="p-5">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-              <h2 className="text-xl font-bold neon-text-blue">Meeting Mode</h2>
+              <h2 className="text-xl font-bold neon-brand">Meeting Mode</h2>
               <div className="flex items-center gap-2">
                 <PeriodChips period={meetingPeriod} onChange={setMeetingPeriod} options={['daily', 'weekly', 'all']} />
                 <Button size="sm" onClick={togglePresentation}>
@@ -1082,6 +1084,12 @@ function DashboardContent() {
       {activeTab === 'commission' && (
         <div id="tab-commission" className="tab-panel">
           <Card className="p-5"><CommissionEngine /></Card>
+        </div>
+      )}
+
+      {activeTab === 'import' && (
+        <div id="tab-import" className="tab-panel">
+          <Card className="p-5"><ImportReport sales={sales} commission={commission} /></Card>
         </div>
       )}
 

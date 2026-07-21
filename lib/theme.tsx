@@ -8,6 +8,7 @@ export interface WhiteLabelTheme {
   secondaryColor: string;
   preset?: ThemePreset;
   logoUrl?: string;
+  logoLocked?: boolean; // once locked by the admin, the logo can't be changed
   faviconUrl?: string;
   loginBackgroundUrl?: string;
   customDomain?: string;
@@ -149,6 +150,13 @@ export function applyTheme(theme: WhiteLabelTheme) {
     style.textContent = generateCSSVariables(theme);
     // Brand preset drives the gold/blue/emerald chrome via CSS in globals.css
     document.documentElement.dataset.theme = theme.preset ?? 'command-blue';
+    // Company logo doubles as the browser favicon
+    const favHref = theme.faviconUrl || theme.logoUrl;
+    if (favHref) {
+      let fav = document.querySelector('link[rel="icon"]') as HTMLLinkElement | null;
+      if (!fav) { fav = document.createElement('link'); fav.rel = 'icon'; document.head.appendChild(fav); }
+      fav.href = favHref;
+    }
     document.title =
       theme.companyName === 'Sales Engine'
         ? 'Sales Engine — Retail Command Center'

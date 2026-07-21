@@ -188,7 +188,7 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   return (
     <div ref={panelRef} className="presentable">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-        <h2 className="text-xl font-bold neon-text-blue flex items-center gap-2">
+        <h2 className="text-xl font-bold neon-brand flex items-center gap-2">
           <ClipboardList className="w-5 h-5 text-accent-blue" /> Daily Tracker
           <span className="text-xs text-text-muted font-normal">yesterday&apos;s production, logged this morning</span>
         </h2>

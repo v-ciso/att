@@ -254,7 +254,7 @@ export function CommissionEngine() {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-        <h2 className="text-xl font-bold neon-text-blue">Commission Engine</h2>
+        <h2 className="text-xl font-bold neon-brand">Commission Engine</h2>
         <Button variant="ghost" size="sm" onClick={reset}>↻ Reset to defaults</Button>
       </div>
 
@@ -569,7 +569,7 @@ export function PnlEditor({ derived }: { derived: PnlDerivedByView }) {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-        <h2 className="text-xl font-bold neon-text-cyan">Profit &amp; Loss</h2>
+        <h2 className="text-xl font-bold neon-brand">Profit &amp; Loss</h2>
         <div className="flex items-center gap-2">
           <div className="flex gap-1.5">
             {(['daily', 'weekly', 'monthly', 'yearly'] as PnlView[]).map(v => (

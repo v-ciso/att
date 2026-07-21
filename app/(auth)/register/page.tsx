@@ -107,7 +107,7 @@ export default function RegisterPage() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-4">
             <Building2 className="w-8 h-8 text-accent-blue" />
-            <span className="text-2xl font-bold neon-text-blue">Sales Engine</span>
+            <span className="text-2xl font-bold neon-brand">Sales Engine</span>
           </div>
           <h1 className="text-xl font-semibold">Create your account</h1>
           <p className="text-text-secondary text-sm mt-1">Set up your white-label sales dashboard</p>

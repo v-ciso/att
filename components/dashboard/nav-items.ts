@@ -9,6 +9,7 @@ import {
   ClipboardList,
   Award,
   CalendarCheck,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -29,6 +30,7 @@ export const navigation: NavItem[] = [
   { name: 'Competition', href: '/dashboard?tab=competition', tab: 'competition', icon: Award },
   { name: 'P&L', href: '/dashboard?tab=pnl', tab: 'pnl', icon: Receipt },
   { name: 'Commission', href: '/dashboard?tab=commission', tab: 'commission', icon: DollarSign },
+  { name: 'Import Report', href: '/dashboard?tab=import', tab: 'import', icon: FileSpreadsheet },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { cn, formatCurrency, getInitials } from '@/lib/utils';
 import { loadPeople, loadPromoRules, promotionStatus, effectiveAttendance, ROSTER_ROLE_LABELS, ROLE_LADDER } from './roster';
 import { Period, PERIOD_LABELS, aggregateSales, loadSales, loadCommission } from '@/lib/sales';
+import { computePay } from '@/lib/pay';
 
 export function ProfileDrawer({ name, period, onClose }: { name: string; period: Period; onClose: () => void }) {
   const person = loadPeople().find(p => p.name.trim().toLowerCase() === name.trim().toLowerCase());
@@ -67,19 +68,29 @@ export function ProfileDrawer({ name, period, onClose }: { name: string; period:
           </p>
         )}
         {person && (() => {
-          // Pay rule: commission-vs-hourly, whichever is greater for the week
-          const weeklyStats = aggregateSales(loadSales(), loadCommission(), { period: 'weekly' })
-            .perPerson.find(p => p.person.trim().toLowerCase() === name.trim().toLowerCase());
-          const weeklyCommission = weeklyStats?.commission ?? 0;
+          // Full pay for the week: base + lead bump + ASM override, then the
+          // greater of that vs the guaranteed hourly.
+          const allPeople = loadPeople();
+          const pay = computePay(person, { sales: loadSales(), commission: loadCommission(), people: allPeople, period: 'weekly' });
           const hourly = person.hourlyWeekly ?? 0;
-          if (hourly <= 0) return null;
-          const paid = Math.max(weeklyCommission, hourly);
-          const via = weeklyCommission >= hourly ? 'commission' : 'hourly floor';
+          const paid = Math.max(pay.total, hourly);
+          const via = pay.total >= hourly ? 'earnings' : 'hourly floor';
           return (
-            <p className="text-[11px] p-2.5 rounded-lg bg-accent-cyan/5 border border-accent-cyan/20 mb-4 text-text-secondary">
-              💵 This week&apos;s pay: <span className="text-accent-cyan font-bold">{formatCurrency(paid)}</span> via {via}
-              <span className="text-text-muted"> — commission {formatCurrency(weeklyCommission)} vs hourly {formatCurrency(hourly)}; the greater one pays.</span>
-            </p>
+            <div className="p-3 rounded-xl bg-accent-cyan/5 border border-accent-cyan/20 mb-4">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-text-secondary">💵 This week&apos;s pay</span>
+                <span className="text-accent-cyan font-bold text-sm">{formatCurrency(paid)} <span className="text-[10px] text-text-muted font-normal">via {via}</span></span>
+              </div>
+              <div className="space-y-0.5 text-[11px]">
+                <div className="flex justify-between"><span className="text-text-muted">Base commission (own sales)</span><span className="text-accent-blue">{formatCurrency(pay.base)}</span></div>
+                {pay.bump > 0 && <div className="flex justify-between"><span className="text-text-muted">Lead per-line bump (own lines)</span><span className="text-accent-purple">+{formatCurrency(pay.bump)}</span></div>}
+                {pay.override > 0 && <div className="flex justify-between"><span className="text-text-muted">ASM override (team production)</span><span className="text-accent-yellow">+{formatCurrency(pay.override)}</span></div>}
+                {hourly > 0 && <div className="flex justify-between"><span className="text-text-muted">Guaranteed hourly floor</span><span className="text-text-secondary">{formatCurrency(hourly)}</span></div>}
+              </div>
+              {pay.notes.length > 0 && (
+                <p className="text-[9px] text-text-muted mt-1.5">{pay.notes.join(' · ')} — rates editable in the Commission tab&apos;s Role Structure.</p>
+              )}
+            </div>
           );
         })()}
 

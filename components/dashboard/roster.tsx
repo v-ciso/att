@@ -384,7 +384,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-        <h2 className="text-xl font-bold neon-text-green">Roster &amp; Promotions</h2>
+        <h2 className="text-xl font-bold neon-brand">Roster &amp; Promotions</h2>
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={() => setShowAdd(true)}><UserPlus className="w-3.5 h-3.5" /> Add Employee</Button>
           <Button variant="ghost" size="sm" onClick={() => { resetPeople(); resetRules(); }}>↻ Reset</Button>

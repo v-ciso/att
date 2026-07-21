@@ -249,6 +249,25 @@
     border-color: var(--glass-edge);
   }
 
+  /* Glossy sheen: a hairline highlight along the top edge of glass cards,
+     brand-tinted — reads like light catching an obsidian surface. */
+  .card-3d,
+  .glass {
+    position: relative;
+  }
+  .card-3d::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(var(--brand-rgb), 0.05) 0%, transparent 18%);
+  }
+  [data-theme='obsidian-gold'] .neon-brand {
+    /* extra shine on gold headings */
+    filter: drop-shadow(0 0 14px var(--brand-glow)) drop-shadow(0 1px 0 rgba(255, 255, 255, 0.15));
+  }
+
   .orb {
     @apply fixed rounded-full filter blur-[100px] opacity-15 pointer-events-none;
     animation: orb-float 18s ease-in-out infinite alternate;

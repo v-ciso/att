@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useTheme } from '@/components/white-label/theme-provider';
 import { cn } from '@/lib/utils';
-import { Palette, Globe, CheckCircle } from 'lucide-react';
+import { Palette, Globe, CheckCircle, Upload, Lock } from 'lucide-react';
 import type { ThemePreset } from '@/lib/theme';
 
 const PRESETS: { id: ThemePreset; name: string; swatch: string; note: string }[] = [
@@ -40,7 +40,7 @@ export default function SettingsPage() {
   return (
     <DashboardLayout>
       <div className="slide-in mb-6">
-        <h1 className="text-2xl lg:text-4xl font-bold neon-text-blue">Settings</h1>
+        <h1 className="text-2xl lg:text-4xl font-bold neon-brand">Settings</h1>
         <p className="text-text-secondary text-sm mt-0.5">White-label your Sales Engine — changes apply instantly, everywhere</p>
       </div>
 
@@ -70,13 +70,44 @@ export default function SettingsPage() {
               <p className="text-[10px] text-text-muted mt-1">Shows in the sidebar, browser tab, login page, and PDF reports.</p>
             </div>
             <div>
-              <label className="label-base">Logo URL <span className="normal-case text-text-muted">(optional — replaces the text logo)</span></label>
-              <Input
-                value={draft.logoUrl}
-                onChange={e => setDraft(d => ({ ...d, logoUrl: e.target.value }))}
-                placeholder="https://…/logo.svg"
-              />
-              <p className="text-[10px] text-text-muted mt-1">SVG or PNG that reads well on a black background.</p>
+              <label className="label-base">Company Logo &amp; Favicon</label>
+              {theme.logoLocked ? (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-border-subtle">
+                  {theme.logoUrl && <img src={theme.logoUrl} alt="Company logo" className="h-8 w-auto max-w-[160px]" />}
+                  <span className="text-xs text-accent-green flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> Logo locked — permanent for this company</span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-3">
+                    {draft.logoUrl && <img src={draft.logoUrl} alt="Logo preview" className="h-8 w-auto max-w-[160px] rounded" />}
+                    <label className="cursor-pointer">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-border-subtle text-xs hover:bg-white/10 transition-all">
+                        <Upload className="w-3.5 h-3.5" /> Upload image
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          if (file.size > 512 * 1024) { alert('Please use an image under 512KB.'); return; }
+                          const reader = new FileReader();
+                          reader.onload = () => setDraft(d => ({ ...d, logoUrl: String(reader.result) }));
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                    </label>
+                    <span className="text-[10px] text-text-muted">or paste a URL</span>
+                  </div>
+                  <Input
+                    value={draft.logoUrl.startsWith('data:') ? '' : draft.logoUrl}
+                    onChange={e => setDraft(d => ({ ...d, logoUrl: e.target.value }))}
+                    placeholder="https://…/logo.svg"
+                  />
+                  <p className="text-[10px] text-text-muted">PNG/SVG that reads on black. Used as the sidebar logo and browser favicon. <span className="text-accent-yellow">Lock it below to make it permanent.</span></p>
+                </div>
+              )}
             </div>
 
             {/* Theme presets — applies instantly, no save needed */}
@@ -103,8 +134,20 @@ export default function SettingsPage() {
               </div>
               <p className="text-[10px] text-text-muted mt-1">Data colors (green = profit, red = loss, blue = phone…) stay fixed for meaning; the theme changes the brand chrome.</p>
             </div>
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex flex-wrap items-center gap-3 pt-2">
               <Button onClick={save}>Save changes</Button>
+              {!theme.logoLocked && draft.logoUrl && (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    if (confirm('Lock this logo permanently? It cannot be changed afterward.')) {
+                      setTheme({ logoUrl: draft.logoUrl.trim(), logoLocked: true });
+                    }
+                  }}
+                >
+                  <Lock className="w-3.5 h-3.5" /> Lock logo permanently
+                </Button>
+              )}
               {saved && (
                 <span className="text-xs text-accent-green flex items-center gap-1">
                   <CheckCircle className="w-3.5 h-3.5" /> Saved — applied everywhere
