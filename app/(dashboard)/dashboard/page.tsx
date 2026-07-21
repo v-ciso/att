@@ -18,6 +18,7 @@ import { MeetingTracker } from '@/components/dashboard/dashboard-components';
 import { CommissionEngine, PnlEditor, TeamData } from '@/components/dashboard/editable-sections';
 import { ReportTemplate } from '@/components/dashboard/report-template';
 import { RosterManager, loadPeople } from '@/components/dashboard/roster';
+import { Competition } from '@/components/dashboard/competition';
 import { ProfileDrawer } from '@/components/dashboard/profile-drawer';
 import { DailyTracker } from '@/components/dashboard/daily-tracker';
 import {
@@ -26,7 +27,7 @@ import {
 } from '@/lib/sales';
 import { Editable, parseNum, useLocalState } from '@/components/dashboard/editable-sections';
 
-const VALID_TABS = ['dashboard', 'tracker', 'roster', 'leaderboard', 'meeting', 'pnl', 'commission'];
+const VALID_TABS = ['dashboard', 'tracker', 'roster', 'leaderboard', 'meeting', 'competition', 'pnl', 'commission'];
 
 // Renders overlays inside the fullscreened element when presentation mode is
 // active — otherwise drawers opened during Present would be invisible until
@@ -642,7 +643,7 @@ function DashboardContent() {
       {/* Header — raised stacking context so its dropdowns paint over the cards below */}
       <div className="slide-in relative z-40 mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl lg:text-4xl font-bold neon-text-blue">Dashboard</h1>
+          <h1 className="text-2xl lg:text-4xl font-bold neon-brand">Dashboard</h1>
           <p className="text-text-secondary text-sm mt-0.5">AT&T campaign · white-label ready</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -690,6 +691,7 @@ function DashboardContent() {
         <TabButton isActive={activeTab === 'roster'} onClick={() => switchTab('roster')}>Roster</TabButton>
         <TabButton isActive={activeTab === 'leaderboard'} onClick={() => switchTab('leaderboard')}>Leaderboard</TabButton>
         <TabButton isActive={activeTab === 'meeting'} onClick={() => switchTab('meeting')}>Meeting Mode</TabButton>
+        <TabButton isActive={activeTab === 'competition'} onClick={() => switchTab('competition')}>Competition</TabButton>
         <TabButton isActive={activeTab === 'pnl'} onClick={() => switchTab('pnl')}>P&L</TabButton>
         <TabButton isActive={activeTab === 'commission'} onClick={() => switchTab('commission')}>Commission</TabButton>
       </div>
@@ -1047,6 +1049,11 @@ function DashboardContent() {
               })}
             </div>
 
+            {/* Monthly competition — edit the prize/metric live in the meeting */}
+            <div className="mt-5 pt-4 border-t border-border-subtle">
+              <Competition monthly={aggMonthly} compact />
+            </div>
+
             {/* Schedule — who's where, next 7 days */}
             <div className="flex flex-wrap items-center justify-between gap-2 mt-5 mb-3">
               <h3 className="text-sm font-semibold text-text-secondary flex items-center gap-2">
@@ -1106,6 +1113,14 @@ function DashboardContent() {
               <Users className="w-3 h-3" />
               Auto-fullscreen on entry · Present button or F toggles · Esc exits
             </div>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === 'competition' && (
+        <div id="tab-competition" className="tab-panel">
+          <Card className="p-5">
+            <Competition monthly={aggMonthly} />
           </Card>
         </div>
       )}

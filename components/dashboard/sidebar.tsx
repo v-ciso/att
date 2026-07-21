@@ -26,7 +26,7 @@ export function Sidebar() {
         {theme.logoUrl ? (
           <img src={theme.logoUrl} alt={`${theme.companyName} logo`} className="h-10 w-auto" />
         ) : (
-          <span className="text-xl font-bold neon-text-blue">{theme.companyName}</span>
+          <span className="text-xl font-bold neon-brand">{theme.companyName}</span>
         )}
         <span className="text-xs text-gray-500">v2.0</span>
       </div>

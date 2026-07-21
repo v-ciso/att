@@ -198,17 +198,18 @@ export function aggregateSales(
     perPerson: [], perPlan: new Map(), perDay: new Map(),
   };
   const personMap = new Map<string, PersonStats>();
-  // store|date -> ALL units sold that day at that store (chargeback base:
-  // the carrier charges on the whole day's production, lines AND internet)
-  const storeDayUnits = new Map<string, number>();
+  // store|date -> PHONE LINES sold that day at that store. The GPS late
+  // clock-out charge is per line only (internet does not count); if a store
+  // did zero lines that day there is no chargeback.
+  const storeDayLines = new Map<string, number>();
 
   for (const e of filtered) {
     const phone = isPhonePlan(commission, e.plan);
     const { total, repTotal } = entryRevenue(e, commission);
-    const unitKey = `${e.store.toLowerCase()}|${e.date}`;
-    storeDayUnits.set(unitKey, (storeDayUnits.get(unitKey) ?? 0) + e.qty);
     if (phone) {
       agg.lines += e.qty;
+      const key = `${e.store.toLowerCase()}|${e.date}`;
+      storeDayLines.set(key, (storeDayLines.get(key) ?? 0) + e.qty);
     } else {
       agg.internet += e.qty;
     }
@@ -256,9 +257,9 @@ export function aggregateSales(
       byStore.set(key, [...(byStore.get(key) ?? []), lo]);
     }
     for (const [storeKey, group] of Array.from(byStore.entries())) {
-      const unitsThatDay = storeDayUnits.get(`${storeKey}|${date}`) ?? 0;
-      if (unitsThatDay === 0) continue;
-      const chargePerRep = (unitsThatDay * rate) / group.length;
+      const linesThatDay = storeDayLines.get(`${storeKey}|${date}`) ?? 0;
+      if (linesThatDay === 0) continue; // no lines → no chargeback
+      const chargePerRep = (linesThatDay * rate) / group.length;
       for (const lo of group) {
         const ps = personMap.get(lo.person) ?? {
           person: lo.person, store: lo.store, lines: 0, premium: 0, internet: 0, nextUps: 0, insurance: 0, revenue: 0, commission: 0, chargebacks: 0,

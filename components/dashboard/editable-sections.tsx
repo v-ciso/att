@@ -258,7 +258,7 @@ export function CommissionEngine() {
             <span className="normal-case block mt-1">
               Late clock-out chargeback: $
               <Editable value={String(state.latePenaltyPerLine ?? 15)} onCommit={(v) => setState(p => ({ ...p, latePenaltyPerLine: parseNum(v) }))} className="text-accent-red font-semibold" />
-              /unit on the store&apos;s whole day (lines + internet) — split between late reps, deducted from their pay
+              /line on the store&apos;s phone lines that day (internet doesn&apos;t count; no lines = no charge) — split between late reps, deducted from their pay
             </span>
           </p>
           <div className="flex gap-1.5">

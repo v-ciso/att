@@ -7,7 +7,7 @@ import { Plus, Trash2, Sparkles, ClipboardList, ChevronDown, ChevronUp, Maximize
 import {
   SaleEntry, loadSales, saveSales, loadCommission, entryRevenue, todayStr, generateDemoSales,
   AttendanceBook, AttendanceStatus, loadAttendance, saveAttendance, attendanceForDate,
-  LateOutBook, loadLateOuts, saveLateOuts,
+  LateOutBook, loadLateOuts, saveLateOuts, isPhonePlan,
 } from '@/lib/sales';
 import { loadPeople } from './roster';
 
@@ -95,22 +95,22 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
     });
   };
 
-  // Preview of the charge: penalty × ALL units the marked store sold this date
-  // (lines + internet — the carrier charges the whole day's production),
-  // split between that store's late reps
-  const latePreview = (name: string): { store: string; amount: number; units: number; splitWith: number } | null => {
+  // Preview of the charge: penalty × the marked store's PHONE LINES this date
+  // (internet does not count), split between that store's late reps. No lines
+  // that day → no charge.
+  const latePreview = (name: string): { store: string; amount: number; lines: number; splitWith: number } | null => {
     const day = lateOuts[date] ?? [];
     const mine = day.find(lo => lo.person === name);
     if (!mine) return null;
     const sameStore = day.filter(lo => lo.store.toLowerCase() === mine.store.toLowerCase());
-    const units = sales
-      .filter(e => e.date === date && e.store.toLowerCase() === mine.store.toLowerCase())
+    const lines = sales
+      .filter(e => e.date === date && e.store.toLowerCase() === mine.store.toLowerCase() && isPhonePlan(commission, e.plan))
       .reduce((a, e) => a + e.qty, 0);
     return {
       store: mine.store,
-      units,
+      lines,
       splitWith: sameStore.length,
-      amount: (units * (commission.latePenaltyPerLine ?? 15)) / Math.max(1, sameStore.length),
+      amount: (lines * (commission.latePenaltyPerLine ?? 15)) / Math.max(1, sameStore.length),
     };
   };
 
@@ -310,9 +310,9 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
                       {!(p.stores ?? []).includes(late.store) && <option value={late.store}>{late.store}</option>}
                     </select>
                     <span className="text-[10px] text-accent-orange font-semibold">
-                      {late.units === 0
-                        ? `no units logged at ${late.store} on ${date} yet — charge appears once sales are in`
-                        : <>chargeback −{formatCurrency(late.amount)}{late.splitWith > 1 && <span className="text-text-muted font-normal"> (split {late.splitWith} ways)</span>}</>}
+                      {late.lines === 0
+                        ? `no lines at ${late.store} on ${date} — no chargeback`
+                        : <>chargeback −{formatCurrency(late.amount)} <span className="text-text-muted font-normal">({late.lines} line{late.lines === 1 ? '' : 's'} × ${commission.latePenaltyPerLine ?? 15}{late.splitWith > 1 ? ` ÷ ${late.splitWith}` : ''})</span></>}
                     </span>
                   </div>
                 )}

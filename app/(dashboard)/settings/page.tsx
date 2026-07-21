@@ -8,6 +8,13 @@ import { Input } from '@/components/ui/input';
 import { useTheme } from '@/components/white-label/theme-provider';
 import { cn } from '@/lib/utils';
 import { Palette, Globe, CheckCircle } from 'lucide-react';
+import type { ThemePreset } from '@/lib/theme';
+
+const PRESETS: { id: ThemePreset; name: string; swatch: string; note: string }[] = [
+  { id: 'command-blue', name: 'Command Blue', swatch: 'linear-gradient(135deg,#60a5fa,#2563eb)', note: 'The default — electric blue on black' },
+  { id: 'obsidian-gold', name: 'Obsidian & Gold', swatch: 'linear-gradient(135deg,#f9e9a4,#b8860b)', note: 'Black + shiny gold, premium feel' },
+  { id: 'emerald', name: 'Emerald', swatch: 'linear-gradient(135deg,#6ee7b7,#059669)', note: 'Deep green accent on black' },
+];
 
 // White-label settings — fully client-side: changes apply instantly through the
 // ThemeProvider (CSS variables + localStorage) and flow into the PDF header.
@@ -98,6 +105,31 @@ export default function SettingsPage() {
                 placeholder="https://…/logo.svg"
               />
               <p className="text-[10px] text-text-muted mt-1">SVG or PNG that reads well on a black background.</p>
+            </div>
+
+            {/* Theme presets — applies instantly, no save needed */}
+            <div>
+              <label className="label-base">Theme <span className="normal-case text-text-muted">(applies instantly)</span></label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {PRESETS.map(p => {
+                  const active = (theme.preset ?? 'command-blue') === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => setTheme({ preset: p.id })}
+                      className={cn(
+                        'text-left p-3 rounded-xl border transition-all',
+                        active ? 'border-border-strong bg-white/5 ring-1 ring-border-strong' : 'border-border-subtle hover:bg-white/5'
+                      )}
+                    >
+                      <span className="block h-8 rounded-lg mb-2" style={{ background: p.swatch }} />
+                      <span className="text-xs font-semibold flex items-center gap-1">{p.name}{active && <CheckCircle className="w-3 h-3 text-accent-green" />}</span>
+                      <span className="text-[10px] text-text-muted">{p.note}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-text-muted mt-1">Data colors (green = profit, red = loss, blue = phone…) stay fixed for meaning; the theme changes the brand chrome.</p>
             </div>
             <div className="flex items-center gap-3 pt-2">
               <Button onClick={save}>Save changes</Button>

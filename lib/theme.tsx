@@ -1,9 +1,12 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
+export type ThemePreset = 'command-blue' | 'obsidian-gold' | 'emerald';
+
 export interface WhiteLabelTheme {
   companyName: string;
   primaryColor: string;
   secondaryColor: string;
+  preset?: ThemePreset;
   logoUrl?: string;
   faviconUrl?: string;
   loginBackgroundUrl?: string;
@@ -20,6 +23,7 @@ const DEFAULT_THEME: WhiteLabelTheme = {
   companyName: 'Sales Engine',
   primaryColor: '#3B82F6',
   secondaryColor: '#A855F7',
+  preset: 'command-blue',
   featureFlags: {
     hidePnL: false,
     hideCommissionEngine: false,
@@ -143,6 +147,8 @@ export function applyTheme(theme: WhiteLabelTheme) {
       document.head.appendChild(style);
     }
     style.textContent = generateCSSVariables(theme);
+    // Brand preset drives the gold/blue/emerald chrome via CSS in globals.css
+    document.documentElement.dataset.theme = theme.preset ?? 'command-blue';
     document.title =
       theme.companyName === 'Sales Engine'
         ? 'Sales Engine — Retail Command Center'

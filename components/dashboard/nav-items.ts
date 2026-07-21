@@ -7,6 +7,7 @@ import {
   Settings,
   Users,
   ClipboardList,
+  Award,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -23,6 +24,7 @@ export const navigation: NavItem[] = [
   { name: 'Roster', href: '/dashboard?tab=roster', tab: 'roster', icon: Users },
   { name: 'Leaderboard', href: '/dashboard?tab=leaderboard', tab: 'leaderboard', icon: Trophy },
   { name: 'Meeting Mode', href: '/dashboard?tab=meeting', tab: 'meeting', icon: Presentation },
+  { name: 'Competition', href: '/dashboard?tab=competition', tab: 'competition', icon: Award },
   { name: 'P&L', href: '/dashboard?tab=pnl', tab: 'pnl', icon: Receipt },
   { name: 'Commission', href: '/dashboard?tab=commission', tab: 'commission', icon: DollarSign },
   { name: 'Settings', href: '/settings', icon: Settings },

@@ -11,6 +11,39 @@
     --border: 0 0% 15%;
     --muted: 0 0% 10%;
     --muted-foreground: 0 0% 60%;
+
+    /* Brand chrome tokens — switched by the admin theme preset.
+       Data/semantic colors (green=profit, red=loss, blue=phone…) are NOT
+       driven by these; they stay fixed for meaning. */
+    --brand: #3b82f6;
+    --brand-2: #60a5fa;
+    --brand-rgb: 59, 130, 246;
+    --grad-brand: linear-gradient(135deg, #60a5fa, #3b82f6, #2563eb);
+    --brand-glow: rgba(59, 130, 246, 0.35);
+    --brand-ink: #ffffff; /* text color on a filled brand button */
+    --glass-edge: rgba(255, 255, 255, 0.08);
+  }
+
+  /* Obsidian & Gold — Sorami-style black + shiny gold */
+  :root[data-theme='obsidian-gold'] {
+    --brand: #e7c24a;
+    --brand-2: #f7e08a;
+    --brand-rgb: 231, 194, 74;
+    --grad-brand: linear-gradient(135deg, #f9e9a4, #e7c24a, #b8860b);
+    --brand-glow: rgba(231, 194, 74, 0.42);
+    --brand-ink: #1a1400;
+    --glass-edge: rgba(231, 194, 74, 0.12);
+  }
+
+  /* Emerald — a third preset for variety */
+  :root[data-theme='emerald'] {
+    --brand: #10b981;
+    --brand-2: #6ee7b7;
+    --brand-rgb: 16, 185, 129;
+    --grad-brand: linear-gradient(135deg, #6ee7b7, #10b981, #059669);
+    --brand-glow: rgba(16, 185, 129, 0.4);
+    --brand-ink: #04140d;
+    --glass-edge: rgba(16, 185, 129, 0.12);
   }
 
   * {
@@ -20,6 +53,14 @@
   body {
     @apply bg-bg-primary text-text-primary font-sans antialiased;
     background: #000;
+  }
+
+  /* Distinctive display face for headings — Sora reads as intentional, not
+     the default Inter-everywhere look. Tight tracking for a premium feel. */
+  h1, h2, h3,
+  .neon-brand, .neon-text-blue, .neon-text-purple, .neon-text-cyan, .neon-text-green, .neon-text-yellow {
+    font-family: 'Sora', 'Inter', system-ui, sans-serif;
+    letter-spacing: -0.02em;
   }
 
   html {
@@ -117,8 +158,10 @@
   }
 
   .tab-btn.active {
-    @apply bg-blue-500/20 text-blue-400 border-blue-500/30;
-    box-shadow: 0 0 16px rgba(59, 130, 246, 0.25);
+    background: rgba(var(--brand-rgb), 0.16);
+    color: var(--brand-2);
+    border-color: rgba(var(--brand-rgb), 0.38);
+    box-shadow: 0 0 16px rgba(var(--brand-rgb), 0.22);
   }
 
   .tab-btn.inactive {
@@ -166,6 +209,31 @@
 
   .neon-text-yellow {
     @apply bg-grad-yellow bg-clip-text text-transparent filter drop-shadow-[0_0_20px_rgba(245,158,11,0.5)];
+  }
+
+  /* Brand-tinted heading — follows the active preset (blue / gold / emerald) */
+  .neon-brand {
+    background: var(--grad-brand);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 18px var(--brand-glow));
+  }
+
+  /* Filled primary button — brand color, readable ink per preset */
+  .btn-primary-brand {
+    background: var(--brand);
+    color: var(--brand-ink);
+    box-shadow: 0 0 20px var(--brand-glow);
+  }
+  .btn-primary-brand:hover {
+    filter: brightness(1.08);
+  }
+
+  /* Gold/emerald presets get a faintly tinted glass edge for cohesion */
+  [data-theme='obsidian-gold'] .glass,
+  [data-theme='emerald'] .glass {
+    border-color: var(--glass-edge);
   }
 
   .orb {
