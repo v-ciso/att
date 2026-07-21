@@ -55,13 +55,13 @@ export const DEFAULT_PROMO_RULES: PromotionRules = {
 };
 
 export const DEFAULT_PEOPLE: Person[] = [
-  { id: 'p1', name: 'Sarah Johnson', role: 'REP', stores: ['Costco'], team: 'Team Alpha', weeklyProfit: [5200, 5600], attendance: 96 },
-  { id: 'p2', name: 'Mike Chen', role: 'REP', stores: ['Target'], team: 'Team Beta', weeklyProfit: [4100, 4800], attendance: 92 },
-  { id: 'p3', name: 'Jessica Williams', role: 'REP', stores: ["BJ's"], team: 'Team Alpha', weeklyProfit: [3900, 4200], attendance: 88 },
-  { id: 'p4', name: 'Alex Thompson', role: 'LEAD', stores: ['Costco', 'Target'], team: 'Team Alpha', weeklyProfit: [6100, 6400], attendance: 98 },
-  { id: 'p5', name: 'Jordan Reyes', role: 'ASM', stores: ['Costco', 'Target', "BJ's"], team: '', weeklyProfit: [7000, 7300], attendance: 99 },
-  { id: 'p6', name: 'Chris Lee', role: 'INTERN', stores: ['Costco'], team: 'Team Alpha', weeklyProfit: [1800, 2400], attendance: 94 },
-  { id: 'p7', name: 'Dana White', role: 'INTERN', stores: ['Target'], team: '', weeklyProfit: [2100, 1900], attendance: 85 },
+  { id: 'p1', name: 'Sarah Johnson', role: 'REP', stores: ['Costco 1018'], team: 'Team Alpha', weeklyProfit: [5200, 5600], attendance: 96 },
+  { id: 'p2', name: 'Mike Chen', role: 'REP', stores: ['Target 2450'], team: 'Team Beta', weeklyProfit: [4100, 4800], attendance: 92 },
+  { id: 'p3', name: 'Jessica Williams', role: 'REP', stores: ["BJ's 610"], team: 'Team Alpha', weeklyProfit: [3900, 4200], attendance: 88 },
+  { id: 'p4', name: 'Alex Thompson', role: 'LEAD', stores: ['Costco 1018', 'Costco 1020'], team: 'Team Alpha', weeklyProfit: [6100, 6400], attendance: 98 },
+  { id: 'p5', name: 'Jordan Reyes', role: 'ASM', stores: ['Costco 1018', 'Target 2450', "BJ's 610"], team: '', weeklyProfit: [7000, 7300], attendance: 99 },
+  { id: 'p6', name: 'Chris Lee', role: 'INTERN', stores: ['Costco 1020'], team: 'Team Alpha', weeklyProfit: [1800, 2400], attendance: 94 },
+  { id: 'p7', name: 'Dana White', role: 'INTERN', stores: ['Target 2450'], team: '', weeklyProfit: [2100, 1900], attendance: 85 },
 ];
 
 export function primaryStore(p: Person): string {
@@ -266,7 +266,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
   const [showAdd, setShowAdd] = useState(false);
 
   // Store options come from the Commission Engine's store list
-  const [storeOptions, setStoreOptions] = useState<string[]>(['Costco', 'Target', "BJ's"]);
+  const [storeOptions, setStoreOptions] = useState<string[]>(['Costco 1018', 'Costco 1020', 'Target 2450', "BJ's 610"]);
   const [teamOptions, setTeamOptions] = useState<string[]>([]);
   useEffect(() => {
     try {

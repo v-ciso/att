@@ -53,7 +53,7 @@ export function ProfileDrawer({ name, period, onClose }: { name: string; period:
               { label: 'Internet', value: String(stats.internet), color: 'text-accent-cyan' },
               { label: 'Next Up', value: String(stats.nextUps), color: 'text-accent-red' },
               { label: 'Generated', value: formatCurrency(stats.revenue), color: 'text-accent-green' },
-              { label: 'Commission', value: formatCurrency(stats.commission), color: 'text-accent-blue' },
+              { label: stats.chargebacks > 0 ? 'Commission*' : 'Commission', value: formatCurrency(stats.commission), color: 'text-accent-blue' },
             ].map(s => (
               <div key={s.label} className="p-2 rounded-xl bg-white/5 text-center">
                 <p className="text-[9px] text-text-muted uppercase tracking-wider">{s.label}</p>
@@ -64,6 +64,12 @@ export function ProfileDrawer({ name, period, onClose }: { name: string; period:
         ) : (
           <p className="text-xs text-text-muted p-3 rounded-xl bg-white/5 mb-4">
             No sales logged for this period — add them in the <span className="text-accent-blue">Daily Tracker</span>.
+          </p>
+        )}
+        {stats && stats.chargebacks > 0 && (
+          <p className="text-[11px] text-accent-red p-2.5 rounded-lg bg-accent-red/5 border border-accent-red/20 mb-4">
+            ⏰ Late clock-out chargebacks this period: <span className="font-bold">−{formatCurrency(stats.chargebacks)}</span>
+            <span className="text-text-muted"> — already deducted from Generated and Commission above.</span>
           </p>
         )}
 
@@ -101,14 +107,20 @@ export function ProfileDrawer({ name, period, onClose }: { name: string; period:
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3 rounded-xl bg-white/5">
                 <p className="text-[9px] text-text-muted uppercase tracking-wider mb-2">Weekly Profit (roadmap)</p>
-                <div className="flex items-end gap-2 h-14">
+                <div className="flex items-end gap-3">
                   {person.weeklyProfit.map((w, i) => (
                     <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                      <div className="w-full rounded-t bg-accent-green/80" style={{ height: `${Math.max(6, (w / profitMax) * 100)}%`, opacity: w >= rules.profitPerWeek ? 1 : 0.45 }} />
-                      <span className="text-[8px] text-text-muted">{formatCurrency(w)}</span>
+                      {/* fixed pixel heights — % collapses without a sized parent */}
+                      <div
+                        className={cn('w-full rounded-t', w >= rules.profitPerWeek ? 'bg-accent-green' : 'bg-accent-green/40')}
+                        style={{ height: `${Math.max(8, Math.round((w / profitMax) * 56))}px` }}
+                      />
+                      <span className="text-[9px] text-text-secondary font-medium">{formatCurrency(w)}</span>
+                      <span className="text-[8px] text-text-muted">wk {i + 1}</span>
                     </div>
                   ))}
                 </div>
+                <p className="text-[8px] text-text-muted mt-1.5">target {formatCurrency(rules.profitPerWeek)}/wk · solid bar = week hit</p>
               </div>
               <div className="p-3 rounded-xl bg-white/5 flex flex-col items-center justify-center">
                 <p className="text-[9px] text-text-muted uppercase tracking-wider mb-1">Attendance</p>

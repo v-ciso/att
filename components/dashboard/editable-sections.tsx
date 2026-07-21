@@ -96,16 +96,20 @@ export interface CommissionState {
   addOns: PayItem[];
   internet: PayItem[];
   roles: RoleRule[];
+  latePenaltyPerLine: number; // GPS late clock-out chargeback, $ per line the store did that day
 }
 
 export const DEFAULT_COMMISSION: CommissionState = {
   tier: 5,
   tierDelta: 5,
   storeIndex: 0,
+  latePenaltyPerLine: 15,
+  // Real-world naming: brand + store number (multiple Costcos are separate stores)
   stores: [
-    { name: 'Costco', multiplier: 1.0 },
-    { name: 'Target', multiplier: 1.0 },
-    { name: "BJ's", multiplier: 1.0 },
+    { name: 'Costco 1018', multiplier: 1.0 },
+    { name: 'Costco 1020', multiplier: 1.0 },
+    { name: 'Target 2450', multiplier: 1.0 },
+    { name: "BJ's 610", multiplier: 1.0 },
   ],
   // payout = OFFICE total per unit (owner's numbers: Value 120, Extra 130,
   // Premium 140, Next Up +15 at Tier 5). rep = the salesperson's cut, typed by
@@ -251,6 +255,11 @@ export function CommissionEngine() {
           <p className="text-[10px] text-text-muted uppercase tracking-wider mb-2">
             Payout Tier <span className="normal-case">(Tier 5 = highest; −$
             <Editable value={String(state.tierDelta)} onCommit={(v) => setState(p => ({ ...p, tierDelta: parseNum(v) }))} /> per tier below)</span>
+            <span className="normal-case block mt-1">
+              Late clock-out chargeback: $
+              <Editable value={String(state.latePenaltyPerLine ?? 15)} onCommit={(v) => setState(p => ({ ...p, latePenaltyPerLine: parseNum(v) }))} className="text-accent-red font-semibold" />
+              /line on the store&apos;s day — split between late reps, deducted from their pay
+            </span>
           </p>
           <div className="flex gap-1.5">
             {[1, 2, 3, 4, 5].map(t => (
@@ -459,7 +468,7 @@ function MoneyList({
   );
 }
 
-export function PnlEditor({ derivedCommission = 0 }: { derivedCommission?: number }) {
+export function PnlEditor({ derivedCommission = 0, derivedChargebacks = 0 }: { derivedCommission?: number; derivedChargebacks?: number }) {
   const { state, setState, reset } = useLocalState<PnlState>('se-pnl-v1', DEFAULT_PNL);
 
   const editList =
@@ -486,7 +495,7 @@ export function PnlEditor({ derivedCommission = 0 }: { derivedCommission?: numbe
   const roadtripCost = state.roadtrips.reduce((a, b) => a + b.amount, 0);
   const reimbursement = roadtripCost * rate;
   const totalRevenue = state.revenue.reduce((a, b) => a + b.amount, 0) + reimbursement + derivedCommission;
-  const totalExpenses = state.expenses.reduce((a, b) => a + b.amount, 0) + roadtripCost;
+  const totalExpenses = state.expenses.reduce((a, b) => a + b.amount, 0) + roadtripCost + derivedChargebacks;
   const net = totalRevenue - totalExpenses;
   const margin = totalRevenue > 0 ? ((net / totalRevenue) * 100).toFixed(1) : '0.0';
 
@@ -517,6 +526,14 @@ export function PnlEditor({ derivedCommission = 0 }: { derivedCommission?: numbe
         <MoneyList
           title="Expenses" icon={Receipt} color="red" items={state.expenses}
           onEdit={editList('expenses')} onAdd={addTo('expenses', 'New expense')} onRemove={removeFrom('expenses')}
+          footer={
+            derivedChargebacks > 0 ? (
+              <div className="mt-2 p-2 rounded-lg bg-accent-red/5 border border-accent-red/20 flex justify-between text-xs">
+                <span className="text-text-secondary">Late clock-out chargebacks <span className="text-text-muted">(auto · this month, recouped from reps)</span></span>
+                <span className="text-accent-red font-semibold">{formatCurrency(derivedChargebacks)}</span>
+              </div>
+            ) : undefined
+          }
         />
         <MoneyList
           title="Roadtrips" icon={MapPin} color="orange" items={state.roadtrips}

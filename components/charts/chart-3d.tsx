@@ -84,8 +84,10 @@ export function PieChart3D({ data, labels, colors, className, height = 300, inne
 
       const extrudeGeometry = new THREE.ExtrudeGeometry(shape, {
         depth: 20,
+        // High curve resolution = smooth slice edges (default 12 looks faceted)
+        curveSegments: 64,
         bevelEnabled: true,
-        bevelSegments: 4,
+        bevelSegments: 6,
         bevelSize: 2,
         bevelThickness: 2,
       });

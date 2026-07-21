@@ -53,6 +53,7 @@ export function loadCommission(): CommissionState {
     (['phonePlans', 'addOns', 'internet'] as const).forEach(list => {
       state[list] = (state[list] ?? []).map(item => ({ ...item, rep: item.rep ?? 0 }));
     });
+    if (typeof state.latePenaltyPerLine !== 'number') state.latePenaltyPerLine = 15;
     return state;
   } catch {
     return DEFAULT_COMMISSION;
@@ -138,8 +139,9 @@ export interface PersonStats {
   internet: number;
   nextUps: number;
   insurance: number;
-  revenue: number;    // office total generated (direct deposit)
-  commission: number; // the rep's cut at the owner's typed rates
+  revenue: number;     // office total generated (direct deposit), net of chargebacks
+  commission: number;  // the rep's cut at the owner's typed rates, net of chargebacks
+  chargebacks: number; // GPS late clock-out charges attributed to this rep
 }
 
 export interface Aggregate {
@@ -148,11 +150,33 @@ export interface Aggregate {
   internet: number;
   nextUps: number;
   insurance: number;
-  revenue: number;    // office total generated
-  commission: number; // total rep commissions
+  revenue: number;     // office total generated, net of chargebacks
+  commission: number;  // total rep commissions, net of chargebacks
+  chargebacks: number; // total late clock-out charges in the window
   perPerson: PersonStats[]; // sorted by revenue desc
-  perPlan: Map<string, { qty: number; nextUps: number; revenue: number }>;
+  perPlan: Map<string, { qty: number; nextUps: number; revenue: number; commission: number }>;
   perDay: Map<string, number>; // date -> office revenue
+}
+
+// ---------------------------------------------------------------------------
+// Late clock-outs: { date: [{ person, store }] } — the GPS chargeback marks
+// ---------------------------------------------------------------------------
+
+export interface LateOut { person: string; store: string }
+export type LateOutBook = Record<string, LateOut[]>;
+export const LATEOUT_KEY = 'se-lateouts-v1';
+
+export function loadLateOuts(): LateOutBook {
+  if (typeof window === 'undefined') return {};
+  try {
+    return JSON.parse(localStorage.getItem(LATEOUT_KEY) || '{}') as LateOutBook;
+  } catch {
+    return {};
+  }
+}
+
+export function saveLateOuts(book: LateOutBook) {
+  localStorage.setItem(LATEOUT_KEY, JSON.stringify(book));
 }
 
 export function aggregateSales(
@@ -168,15 +192,23 @@ export function aggregateSales(
   );
 
   const agg: Aggregate = {
-    lines: 0, premium: 0, internet: 0, nextUps: 0, insurance: 0, revenue: 0, commission: 0,
+    lines: 0, premium: 0, internet: 0, nextUps: 0, insurance: 0, revenue: 0, commission: 0, chargebacks: 0,
     perPerson: [], perPlan: new Map(), perDay: new Map(),
   };
   const personMap = new Map<string, PersonStats>();
+  // store|date -> phone lines that day at that store (chargeback base)
+  const storeDayLines = new Map<string, number>();
 
   for (const e of filtered) {
     const phone = isPhonePlan(commission, e.plan);
     const { total, repTotal } = entryRevenue(e, commission);
-    if (phone) agg.lines += e.qty; else agg.internet += e.qty;
+    if (phone) {
+      agg.lines += e.qty;
+      const key = `${e.store.toLowerCase()}|${e.date}`;
+      storeDayLines.set(key, (storeDayLines.get(key) ?? 0) + e.qty);
+    } else {
+      agg.internet += e.qty;
+    }
     if (e.plan.toLowerCase().includes('premium')) agg.premium += e.qty;
     agg.nextUps += e.nextUps;
     agg.insurance += e.insurance;
@@ -184,7 +216,7 @@ export function aggregateSales(
     agg.commission += repTotal;
 
     const ps = personMap.get(e.person) ?? {
-      person: e.person, store: e.store, lines: 0, premium: 0, internet: 0, nextUps: 0, insurance: 0, revenue: 0, commission: 0,
+      person: e.person, store: e.store, lines: 0, premium: 0, internet: 0, nextUps: 0, insurance: 0, revenue: 0, commission: 0, chargebacks: 0,
     };
     if (phone) ps.lines += e.qty; else ps.internet += e.qty;
     if (e.plan.toLowerCase().includes('premium')) ps.premium += e.qty;
@@ -194,13 +226,49 @@ export function aggregateSales(
     ps.commission += repTotal;
     personMap.set(ps.person, ps);
 
-    const pp = agg.perPlan.get(e.plan) ?? { qty: 0, nextUps: 0, revenue: 0 };
+    const pp = agg.perPlan.get(e.plan) ?? { qty: 0, nextUps: 0, revenue: 0, commission: 0 };
     pp.qty += e.qty;
     pp.nextUps += e.nextUps;
     pp.revenue += total;
+    pp.commission += repTotal;
     agg.perPlan.set(e.plan, pp);
 
     agg.perDay.set(e.date, (agg.perDay.get(e.date) ?? 0) + total);
+  }
+
+  // GPS late clock-out chargebacks: penalty × the store's lines that day,
+  // split between everyone who clocked out late at that store that day.
+  // Deducted from the late rep's generated AND commission (their paycheck),
+  // and from the office totals — AT&T charges the office for the whole day.
+  const lateBook = loadLateOuts();
+  const rate = commission.latePenaltyPerLine ?? 15;
+  for (const [date, lateOuts] of Object.entries(lateBook)) {
+    const dateIncluded = opts.date ? date === opts.date : inPeriod(date, opts.period);
+    if (!dateIncluded) continue;
+    // group by store to split between that store's late reps
+    const byStore = new Map<string, LateOut[]>();
+    for (const lo of lateOuts) {
+      if (storeSet && !storeSet.has(lo.store.toLowerCase())) continue;
+      const key = lo.store.toLowerCase();
+      byStore.set(key, [...(byStore.get(key) ?? []), lo]);
+    }
+    for (const [storeKey, group] of Array.from(byStore.entries())) {
+      const linesThatDay = storeDayLines.get(`${storeKey}|${date}`) ?? 0;
+      if (linesThatDay === 0) continue;
+      const chargePerRep = (linesThatDay * rate) / group.length;
+      for (const lo of group) {
+        const ps = personMap.get(lo.person) ?? {
+          person: lo.person, store: lo.store, lines: 0, premium: 0, internet: 0, nextUps: 0, insurance: 0, revenue: 0, commission: 0, chargebacks: 0,
+        };
+        ps.chargebacks += chargePerRep;
+        ps.revenue -= chargePerRep;
+        ps.commission -= chargePerRep;
+        personMap.set(ps.person, ps);
+        agg.chargebacks += chargePerRep;
+        agg.revenue -= chargePerRep;
+        agg.commission -= chargePerRep;
+      }
+    }
   }
 
   agg.perPerson = Array.from(personMap.values()).sort((a, b) => b.revenue - a.revenue);

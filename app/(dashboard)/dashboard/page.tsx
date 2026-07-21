@@ -217,6 +217,7 @@ interface MixCategory {
   qty: number;
   revenue: number;
   nextUps: number;
+  commission: number;
 }
 
 function buildMixCategories(agg: Aggregate, commission: ReturnType<typeof loadCommission>): MixCategory[] {
@@ -233,10 +234,10 @@ function buildMixCategories(agg: Aggregate, commission: ReturnType<typeof loadCo
       const sums = def.plans.reduce(
         (acc, plan) => {
           const s = agg.perPlan.get(plan);
-          if (s) { acc.qty += s.qty; acc.revenue += s.revenue; acc.nextUps += s.nextUps; }
+          if (s) { acc.qty += s.qty; acc.revenue += s.revenue; acc.nextUps += s.nextUps; acc.commission += s.commission; }
           return acc;
         },
-        { qty: 0, revenue: 0, nextUps: 0 }
+        { qty: 0, revenue: 0, nextUps: 0, commission: 0 }
       );
       return { ...def, ...sums };
     })
@@ -270,10 +271,17 @@ function SliceDrawer({ category, agg, onClose }: { category: MixCategory; agg: A
             <p className="text-[10px] text-text-muted uppercase tracking-wider">Sold</p>
             <p className="text-xl font-bold" style={{ color: category.color }}>{category.qty}</p>
           </div>
-          <div className="p-3 rounded-xl bg-white/5 text-center">
-            <p className="text-[10px] text-text-muted uppercase tracking-wider">Next Ups</p>
-            <p className="text-xl font-bold text-accent-red">{category.nextUps}</p>
-          </div>
+          {category.key === 'lines' ? (
+            <div className="p-3 rounded-xl bg-white/5 text-center">
+              <p className="text-[10px] text-text-muted uppercase tracking-wider">Next Ups</p>
+              <p className="text-xl font-bold text-accent-red">{category.nextUps}</p>
+            </div>
+          ) : (
+            <div className="p-3 rounded-xl bg-white/5 text-center">
+              <p className="text-[10px] text-text-muted uppercase tracking-wider">Rep Commission</p>
+              <p className="text-xl font-bold text-accent-blue">{formatCurrency(category.commission)}</p>
+            </div>
+          )}
           <div className="p-3 rounded-xl bg-white/5 text-center">
             <p className="text-[10px] text-text-muted uppercase tracking-wider">Generated</p>
             <p className="text-xl font-bold text-accent-green">{formatCurrency(category.revenue)}</p>
@@ -414,6 +422,7 @@ function DashboardContent() {
   const [showProduction, setShowProduction] = useState(false);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [teamDrawerName, setTeamDrawerName] = useState<string | null>(null);
+  const [expandChart, setExpandChart] = useState<'trend' | 'mix' | null>(null);
 
   // Leaderboard rows: roster people + their derived period stats
   const leaderboardRows = useMemo(() => {
@@ -447,10 +456,10 @@ function DashboardContent() {
       const sum = unique.reduce(
         (acc, n) => {
           const s = statsByName.get(n);
-          if (s) { acc.lines += s.lines; acc.premium += s.premium; acc.internet += s.internet; acc.revenue += s.revenue; }
+          if (s) { acc.lines += s.lines; acc.nextUps += s.nextUps; acc.internet += s.internet; acc.revenue += s.revenue; }
           return acc;
         },
-        { lines: 0, premium: 0, internet: 0, revenue: 0 }
+        { lines: 0, nextUps: 0, internet: 0, revenue: 0 }
       );
       return { ...team, derived: sum };
     });
@@ -478,6 +487,16 @@ function DashboardContent() {
     'se-goals-v1',
     { lines: 200, premium: 80 }
   );
+
+  // Weekly commitments: each rep calls their number at the morning meeting —
+  // accountability, not a quota
+  const { state: commits, setState: setCommits } = useLocalState<Record<string, number>>('se-commit-v1', {});
+
+  // Schedule: who is at which store, day by day (next 7 days)
+  const { state: schedule, setState: setSchedule } = useLocalState<Record<string, Record<string, string>>>('se-schedule-v1', {});
+  const scheduleDays = useMemo(() => Array.from({ length: 7 }, (_, i) => todayStr(i)), []);
+  const setShift = (date: string, person: string, store: string) =>
+    setSchedule(prev => ({ ...prev, [date]: { ...(prev[date] ?? {}), [person]: store } }));
   const goals = [
     { key: 'lines' as const, label: 'Total Lines', current: aggWeekly.lines, target: goalTargets.lines, color: 'blue' },
     { key: 'premium' as const, label: 'Premium', current: aggWeekly.premium, target: goalTargets.premium, color: 'purple' },
@@ -624,9 +643,14 @@ function DashboardContent() {
           <div className="slide-in grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-accent-blue" /> Revenue Trend
-                  <span className="text-[10px] text-text-muted font-normal uppercase tracking-wider">last 7 days</span>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-accent-blue" /> Revenue Trend
+                    <span className="text-[10px] text-text-muted font-normal uppercase tracking-wider">last 7 days</span>
+                  </span>
+                  <button onClick={() => setExpandChart('trend')} className="p-1 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Expand revenue trend" title="Enlarge">
+                    <Maximize2 className="w-3.5 h-3.5" />
+                  </button>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -637,15 +661,20 @@ function DashboardContent() {
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2">
-                  <PieChart className="w-4 h-4 text-accent-purple" /> Product Mix
-                  <span className="text-[10px] text-text-muted font-normal uppercase tracking-wider">3D · click a slice for the breakdown</span>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <PieChart className="w-4 h-4 text-accent-purple" /> Product Mix
+                    <span className="text-[10px] text-text-muted font-normal uppercase tracking-wider">3D · click a slice for the breakdown</span>
+                  </span>
+                  <button onClick={() => setExpandChart('mix')} className="p-1 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Expand product mix" title="Enlarge">
+                    <Maximize2 className="w-3.5 h-3.5" />
+                  </button>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {pie.values.length > 0 ? (
                   <>
-                    <PieChart3D data={pie.values} labels={pie.labels} colors={pie.colors} height={150} onSliceClick={(i) => setDrillCat(mixCategories[i])} />
+                    <PieChart3D data={pie.values} labels={pie.labels} colors={pie.colors} height={220} onSliceClick={(i) => setDrillCat(mixCategories[i])} />
                     <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-2">
                       {mixCategories.map(cat => (
                         <button key={cat.key} onClick={() => setDrillCat(cat)} className="flex items-center gap-1.5 text-[10px] text-text-secondary hover:text-white transition-colors">
@@ -862,7 +891,7 @@ function DashboardContent() {
                   <p className="text-[10px] text-text-muted mb-2">Lead: <span className="text-accent-purple">{team.lead}</span> · ASM: <span className="text-accent-yellow">{team.asm}</span></p>
                   <div className="flex justify-between text-xs text-text-secondary">
                     <span>Lines: <span className="text-white">{team.derived.lines}</span></span>
-                    <span>Premium: <span className="text-white">{team.derived.premium}</span></span>
+                    <span>Next Ups: <span className="text-white">{team.derived.nextUps}</span></span>
                     <span>Internet: <span className="text-white">{team.derived.internet}</span></span>
                   </div>
                 </button>
@@ -871,6 +900,87 @@ function DashboardContent() {
                 <p className="text-xs text-text-muted p-3 rounded-xl bg-white/5 md:col-span-2">No teams yet — build them with drag &amp; drop on the Roster tab.</p>
               )}
             </div>
+            {/* Weekly commitments — reps call their number at the meeting */}
+            <h3 className="text-sm font-semibold text-text-secondary mt-5 mb-3 flex items-center gap-2">
+              <Target className="w-4 h-4 text-accent-yellow" /> This Week&apos;s Commitments
+              <span className="text-[10px] text-text-muted font-normal">(what everyone called — accountability, not a quota)</span>
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+              {people.filter(p => p.role !== 'ASM').map(p => {
+                const committed = commits[p.name] ?? 0;
+                const actual = aggWeekly.perPerson.find(s => s.person.toLowerCase() === p.name.toLowerCase())?.lines ?? 0;
+                const pct = committed > 0 ? Math.min(100, (actual / committed) * 100) : 0;
+                return (
+                  <div key={p.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white/[0.03]">
+                    <span className="text-xs font-medium w-32 truncate">{p.name}</span>
+                    <span className="text-[10px] text-text-muted">
+                      called{' '}
+                      <Editable
+                        value={String(committed)}
+                        onCommit={(v) => setCommits(prev => ({ ...prev, [p.name]: Math.max(0, parseNum(v)) }))}
+                        className="text-accent-yellow font-semibold"
+                      />{' '}
+                      lines
+                    </span>
+                    <div className="flex-1 h-1 rounded-full bg-bg-tertiary">
+                      <div className={cn('h-full rounded-full', pct >= 100 ? 'bg-accent-green' : 'bg-gradient-to-r from-accent-yellow to-accent-green')} style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className={cn('text-[10px] font-semibold w-14 text-right', actual >= committed && committed > 0 ? 'text-accent-green' : 'text-text-secondary')}>
+                      {actual}/{committed || '—'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Schedule — who's where, next 7 days */}
+            <h3 className="text-sm font-semibold text-text-secondary mt-5 mb-3 flex items-center gap-2">
+              <CalendarCheck className="w-4 h-4 text-accent-cyan" /> Schedule · who&apos;s where
+              <span className="text-[10px] text-text-muted font-normal">(set it in the meeting — everyone knows where they&apos;re going)</span>
+            </h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="text-left text-[9px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
+                    <th className="pb-1.5 pr-2">Rep</th>
+                    {scheduleDays.map(d => (
+                      <th key={d} className="pb-1.5 px-1 text-center">
+                        {new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' })}
+                        <span className="block text-[8px] normal-case">{d.slice(5)}</span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-subtle">
+                  {people.map(p => (
+                    <tr key={p.id}>
+                      <td className="py-1.5 pr-2 font-medium whitespace-nowrap">{p.name}</td>
+                      {scheduleDays.map(d => {
+                        const val = schedule[d]?.[p.name] ?? '';
+                        return (
+                          <td key={d} className="py-1 px-0.5 text-center">
+                            <select
+                              value={val}
+                              onChange={e => setShift(d, p.name, e.target.value)}
+                              className={cn(
+                                'w-full bg-bg-tertiary border rounded px-1 py-0.5 text-[9px] focus:outline-none cursor-pointer',
+                                val === 'OFF' ? 'border-border-subtle text-text-muted' : val ? 'border-accent-cyan/30 text-accent-cyan' : 'border-border-subtle text-text-muted'
+                              )}
+                              aria-label={`${p.name} on ${d}`}
+                            >
+                              <option value="">—</option>
+                              {(p.stores ?? []).map(s => <option key={s} value={s}>{s}</option>)}
+                              <option value="OFF">OFF</option>
+                            </select>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
             <div className="mt-3 text-xs text-text-secondary flex items-center gap-2">
               <Users className="w-3 h-3" />
               Auto-fullscreen on entry · Present button or F toggles · Esc exits
@@ -882,7 +992,8 @@ function DashboardContent() {
       {activeTab === 'pnl' && (
         <div id="tab-pnl" className="tab-panel">
           <Card className="p-5">
-            <PnlEditor derivedCommission={aggMonthly.revenue} />
+            {/* gross generated as revenue; the chargeback hit shows as its own expense */}
+            <PnlEditor derivedCommission={aggMonthly.revenue + aggMonthly.chargebacks} derivedChargebacks={aggMonthly.chargebacks} />
           </Card>
         </div>
       )}
@@ -915,7 +1026,7 @@ function DashboardContent() {
               <div className="grid grid-cols-4 gap-2 mb-4">
                 {[
                   { label: 'Lines', value: String(team.derived.lines), color: 'text-accent-blue' },
-                  { label: 'Premium', value: String(team.derived.premium), color: 'text-accent-purple' },
+                  { label: 'Next Ups', value: String(team.derived.nextUps), color: 'text-accent-red' },
                   { label: 'Internet', value: String(team.derived.internet), color: 'text-accent-cyan' },
                   { label: 'Generated', value: formatCurrency(team.derived.revenue), color: 'text-accent-green' },
                 ].map(s => (
@@ -947,6 +1058,39 @@ function DashboardContent() {
           </div>
         );
       })()}
+
+      {expandChart && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Enlarged chart">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setExpandChart(null)} />
+          <div className="relative w-full max-w-4xl glass border border-border-strong rounded-2xl p-6 animate-scale-in bg-bg-secondary/95">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                {expandChart === 'trend'
+                  ? <><TrendingUp className="w-5 h-5 text-accent-blue" /> Revenue Trend · last 7 days</>
+                  : <><PieChart className="w-5 h-5 text-accent-purple" /> Product Mix · {PERIOD_LABELS[period]}</>}
+              </h3>
+              <button onClick={() => setExpandChart(null)} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
+            </div>
+            {expandChart === 'trend' ? (
+              <div style={{ position: 'relative', height: '440px', width: '100%' }}>
+                <LineChart data={trendData} height={440} />
+              </div>
+            ) : (
+              <>
+                <PieChart3D data={pie.values} labels={pie.labels} colors={pie.colors} height={420} onSliceClick={(i) => { setExpandChart(null); setDrillCat(mixCategories[i]); }} />
+                <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-3">
+                  {mixCategories.map(cat => (
+                    <button key={cat.key} onClick={() => { setExpandChart(null); setDrillCat(cat); }} className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-white transition-colors">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: cat.color }} />
+                      {cat.label} ({cat.qty})
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {drillCat && <SliceDrawer category={drillCat} agg={agg} onClose={() => setDrillCat(null)} />}
       {showProduction && <ProductionDrawer agg={agg} period={period} onClose={() => setShowProduction(false)} onOpenProfile={(n) => { setShowProduction(false); setProfileName(n); }} />}

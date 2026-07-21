@@ -7,6 +7,7 @@ import { Plus, Trash2, Sparkles, ClipboardList, ChevronDown, ChevronUp, Maximize
 import {
   SaleEntry, loadSales, saveSales, loadCommission, entryRevenue, todayStr, generateDemoSales,
   AttendanceBook, AttendanceStatus, loadAttendance, saveAttendance, attendanceForDate,
+  LateOutBook, loadLateOuts, saveLateOuts, isPhonePlan,
 } from '@/lib/sales';
 import { loadPeople } from './roster';
 
@@ -39,8 +40,9 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   const [viewStore, setViewStore] = useState(''); // '' = all stores
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  // Attendance for the selected date
+  // Attendance + late clock-outs for the selected date
   const [attendance, setAttendance] = useState<AttendanceBook>({});
+  const [lateOuts, setLateOuts] = useState<LateOutBook>({});
 
   // Presentation mode for the tracker itself
   const panelRef = useRef<HTMLDivElement>(null);
@@ -58,8 +60,53 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   useEffect(() => {
     setSales(loadSales());
     setAttendance(loadAttendance());
+    setLateOuts(loadLateOuts());
     setLoaded(true);
   }, []);
+
+  // Toggle a GPS late clock-out for a rep on this date. The store defaults to
+  // where they sold that day (else their first store); the chargeback itself
+  // is computed live in the aggregation at the Commission tab's $/line rate.
+  const toggleLateOut = (name: string) => {
+    setLateOuts(prev => {
+      const day = [...(prev[date] ?? [])];
+      const idx = day.findIndex(lo => lo.person === name);
+      if (idx >= 0) {
+        day.splice(idx, 1);
+      } else {
+        const p = people.find(pp => pp.name === name);
+        const soldStore = sales.find(e => e.date === date && e.person === name)?.store;
+        day.push({ person: name, store: soldStore ?? p?.stores?.[0] ?? 'Costco 1018' });
+      }
+      const next = { ...prev, [date]: day };
+      saveLateOuts(next);
+      onDataChange();
+      return next;
+    });
+  };
+
+  const setLateOutStore = (name: string, store: string) => {
+    setLateOuts(prev => {
+      const day = (prev[date] ?? []).map(lo => (lo.person === name ? { ...lo, store } : lo));
+      const next = { ...prev, [date]: day };
+      saveLateOuts(next);
+      onDataChange();
+      return next;
+    });
+  };
+
+  // Preview of the charge: penalty × the marked store's phone lines this date,
+  // split between that store's late reps
+  const latePreview = (name: string): { store: string; amount: number } | null => {
+    const day = lateOuts[date] ?? [];
+    const mine = day.find(lo => lo.person === name);
+    if (!mine) return null;
+    const sameStore = day.filter(lo => lo.store.toLowerCase() === mine.store.toLowerCase());
+    const lines = sales
+      .filter(e => e.date === date && e.store.toLowerCase() === mine.store.toLowerCase() && isPhonePlan(commission, e.plan))
+      .reduce((a, e) => a + e.qty, 0);
+    return { store: mine.store, amount: (lines * (commission.latePenaltyPerLine ?? 15)) / Math.max(1, sameStore.length) };
+  };
 
   const markAttendance = (name: string, status: AttendanceStatus | null) => {
     setAttendance(prev => {
@@ -217,14 +264,43 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
                 {label}
               </button>
             );
+            const late = latePreview(p.name);
             return (
-              <div key={p.id} className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-white/[0.03]">
-                <span className="text-xs truncate">{p.name}</span>
-                <span className="flex gap-1">
-                  {chip('P', 'Present', 'bg-accent-green/20 text-accent-green border-accent-green/40')}
-                  {chip('L', 'Late', 'bg-accent-yellow/20 text-accent-yellow border-accent-yellow/40')}
-                  {chip('A', 'Absent', 'bg-accent-red/20 text-accent-red border-accent-red/40')}
-                </span>
+              <div key={p.id} className="px-2.5 py-1.5 rounded-lg bg-white/[0.03]">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs truncate">{p.name}</span>
+                  <span className="flex gap-1">
+                    {chip('P', 'Present', 'bg-accent-green/20 text-accent-green border-accent-green/40')}
+                    {chip('L', 'Late', 'bg-accent-yellow/20 text-accent-yellow border-accent-yellow/40')}
+                    {chip('A', 'Absent', 'bg-accent-red/20 text-accent-red border-accent-red/40')}
+                    <button
+                      onClick={() => toggleLateOut(p.name)}
+                      className={cn(
+                        'px-1.5 py-0.5 rounded text-[9px] font-semibold border transition-all',
+                        late ? 'bg-accent-orange/20 text-accent-orange border-accent-orange/40' : 'border-border-subtle text-text-muted hover:text-white hover:bg-white/5'
+                      )}
+                      title="GPS late clock-out — charges the store's whole day at the Commission tab's $/line rate, split between late reps"
+                    >
+                      ⏰ Late out
+                    </button>
+                  </span>
+                </div>
+                {late && (
+                  <div className="flex items-center justify-between gap-2 mt-1 pl-1">
+                    <select
+                      value={late.store}
+                      onChange={e => setLateOutStore(p.name, e.target.value)}
+                      className="bg-bg-tertiary border border-border-subtle rounded px-1.5 py-0.5 text-[10px] text-text-secondary focus:outline-none"
+                      aria-label={`Store where ${p.name} clocked out late`}
+                    >
+                      {(p.stores ?? []).map(s => <option key={s} value={s}>{s}</option>)}
+                      {!(p.stores ?? []).includes(late.store) && <option value={late.store}>{late.store}</option>}
+                    </select>
+                    <span className="text-[10px] text-accent-orange font-semibold">
+                      chargeback −{formatCurrency(late.amount)}
+                    </span>
+                  </div>
+                )}
               </div>
             );
           })}
