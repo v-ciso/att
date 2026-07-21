@@ -7,7 +7,7 @@ import { Plus, Trash2, Sparkles, ClipboardList, ChevronDown, ChevronUp, Maximize
 import {
   SaleEntry, loadSales, saveSales, loadCommission, entryRevenue, todayStr, generateDemoSales,
   AttendanceBook, AttendanceStatus, loadAttendance, saveAttendance, attendanceForDate,
-  LateOutBook, loadLateOuts, saveLateOuts, isPhonePlan,
+  LateOutBook, loadLateOuts, saveLateOuts, isPhonePlan, scheduledStore,
 } from '@/lib/sales';
 import { loadPeople } from './roster';
 
@@ -139,12 +139,16 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   const selectedPerson = people.find(p => p.name === person) ?? people[0];
   const personStores = selectedPerson?.stores?.length ? selectedPerson.stores : ['Costco'];
   const allStores = Array.from(new Set(people.flatMap(p => p.stores ?? [])));
+  // If this rep is scheduled somewhere that day, the sale is locked to that
+  // store — no logging Sarah at Target when she was scheduled at Costco.
+  const scheduledAt = scheduledStore(selectedPerson?.name ?? '', date);
+  const effectiveStores = scheduledAt ? [scheduledAt] : personStores;
 
   const addEntry = () => {
     const who = person || people[0]?.name;
     const what = plan || plans[0];
     if (!who || !what || qty < 1) return;
-    const store = personStores.includes(entryStore) ? entryStore : personStores[0];
+    const store = scheduledAt || (effectiveStores.includes(entryStore) ? entryStore : effectiveStores[0]);
     setSales(prev => [
       {
         id: `s-${Date.now()}`,
@@ -217,9 +221,15 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
             </select>
           </label>
           <label className="flex flex-col gap-1 text-[10px] text-text-muted uppercase tracking-wider">
-            Store
-            <select value={personStores.includes(entryStore) ? entryStore : personStores[0]} onChange={e => setEntryStore(e.target.value)} className={selectClass}>
-              {personStores.map(s => <option key={s} value={s}>{s}</option>)}
+            Store {scheduledAt && <span className="text-accent-cyan normal-case">📅 scheduled</span>}
+            <select
+              value={scheduledAt || (effectiveStores.includes(entryStore) ? entryStore : effectiveStores[0])}
+              onChange={e => setEntryStore(e.target.value)}
+              disabled={!!scheduledAt}
+              className={cn(selectClass, scheduledAt && 'opacity-70 cursor-not-allowed')}
+              title={scheduledAt ? `Locked — scheduled at ${scheduledAt} on ${date}` : undefined}
+            >
+              {effectiveStores.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </label>
           <label className="flex flex-col gap-1 text-[10px] text-text-muted uppercase tracking-wider">

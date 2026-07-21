@@ -19,6 +19,7 @@ import { CommissionEngine, PnlEditor, TeamData } from '@/components/dashboard/ed
 import { ReportTemplate } from '@/components/dashboard/report-template';
 import { RosterManager, loadPeople } from '@/components/dashboard/roster';
 import { Competition } from '@/components/dashboard/competition';
+import { ScheduleBoard } from '@/components/dashboard/schedule-board';
 import { ProfileDrawer } from '@/components/dashboard/profile-drawer';
 import { DailyTracker } from '@/components/dashboard/daily-tracker';
 import {
@@ -27,7 +28,7 @@ import {
 } from '@/lib/sales';
 import { Editable, parseNum, useLocalState } from '@/components/dashboard/editable-sections';
 
-const VALID_TABS = ['dashboard', 'tracker', 'roster', 'leaderboard', 'meeting', 'competition', 'pnl', 'commission'];
+const VALID_TABS = ['dashboard', 'tracker', 'roster', 'leaderboard', 'meeting', 'schedule', 'competition', 'pnl', 'commission'];
 
 // Renders overlays inside the fullscreened element when presentation mode is
 // active — otherwise drawers opened during Present would be invisible until
@@ -367,6 +368,24 @@ function DashboardContent() {
   // Re-read on tab return too (edits on other tabs change commission/roster)
   useEffect(() => { bump(); }, [activeTab, bump]);
 
+  // Live reactivity: any edit anywhere (stores, sales, teams, goals) fires
+  // 'se:data' → recompute every derived view. Deferred + debounced so it can
+  // never run during another component's render (which caused a crash loop).
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const onData = () => {
+      if (t) clearTimeout(t);
+      t = setTimeout(() => bump(), 120);
+    };
+    window.addEventListener('se:data', onData);
+    window.addEventListener('storage', onData);
+    return () => {
+      if (t) clearTimeout(t);
+      window.removeEventListener('se:data', onData);
+      window.removeEventListener('storage', onData);
+    };
+  }, [bump]);
+
   const [period, setPeriod] = useState<Period>('weekly');
   const [storeSel, setStoreSel] = useState<string[]>([]);
   const [pickDate, setPickDate] = useState(''); // specific day report, e.g. last Monday
@@ -546,38 +565,6 @@ function DashboardContent() {
   // accountability, not a quota
   const { state: commits, setState: setCommits } = useLocalState<Record<string, number>>('se-commit-v1', {});
 
-  // Schedule: who is at which store, day by day (next 7 days)
-  const { state: schedule, setState: setSchedule } = useLocalState<Record<string, Record<string, string>>>('se-schedule-v1', {});
-  const scheduleDays = useMemo(() => Array.from({ length: 7 }, (_, i) => todayStr(i)), []);
-  const setShift = (date: string, person: string, store: string) =>
-    setSchedule(prev => ({ ...prev, [date]: { ...(prev[date] ?? {}), [person]: store } }));
-
-  // Copy the schedule as clean plain text for Discord / iMessage
-  const [scheduleCopied, setScheduleCopied] = useState(false);
-  const copySchedule = async () => {
-    const lines: string[] = ['📅 Schedule'];
-    for (const d of scheduleDays) {
-      const dayLabel = new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' });
-      const day = schedule[d] ?? {};
-      const byStore = new Map<string, string[]>();
-      const off: string[] = [];
-      people.forEach(p => {
-        const s = day[p.name];
-        if (!s) return;
-        if (s === 'OFF') off.push(p.name);
-        else byStore.set(s, [...(byStore.get(s) ?? []), p.name]);
-      });
-      if (byStore.size === 0 && off.length === 0) continue;
-      lines.push(`\n${dayLabel}`);
-      Array.from(byStore.entries()).forEach(([store, names]) => lines.push(`  ${store}: ${names.join(', ')}`));
-      if (off.length) lines.push(`  OFF: ${off.join(', ')}`);
-    }
-    try {
-      await navigator.clipboard.writeText(lines.join('\n'));
-      setScheduleCopied(true);
-      setTimeout(() => setScheduleCopied(false), 2500);
-    } catch { /* clipboard blocked */ }
-  };
   const goals = [
     { key: 'lines' as const, label: 'Total Lines', current: aggWeekly.lines, target: goalTargets.lines, color: 'blue' },
     { key: 'premium' as const, label: 'Premium', current: aggWeekly.premium, target: goalTargets.premium, color: 'purple' },
@@ -691,6 +678,7 @@ function DashboardContent() {
         <TabButton isActive={activeTab === 'roster'} onClick={() => switchTab('roster')}>Roster</TabButton>
         <TabButton isActive={activeTab === 'leaderboard'} onClick={() => switchTab('leaderboard')}>Leaderboard</TabButton>
         <TabButton isActive={activeTab === 'meeting'} onClick={() => switchTab('meeting')}>Meeting Mode</TabButton>
+        <TabButton isActive={activeTab === 'schedule'} onClick={() => switchTab('schedule')}>Schedule</TabButton>
         <TabButton isActive={activeTab === 'competition'} onClick={() => switchTab('competition')}>Competition</TabButton>
         <TabButton isActive={activeTab === 'pnl'} onClick={() => switchTab('pnl')}>P&L</TabButton>
         <TabButton isActive={activeTab === 'commission'} onClick={() => switchTab('commission')}>Commission</TabButton>
@@ -1051,62 +1039,12 @@ function DashboardContent() {
 
             {/* Monthly competition — edit the prize/metric live in the meeting */}
             <div className="mt-5 pt-4 border-t border-border-subtle">
-              <Competition monthly={aggMonthly} compact />
+              <Competition sales={sales} commission={commission} storeOptions={storeOptions} compact />
             </div>
 
-            {/* Schedule — who's where, next 7 days */}
-            <div className="flex flex-wrap items-center justify-between gap-2 mt-5 mb-3">
-              <h3 className="text-sm font-semibold text-text-secondary flex items-center gap-2">
-                <CalendarCheck className="w-4 h-4 text-accent-cyan" /> Schedule · who&apos;s where
-                <span className="text-[10px] text-text-muted font-normal">(set it in the meeting — everyone knows where they&apos;re going)</span>
-              </h3>
-              <Button variant="secondary" size="sm" onClick={copySchedule}>
-                {scheduleCopied ? '✓ Copied — paste into Discord/iMessage' : '📋 Copy for chat'}
-              </Button>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-[11px]">
-                <thead>
-                  <tr className="text-left text-[9px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
-                    <th className="pb-1.5 pr-2">Rep</th>
-                    {scheduleDays.map(d => (
-                      <th key={d} className="pb-1.5 px-1 text-center">
-                        {new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' })}
-                        <span className="block text-[8px] normal-case">{d.slice(5)}</span>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-subtle">
-                  {people.map(p => (
-                    <tr key={p.id}>
-                      <td className="py-1.5 pr-2 font-medium whitespace-nowrap">{p.name}</td>
-                      {scheduleDays.map(d => {
-                        const val = schedule[d]?.[p.name] ?? '';
-                        return (
-                          <td key={d} className="py-1 px-0.5 text-center">
-                            <select
-                              value={val}
-                              onChange={e => setShift(d, p.name, e.target.value)}
-                              className={cn(
-                                'w-full bg-bg-tertiary border rounded px-1 py-0.5 text-[9px] focus:outline-none cursor-pointer',
-                                val === 'OFF' ? 'border-border-subtle text-text-muted' : val ? 'border-accent-cyan/30 text-accent-cyan' : 'border-border-subtle text-text-muted'
-                              )}
-                              aria-label={`${p.name} on ${d}`}
-                            >
-                              <option value="">—</option>
-                              {/* any store is selectable — reps can cover locations outside their usual list */}
-                              {storeOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                              {(p.stores ?? []).filter(s => !storeOptions.includes(s)).map(s => <option key={s} value={s}>{s}</option>)}
-                              <option value="OFF">OFF</option>
-                            </select>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Schedule board — same component as the Schedule tab */}
+            <div className="mt-5 pt-4 border-t border-border-subtle">
+              <ScheduleBoard people={people} storeOptions={storeOptions} compact />
             </div>
 
             <div className="mt-3 text-xs text-text-secondary flex items-center gap-2">
@@ -1117,10 +1055,18 @@ function DashboardContent() {
         </div>
       )}
 
+      {activeTab === 'schedule' && (
+        <div id="tab-schedule" className="tab-panel">
+          <Card className="p-5">
+            <ScheduleBoard people={people} storeOptions={storeOptions} />
+          </Card>
+        </div>
+      )}
+
       {activeTab === 'competition' && (
         <div id="tab-competition" className="tab-panel">
           <Card className="p-5">
-            <Competition monthly={aggMonthly} />
+            <Competition sales={sales} commission={commission} storeOptions={storeOptions} />
           </Card>
         </div>
       )}

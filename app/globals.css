@@ -63,6 +63,19 @@
     letter-spacing: -0.02em;
   }
 
+  /* Theme-tinted ambient glow over the obsidian-black base — changes with the
+     preset so switching themes is visible in the background, not just chrome. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+      radial-gradient(130% 80% at 50% -15%, rgba(var(--brand-rgb), 0.10), transparent 55%),
+      radial-gradient(90% 60% at 100% 110%, rgba(var(--brand-rgb), 0.06), transparent 60%);
+  }
+
   html {
     @apply scroll-smooth;
   }
@@ -280,6 +293,19 @@
     background: conic-gradient(from 270deg, #06b6d4, #10b981, #3b82f6, #06b6d4);
     animation-duration: 61s;
     animation-delay: -20s;
+  }
+  /* Preset-matched aurora tones */
+  [data-theme='obsidian-gold'] .aurora::before {
+    background: conic-gradient(from 90deg, #e7c24a, #b8860b, #f7e08a, #e7c24a);
+  }
+  [data-theme='obsidian-gold'] .aurora::after {
+    background: conic-gradient(from 270deg, #b8860b, #7a5c12, #e7c24a, #b8860b);
+  }
+  [data-theme='emerald'] .aurora::before {
+    background: conic-gradient(from 90deg, #10b981, #059669, #6ee7b7, #10b981);
+  }
+  [data-theme='emerald'] .aurora::after {
+    background: conic-gradient(from 270deg, #059669, #047857, #10b981, #059669);
   }
   @keyframes aurora-drift {
     from {

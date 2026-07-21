@@ -108,7 +108,7 @@ export function PieChart3D({ data, labels, colors, className, height = 300, inne
       const baseX = Math.cos(midAngle) * gap;
       const baseY = Math.sin(midAngle) * gap;
       mesh.position.set(baseX, baseY, 10);
-      mesh.userData = { index: i, startAngle, endAngle, originalZ: 10, baseX, baseY };
+      mesh.userData = { index: i, startAngle, endAngle, baseX, baseY, target: { x: baseX, y: baseY, z: 10, s: 1 } };
       pieGroup.add(mesh);
       meshes.push(mesh);
 
@@ -117,14 +117,21 @@ export function PieChart3D({ data, labels, colors, className, height = 300, inne
 
     meshesRef.current = meshes;
 
-    // Animation loop: slow presentational spin (paused while hovering a slice)
-    let frame = 0;
-    let hovering = false;
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Animation loop: slices ease toward their target position/scale each frame
+    // (set by hover). No auto-rotation — a spinning group made the raycast and
+    // the outward-pull direction disagree, which is what caused the jitter.
     const animate = () => {
       animationIdRef.current = requestAnimationFrame(animate);
-      frame += 0.005;
-      if (!reduceMotion && !hovering) pieGroup.rotation.z += 0.002;
+      meshes.forEach(mesh => {
+        const t = mesh.userData.target as { x: number; y: number; z: number; s: number } | undefined;
+        if (t) {
+          mesh.position.x += (t.x - mesh.position.x) * 0.2;
+          mesh.position.y += (t.y - mesh.position.y) * 0.2;
+          mesh.position.z += (t.z - mesh.position.z) * 0.2;
+          const s = mesh.scale.x + (t.s - mesh.scale.x) * 0.2;
+          mesh.scale.setScalar(s);
+        }
+      });
       renderer.render(scene, camera);
     };
     animate();
@@ -143,21 +150,25 @@ export function PieChart3D({ data, labels, colors, className, height = 300, inne
 
     const handleMouseMove = (event: MouseEvent) => {
       const intersects = raycastAt(event);
-      hovering = intersects.length > 0;
-      renderer.domElement.style.cursor = hovering && onSliceClickRef.current ? 'pointer' : 'default';
+      const hovered = intersects[0]?.object as THREE.Mesh | undefined;
+      renderer.domElement.style.cursor = hovered && onSliceClickRef.current ? 'pointer' : 'default';
       meshes.forEach((mesh) => {
-        const isHovered = intersects.some((intersect) => intersect.object === mesh);
         const { baseX, baseY } = mesh.userData as { baseX: number; baseY: number };
-        if (isHovered) {
-          // Pull the slice outward along its own gap direction and lift it
-          mesh.position.set(baseX * 4, baseY * 4, 26);
-          mesh.scale.setScalar(1.06);
+        // Only the single top-most hovered slice pulls out — the animate loop
+        // eases toward these targets, so there's no snapping/jitter.
+        if (mesh === hovered) {
+          mesh.userData.target = { x: baseX * 4, y: baseY * 4, z: 26, s: 1.06 };
         } else {
-          mesh.position.set(baseX, baseY, 10);
-          mesh.scale.setScalar(1);
+          mesh.userData.target = { x: baseX, y: baseY, z: 10, s: 1 };
         }
       });
     };
+    renderer.domElement.addEventListener('mouseleave', () => {
+      meshes.forEach(mesh => {
+        const { baseX, baseY } = mesh.userData as { baseX: number; baseY: number };
+        mesh.userData.target = { x: baseX, y: baseY, z: 10, s: 1 };
+      });
+    });
 
     const handleClick = (event: MouseEvent) => {
       if (!onSliceClickRef.current) return;

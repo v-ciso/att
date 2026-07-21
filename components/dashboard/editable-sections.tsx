@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { Plus, Trash2, Smartphone, Wifi, Gift, Users, DollarSign, Receipt, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 export function useLocalState<T>(key: string, defaultValue: T) {
   const [state, setState] = useState<T>(defaultValue);
   const [loaded, setLoaded] = useState(false);
+  const firstSaveRef = useRef(true);
 
   useEffect(() => {
     try {
@@ -25,7 +26,15 @@ export function useLocalState<T>(key: string, defaultValue: T) {
   }, [key]);
 
   useEffect(() => {
-    if (loaded) localStorage.setItem(key, JSON.stringify(state));
+    if (!loaded) return;
+    localStorage.setItem(key, JSON.stringify(state));
+    // Skip the no-op write that fires right after load; only broadcast real
+    // user edits so other views recompute — without a render loop.
+    if (firstSaveRef.current) {
+      firstSaveRef.current = false;
+      return;
+    }
+    window.dispatchEvent(new Event('se:data'));
   }, [state, loaded, key]);
 
   const reset = () => {
@@ -275,17 +284,8 @@ export function CommissionEngine() {
         </div>
         <div className="p-4 rounded-xl glass border border-border-subtle">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] text-text-muted uppercase tracking-wider">Stores · brand + store number</p>
-            <button
-              onClick={() => setState(p => ({
-                ...p,
-                stores: [...p.stores, { name: `Store #${1000 + p.stores.length + 1}`, multiplier: 1 }],
-              }))}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] text-text-muted border border-dashed border-border-strong hover:text-white hover:bg-white/5 transition-all"
-              aria-label="Add store"
-            >
-              <Plus className="w-3 h-3" /> Add store
-            </button>
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Store multipliers · select active store</p>
+            <span className="text-[9px] text-text-muted">manage stores on the Roster tab</span>
           </div>
           <div className="flex flex-wrap gap-1.5">
             {state.stores.map((s, i) => (

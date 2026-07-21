@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocalState, Editable, parseNum } from './editable-sections';
 import { cn, formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Trash2, TrendingUp, Award, UserPlus, Pencil, ChevronDown } from 'lucide-react';
+import { Trash2, TrendingUp, Award, UserPlus, Pencil, ChevronDown, Plus, Store as StoreIcon } from 'lucide-react';
 import { TeamTree } from './team-tree';
+import { notifyDataChanged } from '@/lib/sales';
 
 // ---------------------------------------------------------------------------
 // People — the single roster every view joins against. A person can work one
@@ -148,24 +150,37 @@ export function promotionStatus(person: Person, rules: PromotionRules) {
 
 let personCounter = 100;
 
-// Compact multi-select for a person's stores
+// Compact multi-select for a person's stores. The dropdown is portaled to
+// <body> with fixed positioning so the roster table's overflow can't clip it.
 function StoresPicker({ value, options, onChange, label }: { value: string[]; options: string[]; onChange: (stores: string[]) => void; label: string }) {
   const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
   const all = Array.from(new Set([...options, ...value]));
+
+  const toggle = () => {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.left });
+    }
+    setOpen(o => !o);
+  };
+
   return (
-    <div className="relative inline-block">
+    <div className="inline-block">
       <button
-        onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-1 bg-bg-tertiary border border-border-subtle rounded-lg px-2 py-1 text-[11px] text-text-secondary hover:text-white hover:border-border-strong transition-all"
+        ref={btnRef}
+        onClick={toggle}
+        className="flex items-center gap-1 bg-bg-tertiary border border-border-subtle rounded-lg px-2 py-1 text-[11px] text-text-secondary hover:text-white hover:border-border-strong transition-all max-w-[220px]"
         aria-label={label}
       >
-        {value.length ? value.join(', ') : 'Pick stores'}
-        <ChevronDown className={cn('w-3 h-3 transition-transform', open && 'rotate-180')} />
+        <span className="truncate">{value.length ? value.join(', ') : 'Pick stores'}</span>
+        <ChevronDown className={cn('w-3 h-3 shrink-0 transition-transform', open && 'rotate-180')} />
       </button>
-      {open && (
+      {open && typeof document !== 'undefined' && createPortal(
         <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-full mt-1 z-40 w-40 p-1.5 rounded-xl bg-bg-secondary border border-border-strong shadow-glass space-y-0.5">
+          <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)} />
+          <div className="fixed z-[61] w-48 max-h-64 overflow-y-auto p-1.5 rounded-xl bg-bg-secondary border border-border-strong shadow-glass space-y-0.5" style={{ top: pos.top, left: pos.left }}>
             {all.map(store => {
               const active = value.includes(store);
               return (
@@ -185,8 +200,70 @@ function StoresPicker({ value, options, onChange, label }: { value: string[]; op
               );
             })}
           </div>
-        </>
+        </>,
+        document.body
       )}
+    </div>
+  );
+}
+
+// Dedicated Stores manager — the ONE place to add/rename/remove stores and set
+// per-store payout multipliers. Writes to the shared commission store list so
+// every picker, filter, schedule, and chargeback updates instantly.
+interface StoreRule { name: string; multiplier: number }
+function StoresManager() {
+  const [stores, setStores] = useState<StoreRule[]>([]);
+  useEffect(() => {
+    try {
+      const c = JSON.parse(localStorage.getItem('se-commission-v2') || 'null');
+      setStores(c?.stores?.length ? c.stores : [
+        { name: 'Costco 1018', multiplier: 1 }, { name: 'Costco 1020', multiplier: 1 },
+        { name: 'Target 2450', multiplier: 1 }, { name: "BJ's 610", multiplier: 1 },
+      ]);
+    } catch { /* defaults */ }
+  }, []);
+
+  const persist = (next: StoreRule[]) => {
+    setStores(next);
+    try {
+      const c = JSON.parse(localStorage.getItem('se-commission-v2') || '{}');
+      c.stores = next;
+      if (typeof c.storeIndex === 'number' && c.storeIndex >= next.length) c.storeIndex = 0;
+      localStorage.setItem('se-commission-v2', JSON.stringify(c));
+    } catch { /* ignore */ }
+    notifyDataChanged();
+  };
+
+  const add = () => persist([...stores, { name: `Store #${1000 + stores.length + 1}`, multiplier: 1 }]);
+  const rename = (i: number, name: string) => persist(stores.map((s, j) => (j === i ? { ...s, name: name.trim() || s.name } : s)));
+  const setMult = (i: number, m: number) => persist(stores.map((s, j) => (j === i ? { ...s, multiplier: m || 1 } : s)));
+  const remove = (i: number) => stores.length > 1 && persist(stores.filter((_, j) => j !== i));
+
+  return (
+    <div className="p-4 rounded-xl glass border border-border-subtle mb-4">
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="font-semibold text-sm flex items-center gap-2 text-accent-cyan">
+          <StoreIcon className="w-4 h-4" /> Stores
+          <span className="text-[10px] text-text-muted font-normal normal-case">every numbered location is its own store</span>
+        </h4>
+        <Button size="sm" onClick={add}><Plus className="w-3.5 h-3.5" /> Add Store</Button>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {stores.map((s, i) => (
+          <div key={i} className="group flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 border border-border-subtle text-xs">
+            <Editable value={s.name} onCommit={(v) => rename(i, v)} className="font-medium" />
+            <span className="text-text-muted">
+              ×<Editable value={String(s.multiplier)} onCommit={(v) => setMult(i, parseNum(v))} />
+            </span>
+            {stores.length > 1 && (
+              <button onClick={() => remove(i)} className="text-text-muted opacity-0 group-hover:opacity-100 hover:text-accent-red transition-all" aria-label={`Remove ${s.name}`}>
+                <Trash2 className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      <p className="text-[10px] text-text-muted mt-2">Click a name to type its number (e.g. &quot;Costco 1018&quot;). Multiplier scales that store&apos;s office payouts.</p>
     </div>
   );
 }
@@ -313,6 +390,9 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
           <Button variant="ghost" size="sm" onClick={() => { resetPeople(); resetRules(); }}>↻ Reset</Button>
         </div>
       </div>
+
+      {/* Stores live here now (not the Commission tab) */}
+      <StoresManager />
 
       {/* Promotion rules — the leadership roadmap criteria, all editable */}
       <div className="p-4 rounded-xl glass border border-accent-green/20 mb-4">

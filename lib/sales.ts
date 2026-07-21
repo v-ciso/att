@@ -40,8 +40,15 @@ export function loadSales(): SaleEntry[] {
   }
 }
 
+// Cross-component reactivity: any write dispatches this so every view (which
+// listens in the dashboard) recomputes immediately — no stale stores/sales.
+export function notifyDataChanged() {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('se:data'));
+}
+
 export function saveSales(entries: SaleEntry[]) {
   localStorage.setItem(SALES_KEY, JSON.stringify(entries));
+  notifyDataChanged();
 }
 
 export function loadCommission(): CommissionState {
@@ -112,20 +119,23 @@ export function entryRevenue(
   commission: CommissionState
 ): { total: number; repTotal: number; parts: RevenuePart[] } {
   const parts: RevenuePart[] = [];
+  const qty = Number(entry.qty) || 0;
+  const nextUps = Number(entry.nextUps) || 0;
+  const insurance = Number(entry.insurance) || 0;
   const planPer = planPayout(commission, entry.plan, entry.store);
-  if (entry.qty > 0) parts.push({ label: `${entry.qty} × ${entry.plan} @ $${planPer} office`, amount: entry.qty * planPer });
-  if (entry.nextUps > 0) {
+  if (qty > 0) parts.push({ label: `${qty} × ${entry.plan} @ $${planPer} office`, amount: qty * planPer });
+  if (nextUps > 0) {
     const per = planPayout(commission, 'Next Up Anytime', entry.store);
-    parts.push({ label: `${entry.nextUps} × Next Up @ $${per} office`, amount: entry.nextUps * per });
+    parts.push({ label: `${nextUps} × Next Up @ $${per} office`, amount: nextUps * per });
   }
-  if (entry.insurance > 0) {
+  if (insurance > 0) {
     const per = planPayout(commission, 'Insurance', entry.store);
-    parts.push({ label: `${entry.insurance} × Insurance @ $${per} office`, amount: entry.insurance * per });
+    parts.push({ label: `${insurance} × Insurance @ $${per} office`, amount: insurance * per });
   }
   const repTotal =
-    entry.qty * planPayout(commission, entry.plan, entry.store, 'rep') +
-    entry.nextUps * planPayout(commission, 'Next Up Anytime', entry.store, 'rep') +
-    entry.insurance * planPayout(commission, 'Insurance', entry.store, 'rep');
+    qty * planPayout(commission, entry.plan, entry.store, 'rep') +
+    nextUps * planPayout(commission, 'Next Up Anytime', entry.store, 'rep') +
+    insurance * planPayout(commission, 'Insurance', entry.store, 'rep');
   return { total: parts.reduce((a, b) => a + b.amount, 0), repTotal, parts };
 }
 
@@ -179,6 +189,19 @@ export function loadLateOuts(): LateOutBook {
 
 export function saveLateOuts(book: LateOutBook) {
   localStorage.setItem(LATEOUT_KEY, JSON.stringify(book));
+  notifyDataChanged();
+}
+
+// Schedule lookup: which store a rep is scheduled at on a given date ('' = none)
+export function scheduledStore(person: string, date: string): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const sched = JSON.parse(localStorage.getItem('se-schedule-v1') || '{}') as Record<string, Record<string, string>>;
+    const v = sched[date]?.[person];
+    return v && v !== 'OFF' ? v : '';
+  } catch {
+    return '';
+  }
 }
 
 export function aggregateSales(
@@ -204,35 +227,41 @@ export function aggregateSales(
   const storeDayLines = new Map<string, number>();
 
   for (const e of filtered) {
+    // Defensive: skip malformed entries (missing plan/store/person) so one bad
+    // record can never crash the whole dashboard.
+    if (!e || !e.plan || !e.store || !e.person) continue;
+    const qty = Number(e.qty) || 0;
+    const nextUps = Number(e.nextUps) || 0;
+    const insurance = Number(e.insurance) || 0;
     const phone = isPhonePlan(commission, e.plan);
     const { total, repTotal } = entryRevenue(e, commission);
     if (phone) {
-      agg.lines += e.qty;
+      agg.lines += qty;
       const key = `${e.store.toLowerCase()}|${e.date}`;
-      storeDayLines.set(key, (storeDayLines.get(key) ?? 0) + e.qty);
+      storeDayLines.set(key, (storeDayLines.get(key) ?? 0) + qty);
     } else {
-      agg.internet += e.qty;
+      agg.internet += qty;
     }
-    if (e.plan.toLowerCase().includes('premium')) agg.premium += e.qty;
-    agg.nextUps += e.nextUps;
-    agg.insurance += e.insurance;
+    if (e.plan.toLowerCase().includes('premium')) agg.premium += qty;
+    agg.nextUps += nextUps;
+    agg.insurance += insurance;
     agg.revenue += total;
     agg.commission += repTotal;
 
     const ps = personMap.get(e.person) ?? {
       person: e.person, store: e.store, lines: 0, premium: 0, internet: 0, nextUps: 0, insurance: 0, revenue: 0, commission: 0, chargebacks: 0,
     };
-    if (phone) ps.lines += e.qty; else ps.internet += e.qty;
-    if (e.plan.toLowerCase().includes('premium')) ps.premium += e.qty;
-    ps.nextUps += e.nextUps;
-    ps.insurance += e.insurance;
+    if (phone) ps.lines += qty; else ps.internet += qty;
+    if (e.plan.toLowerCase().includes('premium')) ps.premium += qty;
+    ps.nextUps += nextUps;
+    ps.insurance += insurance;
     ps.revenue += total;
     ps.commission += repTotal;
     personMap.set(ps.person, ps);
 
     const pp = agg.perPlan.get(e.plan) ?? { qty: 0, nextUps: 0, revenue: 0, commission: 0 };
-    pp.qty += e.qty;
-    pp.nextUps += e.nextUps;
+    pp.qty += qty;
+    pp.nextUps += nextUps;
     pp.revenue += total;
     pp.commission += repTotal;
     agg.perPlan.set(e.plan, pp);
@@ -298,6 +327,7 @@ export function loadAttendance(): AttendanceBook {
 
 export function saveAttendance(book: AttendanceBook) {
   localStorage.setItem(ATTENDANCE_KEY, JSON.stringify(book));
+  notifyDataChanged();
 }
 
 export function attendanceForDate(book: AttendanceBook, date: string) {

@@ -23,8 +23,6 @@ export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const [draft, setDraft] = useState({
     companyName: theme.companyName,
-    primaryColor: theme.primaryColor,
-    secondaryColor: theme.secondaryColor,
     logoUrl: theme.logoUrl ?? '',
   });
   const [saved, setSaved] = useState(false);
@@ -33,33 +31,11 @@ export default function SettingsPage() {
   const save = () => {
     setTheme({
       companyName: draft.companyName.trim() || 'Sales Engine',
-      primaryColor: draft.primaryColor,
-      secondaryColor: draft.secondaryColor,
       logoUrl: draft.logoUrl.trim() || undefined,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
-
-  const colorField = (label: string, key: 'primaryColor' | 'secondaryColor') => (
-    <div>
-      <label className="label-base">{label}</label>
-      <div className="flex items-center gap-2">
-        <input
-          type="color"
-          value={draft[key]}
-          onChange={e => setDraft(d => ({ ...d, [key]: e.target.value }))}
-          className="w-10 h-10 rounded-lg border border-border-subtle bg-transparent cursor-pointer"
-          aria-label={label}
-        />
-        <Input
-          value={draft[key]}
-          onChange={e => setDraft(d => ({ ...d, [key]: e.target.value }))}
-          className="w-32 font-mono text-xs"
-        />
-      </div>
-    </div>
-  );
 
   return (
     <DashboardLayout>
@@ -92,10 +68,6 @@ export default function SettingsPage() {
                 className="max-w-sm"
               />
               <p className="text-[10px] text-text-muted mt-1">Shows in the sidebar, browser tab, login page, and PDF reports.</p>
-            </div>
-            <div className="flex flex-wrap gap-6">
-              {colorField('Primary Color', 'primaryColor')}
-              {colorField('Secondary Color', 'secondaryColor')}
             </div>
             <div>
               <label className="label-base">Logo URL <span className="normal-case text-text-muted">(optional — replaces the text logo)</span></label>

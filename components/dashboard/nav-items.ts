@@ -8,6 +8,7 @@ import {
   Users,
   ClipboardList,
   Award,
+  CalendarCheck,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -24,6 +25,7 @@ export const navigation: NavItem[] = [
   { name: 'Roster', href: '/dashboard?tab=roster', tab: 'roster', icon: Users },
   { name: 'Leaderboard', href: '/dashboard?tab=leaderboard', tab: 'leaderboard', icon: Trophy },
   { name: 'Meeting Mode', href: '/dashboard?tab=meeting', tab: 'meeting', icon: Presentation },
+  { name: 'Schedule', href: '/dashboard?tab=schedule', tab: 'schedule', icon: CalendarCheck },
   { name: 'Competition', href: '/dashboard?tab=competition', tab: 'competition', icon: Award },
   { name: 'P&L', href: '/dashboard?tab=pnl', tab: 'pnl', icon: Receipt },
   { name: 'Commission', href: '/dashboard?tab=commission', tab: 'commission', icon: DollarSign },
