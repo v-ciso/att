@@ -469,7 +469,6 @@ function DashboardContent() {
   const avgAttendance = people.length
     ? Math.round(people.reduce((a, p) => a + p.attendance, 0) / people.length * 10) / 10
     : 0;
-  const topRepDaily = aggDaily.perPerson[0]?.person ?? '—';
 
   // Attendance card prefers marked records (yesterday, else today) from the tracker
   const attToday = useMemo(() => {
@@ -865,11 +864,18 @@ function DashboardContent() {
               </div>
             </div>
 
+            {/* Every tracker follows the selected meeting period */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
               <MeetingTracker label={`${PERIOD_LABELS[meetingPeriod]} Lines`} value={String(meetingAgg.lines)} color="blue" size="2xl" />
-              <MeetingTracker label="Top Rep Today" value={topRepDaily} color="purple" size="lg" />
-              <MeetingTracker label="Attendance" value={`${avgAttendance}%`} color="green" size="2xl" />
-              <MeetingTracker label="Revenue" value={formatCurrency(meetingAgg.revenue)} color="yellow" size="2xl" />
+              <MeetingTracker label={`Top Rep · ${PERIOD_LABELS[meetingPeriod]}`} value={meetingAgg.perPerson[0]?.person ?? '—'} color="purple" size="lg" />
+              <MeetingTracker
+                label="Attendance"
+                value={attToday
+                  ? `${Math.round(((attToday.present + attToday.late * 0.5) / Math.max(1, attToday.marked)) * 100)}%`
+                  : `${avgAttendance}%`}
+                color="green" size="2xl"
+              />
+              <MeetingTracker label={`${PERIOD_LABELS[meetingPeriod]} Generated`} value={formatCurrency(meetingAgg.revenue)} color="yellow" size="2xl" />
             </div>
 
             <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-2">

@@ -38,9 +38,9 @@ export function PieChart3D({ data, labels, colors, className, height = 300, inne
     const scene = new THREE.Scene();
     sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-    camera.position.set(0, 150, 300);
-    camera.lookAt(0, 0, 0);
+    const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 1000);
+    camera.position.set(0, 175, 240);
+    camera.lookAt(0, -8, 0);
     cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -49,24 +49,28 @@ export function PieChart3D({ data, labels, colors, className, height = 300, inne
     rendererRef.current = renderer;
     container.appendChild(renderer.domElement);
 
-    // Lights
-    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(100, 200, 100);
-    scene.add(dirLight);
+    // Lighting: soft fill + strong key + cool rim, tuned for the black surface
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x0a0a14, 0.75));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
+    keyLight.position.set(120, 220, 140);
+    scene.add(keyLight);
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.45);
+    rimLight.position.set(-140, 60, -120);
+    scene.add(rimLight);
 
-    const dirLight2 = new THREE.DirectionalLight(0x3b82f6, 0.3);
-    dirLight2.position.set(-100, 100, -100);
-    scene.add(dirLight2);
+    // Slices live in a group that idles with a slow spin
+    const pieGroup = new THREE.Group();
+    scene.add(pieGroup);
 
-    // Create pie slices
-    const radius = 80;
+    const radius = 92;
+    const gap = 2.5; // radial separation so slices read as distinct marks
     const meshes: THREE.Mesh[] = [];
     let startAngle = -Math.PI / 2;
 
     data.forEach((value, i) => {
       const sliceAngle = (value / total) * Math.PI * 2;
       const endAngle = startAngle + sliceAngle;
+      const midAngle = (startAngle + endAngle) / 2;
 
       const shape = new THREE.Shape();
       shape.moveTo(0, 0);
@@ -79,32 +83,33 @@ export function PieChart3D({ data, labels, colors, className, height = 300, inne
         shape.holes.push(holePath);
       }
 
-      const geometry = new THREE.ShapeGeometry(shape);
-      geometry.translate(0, 0, -10);
-
       const extrudeGeometry = new THREE.ExtrudeGeometry(shape, {
-        depth: 20,
+        depth: 22,
         // High curve resolution = smooth slice edges (default 12 looks faceted)
         curveSegments: 64,
         bevelEnabled: true,
         bevelSegments: 6,
-        bevelSize: 2,
-        bevelThickness: 2,
+        bevelSize: 1.6,
+        bevelThickness: 1.6,
       });
 
+      const baseColor = new THREE.Color(colors[i % colors.length]);
       const material = new THREE.MeshPhysicalMaterial({
-        color: colors[i % colors.length],
-        metalness: 0.1,
-        roughness: 0.3,
-        clearcoat: 0.3,
-        clearcoatRoughness: 0.2,
-        transparent: false,
+        color: baseColor,
+        emissive: baseColor.clone().multiplyScalar(0.22),
+        metalness: 0.15,
+        roughness: 0.32,
+        clearcoat: 0.6,
+        clearcoatRoughness: 0.25,
       });
 
       const mesh = new THREE.Mesh(extrudeGeometry, material);
-      mesh.position.z = 10;
-      mesh.userData = { index: i, startAngle, endAngle, originalZ: 10 };
-      scene.add(mesh);
+      // Push each slice slightly outward along its mid-angle → clean gaps
+      const baseX = Math.cos(midAngle) * gap;
+      const baseY = Math.sin(midAngle) * gap;
+      mesh.position.set(baseX, baseY, 10);
+      mesh.userData = { index: i, startAngle, endAngle, originalZ: 10, baseX, baseY };
+      pieGroup.add(mesh);
       meshes.push(mesh);
 
       startAngle = endAngle;
@@ -112,29 +117,14 @@ export function PieChart3D({ data, labels, colors, className, height = 300, inne
 
     meshesRef.current = meshes;
 
-    // Center piece
-    const centerGeometry = new THREE.CircleGeometry(radius * innerRadius, 64);
-    const centerMaterial = new THREE.MeshBasicMaterial({
-      color: 0x000000,
-      transparent: true,
-      opacity: 0.8,
-    });
-    const centerMesh = new THREE.Mesh(centerGeometry, centerMaterial);
-    centerMesh.position.z = 12;
-    scene.add(centerMesh);
-
-    // Animation loop
+    // Animation loop: slow presentational spin (paused while hovering a slice)
     let frame = 0;
+    let hovering = false;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const animate = () => {
       animationIdRef.current = requestAnimationFrame(animate);
-
       frame += 0.005;
-      meshes.forEach((mesh, i) => {
-        const delay = i * 0.5;
-        mesh.rotation.z = Math.sin(frame + delay) * 0.02;
-        mesh.position.y = Math.sin(frame * 2 + delay) * 1;
-      });
-
+      if (!reduceMotion && !hovering) pieGroup.rotation.z += 0.002;
       renderer.render(scene, camera);
     };
     animate();
@@ -153,14 +143,17 @@ export function PieChart3D({ data, labels, colors, className, height = 300, inne
 
     const handleMouseMove = (event: MouseEvent) => {
       const intersects = raycastAt(event);
-      renderer.domElement.style.cursor = intersects.length > 0 && onSliceClickRef.current ? 'pointer' : 'default';
+      hovering = intersects.length > 0;
+      renderer.domElement.style.cursor = hovering && onSliceClickRef.current ? 'pointer' : 'default';
       meshes.forEach((mesh) => {
         const isHovered = intersects.some((intersect) => intersect.object === mesh);
+        const { baseX, baseY } = mesh.userData as { baseX: number; baseY: number };
         if (isHovered) {
-          mesh.position.z = 30;
-          mesh.scale.setScalar(1.05);
+          // Pull the slice outward along its own gap direction and lift it
+          mesh.position.set(baseX * 4, baseY * 4, 26);
+          mesh.scale.setScalar(1.06);
         } else {
-          mesh.position.z = 10;
+          mesh.position.set(baseX, baseY, 10);
           mesh.scale.setScalar(1);
         }
       });
@@ -199,8 +192,6 @@ export function PieChart3D({ data, labels, colors, className, height = 300, inne
         m.geometry.dispose();
         (m.material as THREE.Material).dispose();
       });
-      centerMesh.geometry.dispose();
-      centerMaterial.dispose();
       container.removeChild(renderer.domElement);
     };
   }, [data, labels, colors, height, innerRadius, animate, total]);

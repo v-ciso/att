@@ -5,3 +5,10 @@ node_modules
 out
 .DS_Store
 /generated/prisma
+
+# Ruflo / claude-flow local runtime state (never commit)
+.swarm/
+.claude-flow/
+ruvector.db
+.claude/proven-config.json
+.claude/.proven-config-version

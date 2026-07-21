@@ -275,13 +275,16 @@ export function CommissionEngine() {
         </div>
         <div className="p-4 rounded-xl glass border border-border-subtle">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] text-text-muted uppercase tracking-wider">Stores (click name/multiplier to edit)</p>
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Stores · brand + store number</p>
             <button
-              onClick={() => setState(p => ({ ...p, stores: [...p.stores, { name: 'New Store', multiplier: 1 }] }))}
-              className="p-1 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all"
+              onClick={() => setState(p => ({
+                ...p,
+                stores: [...p.stores, { name: `Store #${1000 + p.stores.length + 1}`, multiplier: 1 }],
+              }))}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] text-text-muted border border-dashed border-border-strong hover:text-white hover:bg-white/5 transition-all"
               aria-label="Add store"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3 h-3" /> Add store
             </button>
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -318,6 +321,10 @@ export function CommissionEngine() {
               </span>
             ))}
           </div>
+          <p className="text-[9px] text-text-muted mt-2">
+            Each location is its own store — 5 Costcos = 5 entries (&quot;Costco 1018&quot;, &quot;Costco 1020&quot;, …).
+            Click a name to type its number; new stores appear in every store picker, filter, and chargeback automatically.
+          </p>
         </div>
       </div>
 
