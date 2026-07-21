@@ -10,5 +10,8 @@ out
 .swarm/
 .claude-flow/
 ruvector.db
+agentdb.rvf
+agentdb.rvf.idmap.json
+*.rvf
 .claude/proven-config.json
 .claude/.proven-config-version
