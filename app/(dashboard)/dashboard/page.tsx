@@ -390,6 +390,7 @@ function DashboardContent() {
   const [period, setPeriod] = useState<Period>('weekly');
   const [storeSel, setStoreSel] = useState<string[]>([]);
   const [pickDate, setPickDate] = useState(''); // specific day report, e.g. last Monday
+  const { state: campaign, setState: setCampaign } = useLocalState('se-campaign-v1', 'AT&T Retail EDM');
 
   const commission = useMemo(loadCommission, [dataVersion]);
   const people = useMemo(loadPeople, [dataVersion]);
@@ -632,7 +633,18 @@ function DashboardContent() {
       <div className="slide-in relative z-40 mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl lg:text-4xl font-bold neon-brand">Dashboard</h1>
-          <p className="text-text-secondary text-sm mt-0.5">AT&T campaign · white-label ready</p>
+          <p className="text-text-secondary text-sm mt-0.5 flex items-center gap-1.5">
+            <select
+              value={campaign}
+              onChange={e => setCampaign(e.target.value)}
+              className="bg-transparent text-text-secondary text-sm focus:outline-none cursor-pointer hover:text-white"
+              aria-label="Campaign"
+            >
+              <option value="AT&T Retail EDM">AT&amp;T Retail EDM</option>
+              <option value="AT&T B2B">AT&amp;T B2B</option>
+            </select>
+            · white-label ready
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <PeriodChips period={period} onChange={(p) => { setPeriod(p); setPickDate(''); }} />
@@ -662,7 +674,7 @@ function DashboardContent() {
           <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse" /> Live
         </Badge>
         <Badge variant="gray" className="text-xs flex items-center gap-1.5">
-          <Building2 className="w-3 h-3" /> AT&T Retailer
+          <Building2 className="w-3 h-3" /> {campaign}
         </Badge>
         <Badge variant="gray" className="text-xs flex items-center gap-1.5">
           <MapPin className="w-3 h-3" /> {storeOptions.length} Stores

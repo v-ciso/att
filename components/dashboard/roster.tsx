@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Trash2, TrendingUp, Award, UserPlus, Pencil, ChevronDown, Plus, Store as StoreIcon } from 'lucide-react';
 import { TeamTree } from './team-tree';
 import { notifyDataChanged } from '@/lib/sales';
+import { RETAILERS } from '@/lib/shifts';
 
 // ---------------------------------------------------------------------------
 // People — the single roster every view joins against. A person can work one
@@ -234,19 +235,31 @@ function StoresManager() {
     notifyDataChanged();
   };
 
-  const add = () => persist([...stores, { name: `Store #${1000 + stores.length + 1}`, multiplier: 1 }]);
+  const [retailer, setRetailer] = useState(RETAILERS[0]);
+  const [num, setNum] = useState('');
+  const add = () => {
+    const name = `${retailer}${num.trim() ? ' ' + num.trim() : ''}`;
+    persist([...stores, { name, multiplier: 1 }]);
+    setNum('');
+  };
   const rename = (i: number, name: string) => persist(stores.map((s, j) => (j === i ? { ...s, name: name.trim() || s.name } : s)));
   const setMult = (i: number, m: number) => persist(stores.map((s, j) => (j === i ? { ...s, multiplier: m || 1 } : s)));
   const remove = (i: number) => stores.length > 1 && persist(stores.filter((_, j) => j !== i));
 
   return (
     <div className="p-4 rounded-xl glass border border-border-subtle mb-4">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
         <h4 className="font-semibold text-sm flex items-center gap-2 text-accent-cyan">
           <StoreIcon className="w-4 h-4" /> Stores
-          <span className="text-[10px] text-text-muted font-normal normal-case">every numbered location is its own store</span>
+          <span className="text-[10px] text-text-muted font-normal normal-case">retailer sets the shift hours; each numbered location is its own store</span>
         </h4>
-        <Button size="sm" onClick={add}><Plus className="w-3.5 h-3.5" /> Add Store</Button>
+        <div className="flex items-center gap-1.5">
+          <select value={retailer} onChange={e => setRetailer(e.target.value)} className="bg-bg-tertiary border border-border-subtle rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none" aria-label="Retailer">
+            {RETAILERS.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <input value={num} onChange={e => setNum(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') add(); }} placeholder="Store #" className="w-20 bg-bg-tertiary border border-border-subtle rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none" aria-label="Store number" />
+          <Button size="sm" onClick={add}><Plus className="w-3.5 h-3.5" /> Add</Button>
+        </div>
       </div>
       <div className="flex flex-wrap gap-2">
         {stores.map((s, i) => (

@@ -7,6 +7,7 @@ import { CalendarCheck, Maximize2, Minimize2 } from 'lucide-react';
 import { useLocalState } from './editable-sections';
 import { todayStr } from '@/lib/sales';
 import { Person } from './roster';
+import { SHIFT_CODES, shiftTime, encodeShift } from '@/lib/shifts';
 
 // Who's where, next 7 days. Its own component so it can live as a tab, be
 // presented fullscreen, and stay in sync (writes se-schedule-v1, which the
@@ -38,10 +39,12 @@ export function ScheduleBoard({ people, storeOptions, compact = false }: { peopl
       const byStore = new Map<string, string[]>();
       const off: string[] = [];
       people.forEach(p => {
-        const s = day[p.name];
-        if (!s) return;
-        if (s === 'OFF') off.push(p.name);
-        else byStore.set(s, [...(byStore.get(s) ?? []), p.name]);
+        const v = day[p.name];
+        if (!v) return;
+        if (v === 'OFF') { off.push(p.name); return; }
+        const [store, code] = v.split('|');
+        const label = code ? `${p.name} (${code} ${shiftTime(store, d, code as never)})` : p.name;
+        byStore.set(store, [...(byStore.get(store) ?? []), label]);
       });
       if (byStore.size === 0 && off.length === 0) continue;
       lines.push(`\n${label}`);
@@ -106,8 +109,15 @@ export function ScheduleBoard({ people, storeOptions, compact = false }: { peopl
                         aria-label={`${p.name} on ${d}`}
                       >
                         <option value="">—</option>
-                        {storeOptions.map(s => <option key={s} value={s}>{s}</option>)}
-                        {(p.stores ?? []).filter(s => !storeOptions.includes(s)).map(s => <option key={s} value={s}>{s}</option>)}
+                        {(p.stores?.length ? p.stores : storeOptions).map(s => (
+                          <optgroup key={s} label={s}>
+                            {SHIFT_CODES.map(code => (
+                              <option key={`${s}|${code}`} value={encodeShift(s, code)}>
+                                {code} {shiftTime(s, d, code)}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
                         <option value="OFF">OFF</option>
                       </select>
                     </td>

@@ -56,14 +56,48 @@ export function ImportReport({ sales, commission }: { sales: SaleEntry[]; commis
   const [fileName, setFileName] = useState('');
   const people = useMemo(loadPeople, [rows]);
 
+  const [error, setError] = useState('');
+
   const onFile = async (file: File) => {
     setFileName(file.name);
-    const buf = await file.arrayBuffer();
-    const XLSX = await import('xlsx');
-    const wb = XLSX.read(buf, { type: 'array' });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const data = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, { header: 1, blankrows: false });
-    setRows(parseRows(data));
+    setError('');
+    try {
+      const buf = await file.arrayBuffer();
+      if (/\.pdf$/i.test(file.name)) {
+        // Extract text lines from the PDF, then run the same row heuristic.
+        // ponytail: works on text-based table PDFs; scanned/image PDFs won't parse.
+        const pdfjs = await import('pdfjs-dist');
+        pdfjs.GlobalWorkerOptions.workerSrc = (await import('pdfjs-dist/build/pdf.worker.min.mjs')).default;
+        const doc = await pdfjs.getDocument({ data: buf }).promise;
+        const grid: string[][] = [];
+        for (let p = 1; p <= doc.numPages; p++) {
+          const page = await doc.getPage(p);
+          const content = await page.getTextContent();
+          // group text items into lines by their y position
+          const byLine = new Map<number, { x: number; s: string }[]>();
+          content.items.forEach((it) => {
+            const item = it as { str: string; transform: number[] };
+            if (!item.str.trim()) return;
+            const y = Math.round(item.transform[5]);
+            byLine.set(y, [...(byLine.get(y) ?? []), { x: item.transform[4], s: item.str }]);
+          });
+          Array.from(byLine.entries())
+            .sort((a, b) => b[0] - a[0])
+            .forEach(([, cells]) => grid.push(cells.sort((a, b) => a.x - b.x).map(c => c.s)));
+        }
+        const parsed = parseRows(grid);
+        if (!parsed.length) setError('No name/amount rows found in this PDF — try the Excel/CSV export instead, or paste the cells.');
+        setRows(parsed);
+        return;
+      }
+      const XLSX = await import('xlsx');
+      const wb = XLSX.read(buf, { type: 'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, { header: 1, blankrows: false });
+      setRows(parseRows(data));
+    } catch (e) {
+      setError(`Couldn't read that file: ${(e as Error).message}. Try Excel/CSV or paste the cells.`);
+    }
   };
 
   const parsePaste = () => {
@@ -104,9 +138,9 @@ export function ImportReport({ sales, commission }: { sales: SaleEntry[]; commis
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
         <label className="cursor-pointer p-4 rounded-xl glass border border-dashed border-border-strong flex flex-col items-center justify-center gap-2 hover:bg-white/5 transition-all">
           <Upload className="w-5 h-5 text-accent-blue" />
-          <span className="text-xs font-medium">Upload .xlsx / .csv</span>
+          <span className="text-xs font-medium">Upload .xlsx / .csv / .pdf</span>
           {fileName && <span className="text-[10px] text-text-muted">{fileName}</span>}
-          <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
+          <input type="file" accept=".xlsx,.xls,.csv,.pdf" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
         </label>
         <div className="p-3 rounded-xl glass border border-border-subtle">
           <textarea
@@ -118,6 +152,12 @@ export function ImportReport({ sales, commission }: { sales: SaleEntry[]; commis
           <Button size="sm" className="mt-2" onClick={parsePaste} disabled={!paste.trim()}>Parse pasted data</Button>
         </div>
       </div>
+
+      {error && (
+        <div className="p-3 rounded-xl bg-accent-red/10 border border-accent-red/30 text-accent-red text-xs mb-3 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0" /> {error}
+        </div>
+      )}
 
       {rows.length > 0 && (
         <>

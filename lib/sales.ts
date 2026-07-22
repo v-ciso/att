@@ -198,7 +198,8 @@ export function scheduledStore(person: string, date: string): string {
   try {
     const sched = JSON.parse(localStorage.getItem('se-schedule-v1') || '{}') as Record<string, Record<string, string>>;
     const v = sched[date]?.[person];
-    return v && v !== 'OFF' ? v : '';
+    // value is "store|SHIFT" (or 'OFF'/legacy plain store)
+    return v && v !== 'OFF' ? v.split('|')[0] : '';
   } catch {
     return '';
   }
