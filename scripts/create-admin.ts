@@ -23,6 +23,7 @@ import { prisma } from '../lib/db';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { readFileSync, statSync } from 'fs';
+import { sendWelcome } from '../lib/email';
 import { extname } from 'path';
 
 function arg(name: string): string | undefined {
@@ -156,6 +157,12 @@ async function main() {
   } else {
     console.log('  Password   set from ADMIN_PASSWORD.\n');
   }
+  // Opt-in: the password is in this email, so it only goes out when asked for.
+  if (process.argv.includes('--email-them') && willSetPassword) {
+    const r = await sendWelcome({ to: email, company, tempPassword: password, campaign, seats });
+    console.log(r.sent ? `  Emailed     welcome sent to ${email}` : `  Email       NOT sent: ${r.reason}`);
+  }
+
   if (seats > 1) {
     console.log(`  Add their extra users with:`);
     console.log(`    npx tsx scripts/add-user.ts --email person@theirco.com --company "${company}" --role VIEWER\n`);

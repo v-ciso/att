@@ -32,10 +32,11 @@ import {
 import { Editable, parseNum, useLocalState } from '@/components/dashboard/editable-sections';
 import { SetupWizard, SETUP_DONE_KEY, SETUP_FORCE_KEY } from '@/components/dashboard/setup-wizard';
 import { PromoPanel } from '@/components/dashboard/promo-panel';
+import { AttendanceSheet } from '@/components/dashboard/attendance-sheet';
 import { computePay } from '@/lib/pay';
 import { readWorkspace } from '@/lib/workspace';
 
-const VALID_TABS = ['dashboard', 'tracker', 'roster', 'leaderboard', 'meeting', 'schedule', 'competition', 'pnl', 'commission', 'import'];
+const VALID_TABS = ['dashboard', 'tracker', 'roster', 'leaderboard', 'meeting', 'schedule', 'attendance', 'competition', 'pnl', 'commission', 'import'];
 
 // Renders overlays inside the fullscreened element when presentation mode is
 // active — otherwise drawers opened during Present would be invisible until
@@ -833,6 +834,7 @@ function DashboardContent() {
         <TabButton isActive={activeTab === 'leaderboard'} onClick={() => switchTab('leaderboard')}>Leaderboard</TabButton>
         <TabButton isActive={activeTab === 'meeting'} onClick={() => switchTab('meeting')}>Meeting Mode</TabButton>
         <TabButton isActive={activeTab === 'schedule'} onClick={() => switchTab('schedule')}>Schedule</TabButton>
+        <TabButton isActive={activeTab === 'attendance'} onClick={() => switchTab('attendance')}>Attendance</TabButton>
         <TabButton isActive={activeTab === 'competition'} onClick={() => switchTab('competition')}>Competition</TabButton>
         <TabButton isActive={activeTab === 'pnl'} onClick={() => switchTab('pnl')}>P&L</TabButton>
         <TabButton isActive={activeTab === 'commission'} onClick={() => switchTab('commission')}>Commission</TabButton>
@@ -1282,6 +1284,14 @@ function DashboardContent() {
         <div id="tab-schedule" className="tab-panel">
           <Card className="p-5">
             <ScheduleBoard people={people} storeOptions={storeOptions} />
+          </Card>
+        </div>
+      )}
+
+      {activeTab === 'attendance' && (
+        <div id="tab-attendance" className="tab-panel">
+          <Card className="p-5">
+            <AttendanceSheet people={people} />
           </Card>
         </div>
       )}

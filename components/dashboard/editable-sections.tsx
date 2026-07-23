@@ -103,6 +103,12 @@ interface RoleRule {
   name: string;
   amount: number;
   unit: string;
+  /**
+   * Extra $/line on the person's OWN production, on top of the rep base.
+   * An ASM earns this AND the percentage override off their team — the two are
+   * not alternatives.
+   */
+  perLine?: number;
 }
 
 interface StoreRule {
@@ -160,7 +166,9 @@ export const DEFAULT_COMMISSION: CommissionState = {
   roles: [
     { name: 'Sales Rep / Intern', amount: 40, unit: '$/line base' },
     { name: 'Lead', amount: 5, unit: '$/line over rep (=$45)' },
-    { name: 'ASM / AD', amount: 3, unit: '% of team production' },
+    // An ASM is paid like a Lead on their OWN lines ($45) and additionally
+    // takes 3% of everything their whole team generates.
+    { name: 'ASM / AD', amount: 3, unit: '% of team production', perLine: 5 },
     { name: 'Market Owner', amount: 0, unit: 'remainder of office payout' },
   ],
 };

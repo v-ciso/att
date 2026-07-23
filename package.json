@@ -15,7 +15,10 @@
     "admin:create": "npx tsx scripts/create-admin.ts",
     "admin:adduser": "npx tsx scripts/add-user.ts",
     "admin:audit": "npx tsx scripts/audit-db.ts",
+    "admin:removeuser": "npx tsx scripts/remove-user.ts",
     "test:roadtrips": "npx tsx lib/roadtrips.test.ts",
+    "test:pay": "npx tsx lib/pay.test.ts",
+    "test": "npm run test:roadtrips && npm run test:pay",
     "postinstall": "prisma generate"
   },
   "dependencies": {

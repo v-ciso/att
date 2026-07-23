@@ -1,12 +1,15 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { cn, formatCurrency, getInitials } from '@/lib/utils';
 import { loadPeople, loadPromoRules, promotionStatus, effectiveAttendance, ROSTER_ROLE_LABELS, ROLE_LADDER } from './roster';
 import { Period, PERIOD_LABELS, aggregateSales, loadSales, loadCommission } from '@/lib/sales';
 import { computePay } from '@/lib/pay';
 
 export function ProfileDrawer({ name, period, onClose }: { name: string; period: Period; onClose: () => void }) {
+  // The drawer used to be locked to whatever period the dashboard was on, so
+  // there was no way to see a rep's full history from their profile.
+  const [span, setSpan] = useState<Period>(period);
   const person = loadPeople().find(p => p.name.trim().toLowerCase() === name.trim().toLowerCase());
   const rules = loadPromoRules();
   const status = person ? promotionStatus(person, rules) : null;
@@ -14,7 +17,7 @@ export function ProfileDrawer({ name, period, onClose }: { name: string; period:
   const profitMax = person ? Math.max(...person.weeklyProfit, rules.profitPerWeek) : 1;
 
   // Live stats for this person over the selected period, derived from sales entries
-  const agg = aggregateSales(loadSales(), loadCommission(), { period });
+  const agg = aggregateSales(loadSales(), loadCommission(), { period: span });
   const stats = agg.perPerson.find(p => p.person.trim().toLowerCase() === name.trim().toLowerCase());
 
   useEffect(() => {
@@ -45,7 +48,16 @@ export function ProfileDrawer({ name, period, onClose }: { name: string; period:
         </div>
 
         {/* Period production, derived from the Daily Tracker */}
-        <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1.5">{PERIOD_LABELS[period]} Production</p>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <p className="text-[10px] text-text-muted uppercase tracking-wider">{PERIOD_LABELS[span]} Production</p>
+          <div className="flex gap-1">
+            {(['daily', 'weekly', 'monthly', 'all'] as Period[]).map(p => (
+              <button key={p} onClick={() => setSpan(p)} className={cn('tab-btn', span === p ? 'active' : 'inactive')}>
+                {PERIOD_LABELS[p]}
+              </button>
+            ))}
+          </div>
+        </div>
         {stats ? (
           <div className="grid grid-cols-3 gap-2 mb-4">
             {[
@@ -71,7 +83,7 @@ export function ProfileDrawer({ name, period, onClose }: { name: string; period:
           // Full pay for the week: base + lead bump + ASM override, then the
           // greater of that vs the guaranteed hourly.
           const allPeople = loadPeople();
-          const pay = computePay(person, { sales: loadSales(), commission: loadCommission(), people: allPeople, period: 'weekly' });
+          const pay = computePay(person, { sales: loadSales(), commission: loadCommission(), people: allPeople, period: span === 'daily' ? 'weekly' : span });
           const hourly = person.hourlyWeekly ?? 0;
           const paid = Math.max(pay.total, hourly);
           const via = pay.total >= hourly ? 'earnings' : 'hourly floor';

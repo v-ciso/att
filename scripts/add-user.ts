@@ -14,6 +14,7 @@ import { prisma } from '../lib/db';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import type { Role } from '@prisma/client';
+import { sendSeatInvite } from '../lib/email';
 
 const ASSIGNABLE: Role[] = ['MANAGER', 'VIEWER', 'ASM', 'LEAD', 'REP', 'INTERN'];
 
@@ -75,6 +76,10 @@ async function main() {
   console.log(`\n  Tenant    ${owner.name}`);
   console.log(`  User      ${user.email}  role=${user.role}`);
   console.log(`  Seats     ${used} / ${seats} used`);
+  if (process.argv.includes('--email-them')) {
+    const r = await sendSeatInvite({ to: email, company: owner.name, tempPassword: password, role });
+    console.log(r.sent ? `  Emailed   invite sent to ${email}` : `  Email     NOT sent: ${r.reason}`);
+  }
   if (generated) {
     console.log(`  Password  ${password}`);
     console.log('\n  ^ shown once. Send it to them and have them change it in Settings > Account.\n');

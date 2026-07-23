@@ -14,9 +14,11 @@ import { Person, ROSTER_ROLE_LABELS } from './roster';
 
 const TEAM_COLORS = ['blue', 'purple', 'cyan', 'yellow'];
 
+// A person holds at most ONE lead/ASM slot across all teams — see setSlot.
+// This seed used to put Jordan Reyes on both Alpha and Beta.
 const DEFAULT_TREE_TEAMS: TeamData[] = [
   { name: 'Team Alpha', change: '+12%', lines: 0, premium: 0, fiber: 0, progress: 78, color: 'blue', lead: 'Alex Thompson', asm: 'Jordan Reyes', members: [] },
-  { name: 'Team Beta', change: '+8%', lines: 0, premium: 0, fiber: 0, progress: 64, color: 'purple', lead: 'Mike Chen', asm: 'Jordan Reyes', members: [] },
+  { name: 'Team Beta', change: '+8%', lines: 0, premium: 0, fiber: 0, progress: 64, color: 'purple', lead: 'Mike Chen', asm: '', members: [] },
 ];
 
 function PersonChip({ person, small }: { person: Person; small?: boolean }) {
@@ -84,8 +86,20 @@ export function TeamTree({ people, assignTeam }: TeamTreeProps) {
     assignTeam(name, '');
   };
 
+  const PLACEHOLDER = { lead: 'Drop a Lead here', asm: 'Drop an ASM here' } as const;
+
+  // Assigning someone to a slot REMOVES them from every other lead/ASM slot.
+  // Without this, dragging the same ASM onto a second team left them running
+  // both — and computePay then counted both teams' production toward their
+  // 3% override, overpaying them.
   const setSlot = (teamIndex: number, slot: 'lead' | 'asm', name: string) => {
-    setTeams(prev => prev.map((t, i) => (i === teamIndex ? { ...t, [slot]: name } : t)));
+    setTeams(prev => prev.map((t, i) => {
+      if (i === teamIndex) return { ...t, [slot]: name };
+      const cleared: Partial<TeamData> = {};
+      if (t.lead?.toLowerCase() === name.toLowerCase()) cleared.lead = PLACEHOLDER.lead;
+      if (t.asm?.toLowerCase() === name.toLowerCase()) cleared.asm = PLACEHOLDER.asm;
+      return Object.keys(cleared).length ? { ...t, ...cleared } : t;
+    }));
     const team = teams[teamIndex];
     if (team) assignTeam(name, team.name);
   };

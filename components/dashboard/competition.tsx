@@ -104,16 +104,21 @@ function CompCard({
         </p>
       ) : (
         <>
+          {/* Ranked left-to-right, 1 then 2 then 3. The classic podium puts the
+              winner in the MIDDLE, which reads as "he's in second place" to
+              anyone glancing at it on a screen during a meeting. Explicit rank
+              numbers remove the ambiguity entirely. */}
           <div className="grid grid-cols-3 gap-2 mb-3">
-            {[1, 0, 2].map(slot => {
+            {[0, 1, 2].map(slot => {
               const r = ranked[slot];
               if (!r) return <div key={slot} />;
-              const heights = compact ? ['h-14', 'h-18', 'h-10'] : ['h-20', 'h-28', 'h-16'];
+              const heights = compact ? ['h-18', 'h-14', 'h-10'] : ['h-28', 'h-20', 'h-16'];
               return (
                 <div key={slot} className="flex flex-col items-center justify-end">
-                  <span className="text-2xl mb-1">{MEDALS[slot]}</span>
-                  <div className={cn('w-full rounded-t-xl bg-white/5 border border-border-subtle flex flex-col items-center justify-center p-2', heights[slot])}>
-                    <span className="text-xs font-bold text-center truncate w-full">{r.person}</span>
+                  <span className="text-2xl mb-1" aria-hidden="true">{MEDALS[slot]}</span>
+                  <div className={cn('w-full rounded-t-xl bg-white/5 border border-border-subtle flex flex-col items-center justify-center p-2 gap-0.5', heights[slot])}>
+                    <span className={cn('text-[10px] font-bold', RANK_STYLES[slot])}>#{slot + 1}</span>
+                    <span className="text-xs font-bold text-center break-words leading-tight w-full">{r.person || '—'}</span>
                     <span className={cn('text-sm font-bold', RANK_STYLES[slot])}>{fmt(r.value)}</span>
                   </div>
                 </div>
