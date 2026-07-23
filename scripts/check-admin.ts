@@ -1,8 +1,6 @@
 // Read-only sanity check on the accounts the login page will authenticate
 // against. Prints no secrets. Run: npx tsx scripts/check-admin.ts
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../lib/db';
 
 async function main() {
   const users = await prisma.user.findMany({

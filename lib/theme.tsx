@@ -164,5 +164,8 @@ export function applyTheme(theme: WhiteLabelTheme) {
       theme.companyName === 'Sales Engine'
         ? 'Sales Engine — Retail Command Center'
         : `${theme.companyName} — Powered by Sales Engine`;
+    // WebGL can't observe CSS variables, so the 3D charts listen for this to
+    // re-tint their branded rim light when the preset changes.
+    window.dispatchEvent(new Event('se:theme'));
   }
 }

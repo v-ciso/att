@@ -147,6 +147,11 @@ function LoginForm() {
             Request access
           </a>
         </p>
+        {/* Vendor mark: the tool is white-labelled per customer, but the billing
+            relationship is always with KGV Inc. Stays put under any branding. */}
+        <p className="text-center text-[10px] text-text-muted/70 mt-4 pt-4 border-t border-border-subtle">
+          Powered by KGV Inc &middot; Billing and support through KGV Inc
+        </p>
       </Card>
     </div>
   );

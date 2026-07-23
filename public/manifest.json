@@ -1,11 +1,11 @@
 {
-  "name": "FieldOS - Sales Management",
-  "short_name": "FieldOS",
+  "name": "Sales Engine — Retail Command Center",
+  "short_name": "Sales Engine",
   "description": "Command Your Field. Own Your Numbers.",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#000000",
-  "theme_color": "#3B82F6",
+  "theme_color": "#E7C24A",
   "icons": [
     { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" },
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },

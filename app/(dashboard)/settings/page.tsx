@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useTheme } from '@/components/white-label/theme-provider';
 import { cn } from '@/lib/utils';
-import { Palette, Globe, CheckCircle, Upload, Lock } from 'lucide-react';
+import { Palette, Globe, CheckCircle, Upload, Lock, KeyRound } from 'lucide-react';
+import { ChangePassword } from '@/components/dashboard/change-password';
 import type { ThemePreset } from '@/lib/theme';
 
 const PRESETS: { id: ThemePreset; name: string; swatch: string; note: string }[] = [
@@ -26,7 +27,7 @@ export default function SettingsPage() {
     logoUrl: theme.logoUrl ?? '',
   });
   const [saved, setSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState<'branding' | 'domain'>('branding');
+  const [activeTab, setActiveTab] = useState<'branding' | 'domain' | 'account'>('branding');
 
   const save = () => {
     setTheme({
@@ -51,7 +52,12 @@ export default function SettingsPage() {
         <button onClick={() => setActiveTab('domain')} className={cn('tab-btn', activeTab === 'domain' ? 'active' : 'inactive')}>
           <Globe className="w-3 h-3 inline mr-1" /> Domain
         </button>
+        <button onClick={() => setActiveTab('account')} className={cn('tab-btn', activeTab === 'account' ? 'active' : 'inactive')}>
+          <KeyRound className="w-3 h-3 inline mr-1" /> Account
+        </button>
       </div>
+
+      {activeTab === 'account' && <ChangePassword />}
 
       {activeTab === 'branding' && (
         <Card className="slide-in p-6 max-w-2xl">

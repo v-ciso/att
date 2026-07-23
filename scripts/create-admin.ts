@@ -6,11 +6,11 @@
 // generated and printed ONCE. It is never written to a file.
 // Re-running with the same email resets that account's password.
 
-import { PrismaClient } from '@prisma/client';
+// Imported from lib/db so this script resolves the database the same way the
+// app does — including the Supabase integration's POSTGRES_PRISMA_URL.
+import { prisma } from '../lib/db';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
-
-const prisma = new PrismaClient();
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);

@@ -224,7 +224,7 @@ export default function RegisterPage() {
               </h3>
 
               <div className="space-y-2">
-                <label htmlFor="slug" className="label-base">Subdomain <span className="text-xs text-text-muted">(yourcompany.fieldos.app)</span></label>
+                <label htmlFor="slug" className="label-base">Workspace ID <span className="text-xs text-text-muted">(identifies your company)</span></label>
                 <div className="relative">
                   <Input
                     id="slug"
@@ -233,7 +233,6 @@ export default function RegisterPage() {
                     placeholder="thompson-wireless"
                     error={errors.slug}
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted">.fieldos.app</span>
                 </div>
               </div>
 

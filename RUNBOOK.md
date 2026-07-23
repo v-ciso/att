@@ -1,7 +1,75 @@
 # Sales Engine — operator runbook
 
-Everything you need to run, secure, and ship the tool. Written for the owner,
-not for a contributor.
+Everything you need to run, secure, sell, and ship the tool. Written for the
+owner, not for a contributor.
+
+---
+
+# PART 1 — Selling it
+
+## The model in one paragraph
+
+You (KGV Inc) sell a seat to a market owner. You create their account from your
+machine; there is no public sign-up. They get their own tenant, their own login,
+and their own branding. Their reps do **not** get logins — reps are data records
+inside the owner's dashboard, not user accounts. One paying seat = one market
+owner. Billing is through KGV Inc, which is stated on the login screen under
+every customer's branding.
+
+## Onboarding a new customer — the whole sequence
+
+**1. Create their account** (from the project folder):
+
+```bash
+npm run admin:create -- --email owner@theircompany.com --company "Their Company"
+```
+
+Prints a password **once**. Copy it before closing the terminal.
+
+**2. Send them three things:** the URL (`https://att.soramimarketing.com`), their
+email, and that password. Tell them to change it immediately.
+
+**3. They change the password** — Settings → Account. After that you no longer
+know their password, which is the point.
+
+**4. They brand it** — Settings → Branding: company name, logo (also becomes the
+browser favicon), and colour preset. Once they lock the logo it is permanent.
+
+**5. Verify from your side:**
+
+```bash
+npx tsx scripts/check-admin.ts
+```
+
+Every row should be a customer you recognise, and OWNER should only appear for
+real account holders.
+
+## Demoing to a prospect
+
+Use **your own login** and flip the sidebar switch to **Demo**. Demo is a
+completely separate data bucket — nothing you type while pitching can touch your
+real numbers, and "Reset demo data" wipes only the demo side.
+
+Do **not** create a shared demo account. A login several prospects know is a
+permanent weak password sitting on your production database.
+
+## Pricing conversations — what is actually true today
+
+Be accurate about this, because it is the difference between a happy customer
+and a refund:
+
+- Their data lives **in their browser**, not on your server. It does not sync
+  between their laptop and their phone, and clearing site data clears the book.
+- You cannot see their numbers, so you cannot support them on their own data.
+- One person, one browser, one device is the honest supported configuration
+  right now.
+
+Until the server-side migration lands, sell it as a **single-operator command
+center**, not a multi-device team platform.
+
+---
+
+# PART 2 — Running it
 
 ## Run it locally
 

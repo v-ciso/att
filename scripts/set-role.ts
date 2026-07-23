@@ -4,9 +4,9 @@
 // Role is the security boundary: only OWNER can switch to Live data or open
 // Settings (see middleware.ts + components/dashboard/workspace-switcher.tsx).
 // A shared/demo login must therefore never be OWNER.
-import { PrismaClient, Role } from '@prisma/client';
+import type { Role } from '@prisma/client';
+import { prisma } from '../lib/db';
 
-const prisma = new PrismaClient();
 const ROLES: Role[] = ['OWNER', 'ASM', 'LEAD', 'REP', 'INTERN'];
 
 function arg(name: string): string | undefined {

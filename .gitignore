@@ -21,3 +21,14 @@ tsconfig.tsbuildinfo
 
 # TypeScript incremental build cache
 tsconfig.tsbuildinfo
+
+.vercel
+.env*.local
+
+# Claude Design handoff bundle (design reference, not source)
+.handoff-extract/
+*-handoff.zip
+
+# Claude Design handoff bundle (design reference, not source)
+.handoff-extract/
+*-handoff.zip

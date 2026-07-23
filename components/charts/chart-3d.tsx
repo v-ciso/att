@@ -4,6 +4,21 @@ import { useEffect, useRef, useMemo } from 'react';
 import * as THREE from 'three';
 import { cn } from '@/lib/utils';
 
+// The theme accent lives in CSS (`--brand`, set per preset in globals.css).
+// three.js can't read CSS, so resolve it once per scene build. Falls back to
+// the obsidian-gold accent if the variable is missing or unparseable.
+const FALLBACK_BRAND = '#e7c24a';
+
+function readBrandColor(): THREE.Color {
+  if (typeof window === 'undefined') return new THREE.Color(FALLBACK_BRAND);
+  const raw = getComputedStyle(document.documentElement).getPropertyValue('--brand').trim();
+  try {
+    return new THREE.Color(raw || FALLBACK_BRAND);
+  } catch {
+    return new THREE.Color(FALLBACK_BRAND);
+  }
+}
+
 interface PieChart3DProps {
   data: number[];
   labels: string[];
@@ -49,14 +64,20 @@ export function PieChart3D({ data, labels, colors, className, height = 300, inne
     rendererRef.current = renderer;
     container.appendChild(renderer.domElement);
 
-    // Lighting: soft fill + strong key + cool rim, tuned for the black surface
+    // Lighting: soft fill + strong key + branded rim, tuned for the black surface.
+    // The rim is CHROME, so it tracks the active theme accent (gold / blue /
+    // emerald). Slice colours are data and stay fixed — see buildMixCategories.
     scene.add(new THREE.HemisphereLight(0xffffff, 0x0a0a14, 0.75));
     const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
     keyLight.position.set(120, 220, 140);
     scene.add(keyLight);
-    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.45);
+    const rimLight = new THREE.DirectionalLight(readBrandColor(), 0.45);
     rimLight.position.set(-140, 60, -120);
     scene.add(rimLight);
+    // Re-tint the rim when the owner switches preset in Settings, without
+    // tearing down and rebuilding the whole scene.
+    const onThemeChange = () => rimLight.color.set(readBrandColor());
+    window.addEventListener('se:theme', onThemeChange);
 
     // Slices live in a group that idles with a slow spin
     const pieGroup = new THREE.Group();
@@ -198,6 +219,7 @@ export function PieChart3D({ data, labels, colors, className, height = 300, inne
       renderer.domElement.removeEventListener('mousemove', handleMouseMove);
       renderer.domElement.removeEventListener('click', handleClick);
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('se:theme', onThemeChange);
       renderer.dispose();
       meshes.forEach((m) => {
         m.geometry.dispose();
