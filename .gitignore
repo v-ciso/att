@@ -32,3 +32,6 @@ tsconfig.tsbuildinfo
 # Claude Design handoff bundle (design reference, not source)
 .handoff-extract/
 *-handoff.zip
+
+# stray shell-redirect artifacts
+/[0-9][0-9][0-9]
