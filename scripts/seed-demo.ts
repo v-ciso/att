@@ -38,7 +38,10 @@ async function main() {
       email: demoEmail,
       passwordHash,
       name: 'Demo Owner',
-      role: 'OWNER',
+      // Deliberately NOT OWNER: this login has a shared, well-known password.
+      // OWNER can reach Live data and Settings, so the demo account must not be
+      // one. Use `npm run admin:create` for a real owner account.
+      role: 'ASM',
       employeeId: 'DEMO-OWNER-001',
       marketOwnerId: marketOwner.id,
     },

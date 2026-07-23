@@ -62,10 +62,22 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  // PREVIEW MODE: fallback secret so the app runs with zero env vars.
-  // Set a real NEXTAUTH_SECRET before enabling real logins in production.
-  secret: process.env.NEXTAUTH_SECRET ?? 'preview-only-secret-replace-before-real-auth',
+  secret: authSecret(),
 };
+
+// This secret signs the session JWT. A known/shared value means anyone can mint
+// an OWNER session, so production refuses to boot without a real one rather
+// than falling back to a guessable default.
+function authSecret(): string {
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (secret && secret.length >= 32 && !secret.startsWith('demo-')) return secret;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'NEXTAUTH_SECRET is missing or insecure. Generate one with: openssl rand -base64 32'
+    );
+  }
+  return 'dev-only-secret-not-used-in-production-builds';
+}
 
 export async function auth() {
   return getServerSession(authOptions);

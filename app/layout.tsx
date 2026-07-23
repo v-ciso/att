@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Providers } from './providers';
+import { WORKSPACE_SHIM } from '@/lib/workspace';
 
 export const metadata: Metadata = {
   title: {
@@ -25,6 +26,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <head>
+        {/* Namespaces every `se-*` localStorage key by workspace (demo vs live,
+            and per tenant). Must run before React mounts — see lib/workspace.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: WORKSPACE_SHIM }} />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />

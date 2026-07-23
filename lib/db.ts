@@ -1,11 +1,13 @@
 import { PrismaClient } from '@prisma/client';
 
-// PREVIEW MODE: no database is required. If DATABASE_URL is not configured
-// (e.g. on a Vercel preview with no env vars), fall back to a placeholder so
-// PrismaClient can be constructed without crashing at import time. Actual
-// queries will fail gracefully in their route handlers — the demo UI never
-// calls them. Plug in a real Postgres URL later to re-enable persistence.
+// Auth reads real user rows now, so a missing DATABASE_URL in production is a
+// misconfiguration, not something to paper over — a silent localhost fallback
+// would surface as "invalid email or password" on every login attempt.
+// Non-production keeps the placeholder so `next build` works without a DB.
 if (!process.env.DATABASE_URL) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('DATABASE_URL is not set — logins cannot be verified.');
+  }
   process.env.DATABASE_URL = 'postgresql://preview:preview@localhost:5432/preview';
 }
 

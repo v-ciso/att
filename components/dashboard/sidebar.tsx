@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { cn, getInitials, ROLE_LABELS } from '@/lib/utils';
 import { useTheme } from '@/components/white-label/theme-provider';
 import { navigation, isNavItemActive } from './nav-items';
+import { WorkspaceSwitcher } from './workspace-switcher';
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -51,13 +52,14 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="pt-4 border-t border-border-subtle">
+      <div className="pt-4 border-t border-border-subtle space-y-3">
+        <WorkspaceSwitcher />
         <div className="flex items-center gap-3 px-3 py-2">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent-blue to-accent-purple flex items-center justify-center text-sm font-bold">
             {getInitials(userName)}
           </div>
-          <div>
-            <p className="text-sm font-medium">{userName}</p>
+          <div className="min-w-0">
+            <p className="text-sm font-medium truncate">{userName}</p>
             <p className="text-xs text-text-muted">{userRole}</p>
           </div>
         </div>

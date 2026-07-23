@@ -21,6 +21,7 @@ export default function RegisterPage() {
     slug: '',
     storeCount: '1',
     tier: 'STANDARD',
+    inviteCode: '',
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -234,6 +235,19 @@ export default function RegisterPage() {
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted">.fieldos.app</span>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="inviteCode" className="label-base">
+                  Invite Code <span className="text-xs text-text-muted">(from your administrator)</span>
+                </label>
+                <Input
+                  id="inviteCode"
+                  value={formData.inviteCode}
+                  onChange={(e) => handleInputChange('inviteCode', e.target.value)}
+                  placeholder="Required — signup is invite-only"
+                  error={errors.inviteCode}
+                />
               </div>
 
               <div className="space-y-2">

@@ -4,6 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { Plus, Trash2, Smartphone, Wifi, Gift, Users, DollarSign, Receipt, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  RoadtripItem, PnlView, REIMBURSE_LAG_DAYS, roadtripTotals, isoToday, shiftDays, daysSince, inWindow,
+} from '@/lib/roadtrips';
+
+export type { RoadtripItem, PnlView };
+export { REIMBURSE_LAG_DAYS, roadtripTotals };
 
 // ---------------------------------------------------------------------------
 // Shared: localStorage-backed state + inline-editable value
@@ -390,7 +396,6 @@ const CADENCE_ORDER: Cadence[] = ['weekly', 'monthly', 'yearly'];
 
 // per-year multiplier for a cadence, and periods-per-year for a view
 const PER_YEAR: Record<Cadence, number> = { weekly: 52, monthly: 12, yearly: 1 };
-export type PnlView = 'daily' | 'weekly' | 'monthly' | 'yearly';
 const VIEW_DIVISOR: Record<PnlView, number> = { daily: 365, weekly: 52, monthly: 12, yearly: 1 };
 
 export function toView(amount: number, cadence: Cadence, view: PnlView): number {
@@ -406,7 +411,7 @@ interface MoneyItem {
 export interface PnlState {
   revenue: MoneyItem[];
   expenses: MoneyItem[];
-  roadtrips: MoneyItem[]; // actual monthly spend
+  roadtrips: RoadtripItem[]; // one-time charges, dated
   reimburseRate: number; // 0..100 (%)
 }
 
@@ -424,7 +429,7 @@ export const DEFAULT_PNL: PnlState = {
     { name: 'Other', amount: 5100, cadence: 'monthly' },
   ],
   roadtrips: [
-    { name: 'Orlando roadtrip', amount: 4200, cadence: 'monthly' },
+    { name: 'Orlando roadtrip', amount: 4200 },
   ],
   reimburseRate: 60,
 };
@@ -510,6 +515,79 @@ function MoneyList({
   );
 }
 
+// Roadtrips get their own list: each row carries the trip DATE (not a billing
+// cadence) and shows when its reimbursement lands.
+function RoadtripList({
+  items, view, onEdit, onAdd, onRemove, footer,
+}: {
+  items: RoadtripItem[];
+  view: PnlView;
+  onEdit: (index: number, field: 'name' | 'amount' | 'date', value: string) => void;
+  onAdd: () => void;
+  onRemove: (index: number) => void;
+  footer?: React.ReactNode;
+}) {
+  return (
+    <div className="p-4 rounded-xl glass border border-border-subtle">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold flex items-center gap-2 text-accent-orange">
+          <MapPin className="w-4 h-4" /> Roadtrips
+        </h3>
+        <button
+          onClick={onAdd}
+          className="p-1 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all"
+          aria-label="Add roadtrip"
+        >
+          <Plus className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      <div className="space-y-1.5 text-xs">
+        {items.map((trip, i) => {
+          const date = trip.date || isoToday();
+          const payDate = shiftDays(date, REIMBURSE_LAG_DAYS);
+          const daysOut = -daysSince(payDate);
+          const counted = inWindow(date, view);
+          return (
+            <div key={i} className="group p-2 rounded-lg bg-white/5 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <Editable value={trip.name} onCommit={(v) => onEdit(i, 'name', v)} className="flex-1 min-w-0" />
+                <span className="flex items-center gap-1.5">
+                  <span className="font-semibold text-accent-orange">
+                    $<Editable value={String(trip.amount)} onCommit={(v) => onEdit(i, 'amount', v)} />
+                  </span>
+                  <button
+                    onClick={() => onRemove(i)}
+                    className="p-0.5 rounded text-text-muted opacity-0 group-hover:opacity-100 hover:text-accent-red transition-all"
+                    aria-label={`Remove ${trip.name}`}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2 text-[10px]">
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => onEdit(i, 'date', e.target.value)}
+                  className="bg-transparent border border-border-subtle rounded px-1.5 py-0.5 text-text-secondary focus:border-border-strong focus:outline-none"
+                  aria-label={`${trip.name} date`}
+                />
+                <span className={cn(daysOut > 0 ? 'text-accent-orange' : 'text-text-muted')}>
+                  {daysOut > 0
+                    ? `paid back in ${daysOut}d`
+                    : `reimbursed ${payDate}`}
+                  {!counted && ` · outside ${view}`}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {footer}
+    </div>
+  );
+}
+
 export interface PnlDerivedByView {
   daily: { revenue: number; chargebacks: number };
   weekly: { revenue: number; chargebacks: number };
@@ -522,7 +600,7 @@ export function PnlEditor({ derived }: { derived: PnlDerivedByView }) {
   const [view, setView] = useState<PnlView>('monthly');
 
   const editList =
-    (list: 'revenue' | 'expenses' | 'roadtrips') =>
+    (list: 'revenue' | 'expenses') =>
     (index: number, field: 'name' | 'amount', value: string) =>
       setState(prev => ({
         ...prev,
@@ -535,7 +613,18 @@ export function PnlEditor({ derived }: { derived: PnlDerivedByView }) {
         ),
       }));
 
-  const cycleCadence = (list: 'revenue' | 'expenses' | 'roadtrips') => (index: number) =>
+  const editRoadtrip = (index: number, field: 'name' | 'amount' | 'date', value: string) =>
+    setState(prev => ({
+      ...prev,
+      roadtrips: prev.roadtrips.map((trip, i) => {
+        if (i !== index) return trip;
+        if (field === 'amount') return { ...trip, amount: parseNum(value) };
+        if (field === 'date') return { ...trip, date: value || isoToday() };
+        return { ...trip, name: value.trim() || trip.name };
+      }),
+    }));
+
+  const cycleCadence = (list: 'revenue' | 'expenses') => (index: number) =>
     setState(prev => ({
       ...prev,
       [list]: prev[list].map((item, i) => {
@@ -546,23 +635,30 @@ export function PnlEditor({ derived }: { derived: PnlDerivedByView }) {
       }),
     }));
 
-  const addTo = (list: 'revenue' | 'expenses' | 'roadtrips', name: string) => () =>
+  const addTo = (list: 'revenue' | 'expenses', name: string) => () =>
     setState(prev => ({ ...prev, [list]: [...prev[list], { name, amount: 0, cadence: 'monthly' as Cadence }] }));
 
-  const removeFrom = (list: 'revenue' | 'expenses' | 'roadtrips') => (index: number) =>
+  const addRoadtrip = () =>
+    setState(prev => ({ ...prev, roadtrips: [...prev.roadtrips, { name: 'New roadtrip', amount: 0, date: isoToday() }] }));
+
+  const removeFrom = (list: 'revenue' | 'expenses') => (index: number) =>
     setState(prev => ({ ...prev, [list]: prev[list].filter((_, i) => i !== index) }));
+
+  const removeRoadtrip = (index: number) =>
+    setState(prev => ({ ...prev, roadtrips: prev.roadtrips.filter((_, i) => i !== index) }));
 
   const sumInView = (items: MoneyItem[]) =>
     items.reduce((a, b) => a + toView(b.amount, b.cadence ?? 'monthly', view), 0);
 
   const rate = Math.min(100, Math.max(0, state.reimburseRate)) / 100;
-  const roadtripCost = sumInView(state.roadtrips);
-  const reimbursement = roadtripCost * rate;
+  // Cost hits on the trip date; the money comes back ~2 weeks later, so only
+  // reimbursements that have actually landed inside this window count as revenue.
+  const trips = roadtripTotals(state.roadtrips, rate, view);
   // Derived sales money for the same window (gross generated; chargebacks as expense)
   const derivedCommission = derived[view].revenue + derived[view].chargebacks;
   const derivedChargebacks = derived[view].chargebacks;
-  const totalRevenue = sumInView(state.revenue) + reimbursement + derivedCommission;
-  const totalExpenses = sumInView(state.expenses) + roadtripCost + derivedChargebacks;
+  const totalRevenue = sumInView(state.revenue) + trips.received + derivedCommission;
+  const totalExpenses = sumInView(state.expenses) + trips.cost + derivedChargebacks;
   const net = totalRevenue - totalExpenses;
   const margin = totalRevenue > 0 ? ((net / totalRevenue) * 100).toFixed(1) : '0.0';
 
@@ -597,8 +693,8 @@ export function PnlEditor({ derived }: { derived: PnlDerivedByView }) {
                 <span className="text-accent-green font-semibold">{formatCurrency(derivedCommission)}</span>
               </div>
               <div className="mt-1.5 p-2 rounded-lg bg-accent-green/5 border border-accent-green/20 flex justify-between text-xs">
-                <span className="text-text-secondary">Roadtrip reimbursement <span className="text-text-muted">(auto)</span></span>
-                <span className="text-accent-green font-semibold">{formatCurrency(reimbursement)}</span>
+                <span className="text-text-secondary">Roadtrip reimbursement <span className="text-text-muted">(auto · received)</span></span>
+                <span className="text-accent-green font-semibold">{formatCurrency(trips.received)}</span>
               </div>
             </>
           }
@@ -615,17 +711,25 @@ export function PnlEditor({ derived }: { derived: PnlDerivedByView }) {
             ) : undefined
           }
         />
-        <MoneyList
-          title="Roadtrips" icon={MapPin} color="orange" items={state.roadtrips} view={view}
-          onEdit={editList('roadtrips')} onCadence={cycleCadence('roadtrips')} onAdd={addTo('roadtrips', 'New roadtrip')} onRemove={removeFrom('roadtrips')}
+        <RoadtripList
+          items={state.roadtrips} view={view}
+          onEdit={editRoadtrip} onAdd={addRoadtrip} onRemove={removeRoadtrip}
           footer={
-            <p className="mt-2 text-[11px] text-text-secondary">
-              AT&amp;T / parent company reimburses{' '}
-              <span className="text-accent-orange font-semibold">
-                <Editable value={String(state.reimburseRate)} onCommit={(v) => setState(p => ({ ...p, reimburseRate: parseNum(v) }))} />%
-              </span>{' '}
-              of roadtrip costs — auto-added to revenue.
-            </p>
+            <>
+              <p className="mt-2 text-[11px] text-text-secondary">
+                One-time charge, paid up front. AT&amp;T / parent company reimburses{' '}
+                <span className="text-accent-orange font-semibold">
+                  <Editable value={String(state.reimburseRate)} onCommit={(v) => setState(p => ({ ...p, reimburseRate: parseNum(v) }))} />%
+                </span>{' '}
+                about {REIMBURSE_LAG_DAYS} days later — counted as revenue only once it lands.
+              </p>
+              {trips.outstanding > 0 && (
+                <div className="mt-2 p-2 rounded-lg bg-accent-orange/5 border border-accent-orange/20 flex justify-between text-xs">
+                  <span className="text-text-secondary">Awaiting reimbursement</span>
+                  <span className="text-accent-orange font-semibold">{formatCurrency(trips.outstanding)}</span>
+                </div>
+              )}
+            </>
           }
         />
       </div>

@@ -38,11 +38,19 @@ Commission (tier/store/plan payouts, office vs rep cut), Import (reconcile .xlsx
 direct-deposit vs computed pay), Settings (theme presets, logo upload+lock). Store-level
 GPS late clock-out chargebacks. Campaign selector (Retail EDM / B2B).
 
+## Status (updated 2026-07-22)
+Auth is LIVE — see RUNBOOK.md. `/` redirects to `/login`; `/dashboard` and `/settings`
+are gated; `/settings` is OWNER-only; self-serve signup is closed unless
+`SIGNUP_INVITE_CODE` is set. Demo vs Live data is a real storage boundary
+(`lib/workspace.ts`), OWNER-only for Live. DB is **Neon**, not Supabase.
+
 ## Open items / next
-1. SECURITY: rotate the Supabase creds that were pasted in chat before real data (project
-   izcxirupnvliiymwcedz - reset DB password + regenerate keys + resync Vercel).
-2. Phase 2: real DB/auth (admin + demo logins only), multi-tenant white-label domains.
-3. Editable per-store shift hours UI. 4. Marketing site assets (Higgsfield).
+1. Phase 2: move the engine server-side. The dashboard is still localStorage-only, so
+   the Prisma schema + tenant-scoped API routes are unused and Postgres RLS protects
+   nothing yet. The login gate + per-workspace namespace are today's real controls.
+2. Editable per-store shift hours UI (`lib/shifts.ts` is hardcoded).
+3. Marketing site assets (Higgsfield).
+4. `DESIGN.md` still documents the old blue-primary system — reconcile with gold.
 
 ## Rule of thumb
 Design/marketing/media/planning -> web + Higgsfield. Actual app changes + deploy -> Claude Code.

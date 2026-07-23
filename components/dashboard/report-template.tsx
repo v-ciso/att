@@ -1,7 +1,7 @@
 'use client';
 
 import { LeaderboardEntry } from './dashboard-components';
-import { DEFAULT_PNL, PnlState } from './editable-sections';
+import { DEFAULT_PNL, PnlState, roadtripTotals } from './editable-sections';
 import { loadPeople, loadPromoRules, promotionStatus, ROSTER_ROLE_LABELS } from './roster';
 import { loadCommission } from '@/lib/sales';
 
@@ -53,8 +53,11 @@ export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[
   const accent = theme.primaryColor || ACCENT;
 
   const rate = Math.min(100, Math.max(0, pnl.reimburseRate)) / 100;
-  const roadtripCost = pnl.roadtrips.reduce((a, b) => a + b.amount, 0);
-  const reimbursement = roadtripCost * rate;
+  // Same monthly window as the P&L tab, and the same 2-week reimbursement lag —
+  // the PDF must not claim revenue the office has not actually been paid yet.
+  const trips = roadtripTotals(pnl.roadtrips, rate, 'monthly');
+  const roadtripCost = trips.cost;
+  const reimbursement = trips.received;
   const totalRevenue = pnl.revenue.reduce((a, b) => a + b.amount, 0) + reimbursement;
   const totalExpenses = pnl.expenses.reduce((a, b) => a + b.amount, 0) + roadtripCost;
   const net = totalRevenue - totalExpenses;

@@ -12,15 +12,33 @@ const registerSchema = z.object({
   slug: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/),
   storeCount: z.string().optional(),
   tier: z.enum(['STANDARD', 'WHITE_LABEL']),
+  inviteCode: z.string().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Passwords do not match',
   path: ['confirmPassword'],
 });
 
+// Signup provisions a whole new tenant with an OWNER account, so it is closed
+// by default: without SIGNUP_INVITE_CODE set, this endpoint refuses outright.
+// Set that env var to hand a new customer a self-serve signup link.
 export async function POST(request: NextRequest) {
   try {
+    const expectedCode = process.env.SIGNUP_INVITE_CODE;
     const body = await request.json();
     const validated = registerSchema.parse(body);
+
+    if (!expectedCode) {
+      return NextResponse.json(
+        { error: 'Self-serve signup is disabled. Contact your administrator for an account.' },
+        { status: 403 }
+      );
+    }
+    if (validated.inviteCode !== expectedCode) {
+      return NextResponse.json(
+        { error: 'Invalid invite code', field: 'inviteCode' },
+        { status: 403 }
+      );
+    }
 
     // Check if email already exists
     const existingUser = await prisma.user.findUnique({

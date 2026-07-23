@@ -1,14 +1,27 @@
+import { withAuth } from 'next-auth/middleware';
 import { NextResponse } from 'next/server';
 
-// PREVIEW MODE: auth gating is disabled so the Vercel preview works with zero
-// env vars and no database. The original RBAC middleware (next-auth withAuth,
-// role checks for /settings, protected /api routes) is preserved in git
-// history — restore it when real auth + a database are plugged back in.
-export default function middleware() {
-  return NextResponse.next();
-}
+// Auth gate. Everything under /dashboard and /settings requires a session;
+// /settings additionally requires OWNER (white-label + domain config is an
+// admin surface, not something a REP should reach by typing the URL).
+//
+// The data API routes do their own getServerSession check AND scope every
+// query by the session's marketOwnerId — that tenant scoping is what keeps
+// one company's rows invisible to another.
+export default withAuth(
+  function middleware(req) {
+    const role = req.nextauth.token?.role;
+    if (req.nextUrl.pathname.startsWith('/settings') && role !== 'OWNER') {
+      return NextResponse.redirect(new URL('/dashboard', req.url));
+    }
+    return NextResponse.next();
+  },
+  {
+    pages: { signIn: '/login' },
+    callbacks: { authorized: ({ token }) => !!token },
+  }
+);
 
 export const config = {
-  // Never matches a real route — middleware is fully disabled in preview mode.
-  matcher: ['/preview-mode-disabled'],
+  matcher: ['/dashboard/:path*', '/settings/:path*'],
 };

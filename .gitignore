@@ -15,3 +15,9 @@ agentdb.rvf.idmap.json
 *.rvf
 .claude/proven-config.json
 .claude/.proven-config-version
+
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo
+
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo

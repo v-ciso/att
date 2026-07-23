@@ -20,11 +20,14 @@ export interface WhiteLabelTheme {
   };
 }
 
+// Obsidian & Gold is the product's own brand. A new tenant starts here and
+// re-brands itself in Settings — company name, logo, and preset are stored per
+// workspace (lib/workspace.ts), so two tenants on one browser never collide.
 const DEFAULT_THEME: WhiteLabelTheme = {
   companyName: 'Sales Engine',
-  primaryColor: '#3B82F6',
-  secondaryColor: '#A855F7',
-  preset: 'command-blue',
+  primaryColor: '#E7C24A',
+  secondaryColor: '#B8860B',
+  preset: 'obsidian-gold',
   featureFlags: {
     hidePnL: false,
     hideCommissionEngine: false,
