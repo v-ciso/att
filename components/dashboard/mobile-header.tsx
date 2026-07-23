@@ -58,14 +58,20 @@ export function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                 href={item.href}
                 onClick={onClose}
                 className={cn(
-                  'flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200',
+                  'flex items-center gap-3 px-3 py-3 rounded-xl border transition-all duration-200',
                   isActive
-                    ? 'bg-accent-blue/10 text-white nav-active'
-                    : 'text-text-secondary hover:text-white hover:bg-white/5'
+                    ? 'bg-[var(--brand-soft)] border-[var(--brand-soft)] text-white'
+                    : 'border-transparent text-text-secondary hover:text-white hover:bg-white/5'
                 )}
                 aria-current={isActive ? 'page' : undefined}
               >
-                <item.icon className={cn('w-5 h-5', isActive && 'text-accent-blue')} aria-hidden="true" />
+                <span
+                  className="inline-flex flex-shrink-0"
+                  style={isActive ? { color: 'var(--brand)' } : undefined}
+                  aria-hidden="true"
+                >
+                  <item.icon className="w-5 h-5" />
+                </span>
                 <span>{item.name}</span>
               </Link>
             );

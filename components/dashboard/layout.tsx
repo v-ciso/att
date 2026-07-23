@@ -16,11 +16,38 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <div className="min-h-screen bg-bg-primary">
-      {/* Live ambient background: aurora drift + orbs */}
+      {/* Live ambient background. The dominant orb is BRAND-coloured and sized in
+          vw, which is what actually makes the page read gold (or blue/emerald).
+          The two supporting orbs stay fixed and faint so the wash never turns
+          muddy — a full-viewport gold wash read brown, hence the low opacities. */}
       <div className="aurora" aria-hidden="true" />
-      <div className="orb w-96 h-96 bg-accent-blue" style={{ top: '-100px', right: '-100px' }} />
-      <div className="orb w-64 h-64 bg-accent-purple" style={{ bottom: '20%', left: '-50px' }} />
-      <div className="orb w-80 h-80 bg-accent-cyan" style={{ top: '50%', right: '30%' }} />
+      <div
+        className="orb"
+        aria-hidden="true"
+        style={{
+          width: '52vw', height: '52vw', top: '-20vw', right: '-12vw',
+          background: 'radial-gradient(circle, var(--brand), transparent 62%)',
+          opacity: 0.16, filter: 'blur(120px)',
+        }}
+      />
+      <div
+        className="orb"
+        aria-hidden="true"
+        style={{
+          width: '40vw', height: '40vw', bottom: '-16vw', left: '-10vw',
+          background: 'radial-gradient(circle, #3B82F6, transparent 60%)',
+          opacity: 0.09, filter: 'blur(120px)',
+        }}
+      />
+      <div
+        className="orb"
+        aria-hidden="true"
+        style={{
+          width: '30vw', height: '30vw', top: '36%', right: '6%',
+          background: 'radial-gradient(circle, #06B6D4, transparent 60%)',
+          opacity: 0.06, filter: 'blur(120px)',
+        }}
+      />
 
       <MobileHeader onMenuClick={toggleMobileMenu} />
       <Suspense fallback={null}>

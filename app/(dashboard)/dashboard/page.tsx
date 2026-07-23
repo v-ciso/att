@@ -83,14 +83,16 @@ interface StatCardProps {
   value: string;
   sub: string;
   icon: React.ComponentType<{ className?: string }>;
-  color: 'blue' | 'purple' | 'green' | 'yellow';
+  color: 'blue' | 'purple' | 'green' | 'yellow' | 'cyan';
   onClick?: () => void;
   className?: string;
 }
 
 function StatCard({ label, value, sub, icon: Icon, color, onClick, className }: StatCardProps) {
-  const colorClasses = { blue: 'text-accent-blue', purple: 'text-accent-purple', green: 'text-accent-green', yellow: 'text-accent-yellow' };
-  const neonClasses = { blue: 'neon-text-blue', purple: 'neon-text-purple', green: 'neon-text-green', yellow: 'neon-text-yellow' };
+  const colorClasses = { blue: 'text-accent-blue', purple: 'text-accent-purple', green: 'text-accent-green', yellow: 'text-accent-yellow', cyan: 'text-accent-cyan' };
+  const neonClasses = { blue: 'neon-text-blue', purple: 'neon-text-purple', green: 'neon-text-green', yellow: 'neon-text-yellow', cyan: 'neon-text-cyan' };
+  // Metric colour tints the icon chip too, instead of a neutral white wash.
+  const chipTint = { blue: 'rgba(59,130,246,.14)', purple: 'rgba(168,85,247,.14)', green: 'rgba(16,185,129,.14)', yellow: 'rgba(245,158,11,.14)', cyan: 'rgba(6,182,212,.14)' };
 
   return (
     <Card
@@ -101,7 +103,7 @@ function StatCard({ label, value, sub, icon: Icon, color, onClick, className }: 
     >
       <div className="flex items-start justify-between mb-1">
         <p className="text-[10px] text-text-muted uppercase tracking-wider">{label}</p>
-        <div className="p-1.5 rounded-lg bg-white/5">
+        <div className="p-1.5 rounded-lg" style={{ background: chipTint[color] }}>
           <Icon className={`w-3 h-3 ${colorClasses[color]}`} />
         </div>
       </div>
@@ -156,7 +158,7 @@ function StoreSelect({ options, selected, onChange }: { options: string[]; selec
         <div className="absolute right-0 top-full mt-1.5 z-50 w-48 max-h-72 overflow-y-auto p-2 rounded-xl bg-bg-secondary border border-border-strong shadow-glass space-y-0.5">
           <button
             onClick={() => onChange([])}
-            className={cn('w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors', selected.length === 0 ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-secondary hover:bg-white/5 hover:text-white')}
+            className={cn('w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors', selected.length === 0 ? 'bg-white/[0.06] text-white' : 'text-text-secondary hover:bg-white/5 hover:text-white')}
           >
             All Stores
           </button>
@@ -166,9 +168,10 @@ function StoreSelect({ options, selected, onChange }: { options: string[]; selec
               <button
                 key={store}
                 onClick={() => onChange(active ? selected.filter(s => s !== store) : [...selected, store])}
-                className={cn('w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors flex items-center justify-between', active ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-secondary hover:bg-white/5 hover:text-white')}
+                className={cn('w-full text-left px-2.5 py-1.5 rounded-lg text-xs transition-colors flex items-center justify-between', active ? 'bg-white/[0.06] text-white' : 'text-text-secondary hover:bg-white/5 hover:text-white')}
               >
-                {store} {active && '✓'}
+                {store}
+                {active && <span style={{ color: 'var(--brand)' }}>✓</span>}
               </button>
             );
           })}
@@ -212,7 +215,8 @@ function ProductionDrawer({ agg, period, onClose, onOpenProfile }: { agg: Aggreg
                   </td>
                   <td className="py-2 text-right">{p.lines}</td>
                   <td className="py-2 text-right text-accent-cyan">{p.internet}</td>
-                  <td className="py-2 text-right text-accent-red">{p.nextUps}</td>
+                  {/* Next Ups is a positive attach metric — red is reserved for loss. */}
+                  <td className="py-2 text-right text-accent-purple">{p.nextUps}</td>
                   <td className="py-2 text-right text-accent-green font-bold">{formatCurrency(p.revenue)}</td>
                   <td className="py-2 text-right text-accent-blue font-semibold">{formatCurrency(p.commission)}</td>
                 </tr>
@@ -718,7 +722,9 @@ function DashboardContent() {
           {/* KPIs — derived; click for the who-did-what breakdown */}
           <div className="slide-in grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4">
             <StatCard label={pickDate ? `Lines · ${pickDate}` : `${PERIOD_LABELS[period]} Lines`} value={String(agg.lines)} sub={`${agg.nextUps} next ups attached`} icon={TrendingUp} color="blue" onClick={() => setShowProduction(true)} className="stagger-1" />
-            <StatCard label="Internet" value={String(agg.internet)} sub={`${aggDaily.internet} in daily window`} icon={Zap} color="purple" onClick={() => setShowProduction(true)} className="stagger-2" />
+            {/* Internet is cyan everywhere else (table column, pie slice) — it was
+                the one place rendering the same metric purple. */}
+            <StatCard label="Internet" value={String(agg.internet)} sub={`${aggDaily.internet} in daily window`} icon={Zap} color="cyan" onClick={() => setShowProduction(true)} className="stagger-2" />
             <StatCard label="Office Generated" value={formatCurrency(agg.revenue)} sub={`${formatCurrency(agg.commission)} rep commissions`} icon={DollarSign} color="green" onClick={() => setShowProduction(true)} className="stagger-3" />
             <StatCard label="Premium Mix" value={`${premiumMix}%`} sub={`${agg.premium} premium lines`} icon={Star} color="yellow" onClick={() => setShowProduction(true)} className="stagger-4" />
           </div>

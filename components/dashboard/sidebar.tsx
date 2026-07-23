@@ -39,14 +39,22 @@ export function Sidebar() {
               key={item.name}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200',
+                'flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200',
                 isActive
-                  ? 'bg-accent-blue/10 text-white nav-active'
-                  : 'text-text-secondary hover:text-white hover:bg-white/5'
+                  ? 'bg-[var(--brand-soft)] border-[var(--brand-soft)] text-white'
+                  : 'border-transparent text-text-secondary hover:text-white hover:bg-white/5'
               )}
               aria-current={isActive ? 'page' : undefined}
             >
-              <item.icon className={cn('w-5 h-5 flex-shrink-0', isActive && 'text-accent-blue')} aria-hidden="true" />
+              {/* Wrapper carries the colour: nav icons only accept className,
+                  and lucide glyphs inherit currentColor. */}
+              <span
+                className="inline-flex flex-shrink-0"
+                style={isActive ? { color: 'var(--brand)' } : undefined}
+                aria-hidden="true"
+              >
+                <item.icon className="w-5 h-5" />
+              </span>
               <span className="text-sm">{item.name}</span>
             </Link>
           );
@@ -55,7 +63,13 @@ export function Sidebar() {
       <div className="pt-4 border-t border-border-subtle space-y-3">
         <WorkspaceSwitcher />
         <div className="flex items-center gap-3 px-3 py-2">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-accent-blue to-accent-purple flex items-center justify-center text-sm font-bold">
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-none"
+            style={{
+              background: 'linear-gradient(135deg, var(--brand-2), var(--brand-3))',
+              color: 'var(--brand-ink)',
+            }}
+          >
             {getInitials(userName)}
           </div>
           <div className="min-w-0">

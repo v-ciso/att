@@ -17,9 +17,11 @@
        driven by these; they stay fixed for meaning. */
     --brand: #3b82f6;
     --brand-2: #60a5fa;
+    --brand-3: #1d4ed8; /* dark end of the brand ramp */
     --brand-rgb: 59, 130, 246;
     --grad-brand: linear-gradient(135deg, #60a5fa, #3b82f6, #2563eb);
-    --brand-glow: rgba(59, 130, 246, 0.35);
+    --brand-glow: rgba(59, 130, 246, 0.35); /* a SHADOW value */
+    --brand-soft: rgba(59, 130, 246, 0.2); /* a FILL value — different job */
     --brand-ink: #ffffff; /* text color on a filled brand button */
     --glass-edge: rgba(255, 255, 255, 0.08);
   }
@@ -28,9 +30,11 @@
   :root[data-theme='obsidian-gold'] {
     --brand: #e7c24a;
     --brand-2: #f7e08a;
+    --brand-3: #b8860b;
     --brand-rgb: 231, 194, 74;
     --grad-brand: linear-gradient(135deg, #f9e9a4, #e7c24a, #b8860b);
     --brand-glow: rgba(231, 194, 74, 0.42);
+    --brand-soft: rgba(231, 194, 74, 0.18);
     --brand-ink: #1a1400;
     --glass-edge: rgba(231, 194, 74, 0.12);
   }
@@ -39,9 +43,11 @@
   :root[data-theme='emerald'] {
     --brand: #10b981;
     --brand-2: #6ee7b7;
+    --brand-3: #047857;
     --brand-rgb: 16, 185, 129;
     --grad-brand: linear-gradient(135deg, #6ee7b7, #10b981, #059669);
     --brand-glow: rgba(16, 185, 129, 0.4);
+    --brand-soft: rgba(16, 185, 129, 0.18);
     --brand-ink: #04140d;
     --glass-edge: rgba(16, 185, 129, 0.12);
   }
@@ -71,17 +77,18 @@
   }
 
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-bg-primary;
+    background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-gray-800 rounded-full;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 5px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-gray-700;
+    background: rgba(255, 255, 255, 0.2);
   }
 }
 
@@ -188,10 +195,12 @@
     will-change: transform;
   }
 
+  /* Lift is chrome, so the glow follows the active preset. It used to be a
+     hardcoded blue, which made every KPI card halo blue under Obsidian & Gold. */
   .stat-card:hover {
     @apply border-border-strong;
-    transform: translateY(-4px) scale(1.02);
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 30px rgba(59, 130, 246, 0.12);
+    transform: translateY(-2px);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 30px rgba(var(--brand-rgb), 0.12);
   }
 
   .neon-text-blue {
