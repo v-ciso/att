@@ -6,6 +6,7 @@
 
 import { CommissionState, DEFAULT_COMMISSION } from '@/components/dashboard/editable-sections';
 import { Person } from '@/components/dashboard/roster';
+import { seedForWorkspace } from '@/lib/workspace';
 
 export interface SaleEntry {
   id: string;
@@ -51,11 +52,19 @@ export function saveSales(entries: SaleEntry[]) {
   notifyDataChanged();
 }
 
+// Plan payouts are legitimate defaults — every AT&T market prices roughly the
+// same way, and the owner tunes them. Specific STORES are not: "Costco 1018"
+// is demo furniture, and a live account that opens claiming four stores it
+// never entered is showing fabricated data. Those come from the setup wizard.
+function freshCommission(): CommissionState {
+  return seedForWorkspace(DEFAULT_COMMISSION, { ...DEFAULT_COMMISSION, stores: [], storeIndex: 0 });
+}
+
 export function loadCommission(): CommissionState {
   if (typeof window === 'undefined') return DEFAULT_COMMISSION;
   try {
     const saved = localStorage.getItem('se-commission-v2');
-    if (!saved) return DEFAULT_COMMISSION;
+    if (!saved) return freshCommission();
     const state = JSON.parse(saved) as CommissionState;
     // Normalize: items saved before the office/rep split get a rep cut of 0
     (['phonePlans', 'addOns', 'internet'] as const).forEach(list => {
@@ -64,7 +73,7 @@ export function loadCommission(): CommissionState {
     if (typeof state.latePenaltyPerLine !== 'number') state.latePenaltyPerLine = 15;
     return state;
   } catch {
-    return DEFAULT_COMMISSION;
+    return freshCommission();
   }
 }
 
@@ -91,20 +100,49 @@ export function inPeriod(dateStr: string, period: Period): boolean {
 // Effective OFFICE payout for a plan: tier discount + the ENTRY's store
 // multiplier apply to the office total. The rep's cut is the flat dollar
 // amount the owner typed — never scaled or calculated.
+export const CAMPAIGN_KEY = 'se-campaign-v1';
+export const CAMPAIGNS = ['AT&T Retail EDM', 'AT&T B2B'] as const;
+
+export function loadCampaign(): string {
+  if (typeof window === 'undefined') return CAMPAIGNS[0];
+  try {
+    return localStorage.getItem(CAMPAIGN_KEY)?.replace(/^"|"$/g, '') || CAMPAIGNS[0];
+  } catch {
+    return CAMPAIGNS[0];
+  }
+}
+
+/** B2B pays the rep a straight 50% of the office payout — no base, no stores. */
+export const B2B_REP_SHARE = 0.5;
+
+export function isB2B(campaign?: string): boolean {
+  return (campaign ?? loadCampaign()).toUpperCase().includes('B2B');
+}
+
 export function planPayout(
   commission: CommissionState,
   planName: string,
   storeName?: string,
-  kind: 'office' | 'rep' = 'office'
+  kind: 'office' | 'rep' = 'office',
+  campaign?: string
 ): number {
   const all = [...commission.phonePlans, ...commission.internet, ...commission.addOns];
   const plan = all.find(p => p.name === planName);
   if (!plan) return 0;
-  if (kind === 'rep') return Math.max(0, plan.rep ?? 0);
-  const mult = storeName
+
+  const b2b = isB2B(campaign);
+  // B2B has no assigned stores — reps work areas — so no store multiplier.
+  const mult = !b2b && storeName
     ? commission.stores.find(s => s.name.toLowerCase() === storeName.toLowerCase())?.multiplier ?? 1
     : 1;
-  return Math.max(0, (plan.payout - (5 - commission.tier) * commission.tierDelta) * mult);
+  const office = Math.max(0, (plan.payout - (5 - commission.tier) * commission.tierDelta) * mult);
+
+  if (kind === 'rep') {
+    // Retail EDM pays the flat per-plan rate the owner typed; B2B splits the
+    // office payout down the middle with no base pay underneath it.
+    return b2b ? office * B2B_REP_SHARE : Math.max(0, plan.rep ?? 0);
+  }
+  return office;
 }
 
 export interface RevenuePart {

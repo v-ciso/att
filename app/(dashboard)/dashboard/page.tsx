@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +27,7 @@ import { DailyTracker } from '@/components/dashboard/daily-tracker';
 import {
   Period, PERIOD_LABELS, aggregateSales, loadSales, saveSales, loadCommission,
   generateDemoSales, Aggregate, PersonStats, loadAttendance, attendanceForDate, todayStr,
+  CAMPAIGNS, isB2B,
 } from '@/lib/sales';
 import { Editable, parseNum, useLocalState } from '@/components/dashboard/editable-sections';
 import { SetupWizard, SETUP_DONE_KEY, SETUP_FORCE_KEY } from '@/components/dashboard/setup-wizard';
@@ -99,28 +101,28 @@ function StatCard({ label, value, sub, icon: Icon, color, onClick, className }: 
 
   return (
     <Card
-      className={cn('stat-card pulse-glow', onClick && 'cursor-pointer', className)}
+      className={cn('stat-card pulse-glow p-5', onClick && 'cursor-pointer', className)}
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       title={onClick ? 'Click to see who did what' : undefined}
     >
       <div className="flex items-start justify-between mb-1">
-        <p className="text-[10px] text-text-muted uppercase tracking-wider">{label}</p>
+        <p className="text-[11px] text-text-muted uppercase tracking-wider">{label}</p>
         <div className="p-1.5 rounded-lg" style={{ background: chipTint[color] }}>
           <Icon className={`w-3 h-3 ${colorClasses[color]}`} />
         </div>
       </div>
-      <p className={`text-2xl font-bold ${neonClasses[color]}`}>
+      <p className={`text-2xl sm:text-3xl font-bold ${neonClasses[color]}`}>
         <CountUpValue value={value} />
       </p>
-      <p className="text-[10px] text-text-secondary">{sub}</p>
+      <p className="text-[11px] text-text-secondary">{sub}</p>
     </Card>
   );
 }
 
 function TabButton({ children, isActive, onClick }: { children: React.ReactNode; isActive: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={`tab-btn shrink-0 whitespace-nowrap px-3 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border transition ${isActive ? 'active' : 'inactive'}`}>
+    <button onClick={onClick} className={`tab-btn ${isActive ? 'active' : 'inactive'}`}>
       {children}
     </button>
   );
@@ -184,48 +186,133 @@ function StoreSelect({ options, selected, onChange }: { options: string[]; selec
   );
 }
 
-// "Who did what" — opens from any KPI tile
-function ProductionDrawer({ agg, period, onClose, onOpenProfile }: { agg: Aggregate; period: Period; onClose: () => void; onOpenProfile: (name: string) => void }) {
+// Which KPI tile was clicked. Each opens the SAME drawer but focused on that
+// metric — sorted by it, with the plans that make it up. Previously all four
+// tiles opened one identical "who did what" table, so three of them were lying
+// about what you were about to see.
+type KpiMetric = 'lines' | 'internet' | 'revenue' | 'premium';
+
+const KPI_VIEWS: Record<KpiMetric, {
+  title: string;
+  hint: string;
+  /** Which plan buckets roll up into this KPI. */
+  planFilter: (plan: string, commission: ReturnType<typeof loadCommission>) => boolean;
+  sort: (p: PersonStats) => number;
+  column: { head: string; value: (p: PersonStats) => string; className: string };
+}> = {
+  lines: {
+    title: 'Phone lines',
+    hint: 'Every phone line sold in this window, and the plan it was written on.',
+    planFilter: (plan, c) => c.phonePlans.some(p => p.name === plan),
+    sort: p => p.lines,
+    column: { head: 'Lines', value: p => String(p.lines), className: 'text-accent-blue font-semibold' },
+  },
+  internet: {
+    title: 'Internet & fiber',
+    hint: 'Fiber and Internet Air orders, split by speed tier.',
+    planFilter: (plan, c) => c.internet.some(p => p.name === plan),
+    sort: p => p.internet,
+    column: { head: 'Internet', value: p => String(p.internet), className: 'text-accent-cyan font-semibold' },
+  },
+  revenue: {
+    title: 'Office generated',
+    hint: 'What AT&T deposits to the office, before rep commissions come out.',
+    planFilter: () => true,
+    sort: p => p.revenue,
+    column: { head: 'Generated', value: p => formatCurrency(p.revenue), className: 'text-accent-green font-bold' },
+  },
+  premium: {
+    title: 'Premium mix',
+    hint: 'Premium lines as a share of everything sold — the margin driver.',
+    planFilter: plan => plan.toLowerCase().includes('premium'),
+    sort: p => p.premium,
+    column: { head: 'Premium', value: p => String(p.premium), className: 'text-accent-yellow font-semibold' },
+  },
+};
+
+function ProductionDrawer({
+  metric, agg, commission, period, onClose, onOpenProfile,
+}: {
+  metric: KpiMetric;
+  agg: Aggregate;
+  commission: ReturnType<typeof loadCommission>;
+  period: Period;
+  onClose: () => void;
+  onOpenProfile: (name: string) => void;
+}) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  const view = KPI_VIEWS[metric];
+  const people = [...agg.perPerson].sort((a, b) => view.sort(b) - view.sort(a)).filter(p => view.sort(p) > 0);
+  const plans = Array.from(agg.perPlan.entries())
+    .filter(([plan]) => view.planFilter(plan, commission))
+    .map(([plan, s]) => ({ plan, ...s }))
+    .filter(p => p.qty > 0)
+    .sort((a, b) => b.qty - a.qty);
+  const planTotal = plans.reduce((a, b) => a + b.qty, 0);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label="Production breakdown">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label={`${view.title} breakdown`}>
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:max-w-lg glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 max-h-[85vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold">{PERIOD_LABELS[period]} Production — who did what</h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
+      <div className="relative w-full sm:max-w-lg glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 animate-scale-in bg-bg-secondary/95 max-h-[85vh] overflow-y-auto">
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <h3 className="text-lg font-bold">{PERIOD_LABELS[period]} · {view.title}</h3>
+          <button onClick={onClose} className="p-2.5 sm:p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
         </div>
-        {agg.perPerson.length === 0 ? (
-          <p className="text-xs text-text-muted p-3 rounded-xl bg-white/5">No sales in this period yet — log them in the Daily Tracker.</p>
+        <p className="text-xs text-text-secondary mb-4">{view.hint}</p>
+
+        {people.length === 0 ? (
+          <p className="text-xs text-text-muted p-3 rounded-xl bg-white/5">Nothing in this period yet — log sales in the Daily Tracker.</p>
         ) : (
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
-                <th className="pb-2">Rep</th><th className="pb-2 text-right">Lines</th><th className="pb-2 text-right">Internet</th>
-                <th className="pb-2 text-right">Next Up</th><th className="pb-2 text-right">Generated</th><th className="pb-2 text-right">Commission</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {agg.perPerson.map(p => (
-                <tr key={p.person} className="hover:bg-white/5 transition-colors">
-                  <td className="py-2">
-                    <button onClick={() => onOpenProfile(p.person)} className="font-medium hover:text-accent-blue transition-colors">{p.person}</button>
-                  </td>
-                  <td className="py-2 text-right">{p.lines}</td>
-                  <td className="py-2 text-right text-accent-cyan">{p.internet}</td>
-                  {/* Next Ups is a positive attach metric — red is reserved for loss. */}
-                  <td className="py-2 text-right text-accent-purple">{p.nextUps}</td>
-                  <td className="py-2 text-right text-accent-green font-bold">{formatCurrency(p.revenue)}</td>
-                  <td className="py-2 text-right text-accent-blue font-semibold">{formatCurrency(p.commission)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            {plans.length > 0 && (
+              <div className="mb-5">
+                <h4 className="text-[10px] uppercase tracking-wider text-text-muted mb-2">By plan</h4>
+                <div className="space-y-1.5">
+                  {plans.map(p => (
+                    <div key={p.plan} className="flex items-center gap-3 text-xs">
+                      <span className="flex-1 min-w-0 truncate">{p.plan}</span>
+                      <div className="w-24 h-1.5 rounded-full bg-bg-tertiary overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${planTotal ? (p.qty / planTotal) * 100 : 0}%`, background: 'var(--grad-brand)' }} />
+                      </div>
+                      <span className="w-8 text-right font-mono">{p.qty}</span>
+                      <span className="w-20 text-right text-accent-green font-mono">{formatCurrency(p.revenue)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <h4 className="text-[10px] uppercase tracking-wider text-text-muted mb-2">By rep</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[380px] text-xs">
+                <thead>
+                  <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
+                    <th className="pb-2">Rep</th>
+                    <th className="pb-2 text-right">{view.column.head}</th>
+                    <th className="pb-2 text-right">Generated</th>
+                    <th className="pb-2 text-right">Commission</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-subtle">
+                  {people.map(p => (
+                    <tr key={p.person} className="hover:bg-white/5 transition-colors">
+                      <td className="py-2">
+                        <button onClick={() => onOpenProfile(p.person)} className="font-medium hover:underline transition-colors">{p.person}</button>
+                      </td>
+                      <td className={cn('py-2 text-right', view.column.className)}>{view.column.value(p)}</td>
+                      <td className="py-2 text-right text-accent-green">{formatCurrency(p.revenue)}</td>
+                      <td className="py-2 text-right text-text-secondary">{formatCurrency(p.commission)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -513,7 +600,9 @@ function DashboardContent() {
   }), [mixCategories]);
 
   const [drillCat, setDrillCat] = useState<MixCategory | null>(null);
-  const [showProduction, setShowProduction] = useState(false);
+  const [kpiDrawer, setKpiDrawer] = useState<KpiMetric | null>(null);
+  const { data: session } = useSession();
+  const isOwner = session?.user?.role === 'OWNER';
   const [profileName, setProfileName] = useState<string | null>(null);
   const [teamDrawerName, setTeamDrawerName] = useState<string | null>(null);
   const [expandChart, setExpandChart] = useState<'trend' | 'mix' | null>(null);
@@ -652,16 +741,26 @@ function DashboardContent() {
       <div className="slide-in relative z-40 mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl lg:text-4xl font-bold neon-brand">Dashboard</h1>
-          <p className="text-text-secondary text-sm mt-0.5 flex items-center gap-1.5">
-            <select
-              value={campaign}
-              onChange={e => setCampaign(e.target.value)}
-              className="bg-transparent text-text-secondary text-sm focus:outline-none cursor-pointer hover:text-white"
-              aria-label="Campaign"
-            >
-              <option value="AT&T Retail EDM">AT&amp;T Retail EDM</option>
-              <option value="AT&T B2B">AT&amp;T B2B</option>
-            </select>
+          {/* The campaign decides how reps get paid, so it is not a view toggle
+              anyone can flip mid-month. Owners set it; everyone else reads it. */}
+          <p className="text-text-secondary text-sm mt-0.5 flex flex-wrap items-center gap-1.5">
+            {isOwner ? (
+              <select
+                value={campaign}
+                onChange={e => setCampaign(e.target.value)}
+                className="bg-bg-tertiary border border-border-subtle rounded-lg px-2 py-1 text-text-secondary text-sm focus:outline-none cursor-pointer hover:text-white"
+                aria-label="Campaign"
+              >
+                {CAMPAIGNS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            ) : (
+              <span>{campaign}</span>
+            )}
+            {isB2B(campaign) && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: 'var(--brand-soft)', color: 'var(--brand)' }}>
+                50% split · no base pay · areas, not stores
+              </span>
+            )}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -735,12 +834,12 @@ function DashboardContent() {
 
           {/* KPIs — derived; click for the who-did-what breakdown */}
           <div className="slide-in grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4">
-            <StatCard label={pickDate ? `Lines · ${pickDate}` : `${PERIOD_LABELS[period]} Lines`} value={String(agg.lines)} sub={`${agg.nextUps} next ups attached`} icon={TrendingUp} color="blue" onClick={() => setShowProduction(true)} className="stagger-1" />
+            <StatCard label={pickDate ? `Lines · ${pickDate}` : `${PERIOD_LABELS[period]} Lines`} value={String(agg.lines)} sub={`${agg.nextUps} next ups attached`} icon={TrendingUp} color="blue" onClick={() => setKpiDrawer('lines')} className="stagger-1" />
             {/* Internet is cyan everywhere else (table column, pie slice) — it was
                 the one place rendering the same metric purple. */}
-            <StatCard label="Internet" value={String(agg.internet)} sub={`${aggDaily.internet} in daily window`} icon={Zap} color="cyan" onClick={() => setShowProduction(true)} className="stagger-2" />
-            <StatCard label="Office Generated" value={formatCurrency(agg.revenue)} sub={`${formatCurrency(agg.commission)} rep commissions`} icon={DollarSign} color="green" onClick={() => setShowProduction(true)} className="stagger-3" />
-            <StatCard label="Premium Mix" value={`${premiumMix}%`} sub={`${agg.premium} premium lines`} icon={Star} color="yellow" onClick={() => setShowProduction(true)} className="stagger-4" />
+            <StatCard label="Internet" value={String(agg.internet)} sub={`${aggDaily.internet} in daily window`} icon={Zap} color="cyan" onClick={() => setKpiDrawer('internet')} className="stagger-2" />
+            <StatCard label="Office Generated" value={formatCurrency(agg.revenue)} sub={`${formatCurrency(agg.commission)} rep commissions`} icon={DollarSign} color="green" onClick={() => setKpiDrawer('revenue')} className="stagger-3" />
+            <StatCard label="Premium Mix" value={`${premiumMix}%`} sub={`${agg.premium} premium lines`} icon={Star} color="yellow" onClick={() => setKpiDrawer('premium')} className="stagger-4" />
           </div>
 
           {/* Charts */}
@@ -1227,7 +1326,7 @@ function DashboardContent() {
       )}
 
       {drillCat && <FsPortal><SliceDrawer category={drillCat} agg={agg} onClose={() => setDrillCat(null)} /></FsPortal>}
-      {showProduction && <FsPortal><ProductionDrawer agg={agg} period={period} onClose={() => setShowProduction(false)} onOpenProfile={(n) => { setShowProduction(false); setProfileName(n); }} /></FsPortal>}
+      {kpiDrawer && <FsPortal><ProductionDrawer metric={kpiDrawer} agg={agg} commission={commission} period={period} onClose={() => setKpiDrawer(null)} onOpenProfile={(n) => { setKpiDrawer(null); setProfileName(n); }} /></FsPortal>}
       {profileName && (
         <FsPortal>
           <ProfileDrawer name={profileName} period={activeTab === 'meeting' ? meetingPeriod : period} onClose={() => setProfileName(null)} />

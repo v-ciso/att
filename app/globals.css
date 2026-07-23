@@ -103,6 +103,36 @@
       font-size: 16px !important;
     }
   }
+
+  /* Native dropdown lists are painted by the OS, not by the page, so they
+     default to white-on-white against this dark UI. `color-scheme` tells the
+     browser to render its own widgets dark; the explicit option colours cover
+     the browsers that ignore it. Without this every <select> flashes a white
+     box with a blue highlight bar when opened. */
+  :root {
+    color-scheme: dark;
+  }
+
+  select,
+  option,
+  optgroup {
+    background-color: #0a0a0f;
+    color: #ffffff;
+  }
+
+  select option:checked,
+  select option:hover {
+    background-color: rgba(var(--brand-rgb), 0.25);
+    color: #ffffff;
+  }
+
+  /* Date/time pickers get the same treatment for their popup + spinner icons. */
+  input[type='date'],
+  input[type='time'],
+  input[type='month'],
+  input[type='week'] {
+    color-scheme: dark;
+  }
 }
 
 @layer components {
@@ -178,7 +208,7 @@
      them the ten tabs compress to min-content and wrap into two-line stubs.
      py-2.5 gives a 44px touch target on phones; desktop keeps its density. */
   .tab-btn {
-    @apply shrink-0 whitespace-nowrap px-3 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium
+    @apply shrink-0 whitespace-nowrap px-3.5 py-2.5 sm:py-2 rounded-lg text-[13px] font-medium
            border transition-all duration-200 cursor-pointer select-none;
     -webkit-tap-highlight-color: transparent;
   }
