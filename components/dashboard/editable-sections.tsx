@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import {
   RoadtripItem, PnlView, REIMBURSE_LAG_DAYS, roadtripTotals, isoToday, shiftDays, daysSince, inWindow,
 } from '@/lib/roadtrips';
+import { seedForWorkspace } from '@/lib/workspace';
 
 export type { RoadtripItem, PnlView };
 export { REIMBURSE_LAG_DAYS, roadtripTotals };
@@ -215,7 +216,7 @@ function PayItemList({
               </span>
               <button
                 onClick={() => onRemove(i)}
-                className="p-0.5 rounded text-text-muted opacity-0 group-hover:opacity-100 hover:text-accent-red transition-all"
+                className="p-0.5 rounded text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red transition-all"
                 aria-label={`Remove ${item.name}`}
               >
                 <Trash2 className="w-3 h-3" />
@@ -318,7 +319,7 @@ export function CommissionEngine() {
                       stores: p.stores.filter((_, j) => j !== i),
                       storeIndex: Math.min(p.storeIndex > i ? p.storeIndex - 1 : p.storeIndex, p.stores.length - 2),
                     }))}
-                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-bg-tertiary border border-border-strong text-[9px] text-text-muted opacity-0 group-hover/store:opacity-100 hover:text-accent-red hover:border-accent-red/50 transition-all flex items-center justify-center"
+                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-bg-tertiary border border-border-strong text-[9px] text-text-muted opacity-100 md:opacity-0 md:group-hover/store:opacity-100 hover:text-accent-red hover:border-accent-red/50 transition-all flex items-center justify-center"
                     aria-label={`Remove ${s.name}`}
                   >
                     ×
@@ -434,6 +435,15 @@ export const DEFAULT_PNL: PnlState = {
   reimburseRate: 60,
 };
 
+// What a real account starts from: no invented money, but keep the reimburse
+// rate since 60% is the AT&T norm rather than a made-up figure.
+export const EMPTY_PNL: PnlState = {
+  revenue: [],
+  expenses: [],
+  roadtrips: [],
+  reimburseRate: 60,
+};
+
 function MoneyList({
   title,
   icon: Icon,
@@ -500,7 +510,7 @@ function MoneyList({
                 </span>
                 <button
                   onClick={() => onRemove(i)}
-                  className="p-0.5 rounded text-text-muted opacity-0 group-hover:opacity-100 hover:text-accent-red transition-all"
+                  className="p-0.5 rounded text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red transition-all"
                   aria-label={`Remove ${item.name}`}
                 >
                   <Trash2 className="w-3 h-3" />
@@ -557,7 +567,7 @@ function RoadtripList({
                   </span>
                   <button
                     onClick={() => onRemove(i)}
-                    className="p-0.5 rounded text-text-muted opacity-0 group-hover:opacity-100 hover:text-accent-red transition-all"
+                    className="p-0.5 rounded text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red transition-all"
                     aria-label={`Remove ${trip.name}`}
                   >
                     <Trash2 className="w-3 h-3" />
@@ -596,7 +606,11 @@ export interface PnlDerivedByView {
 }
 
 export function PnlEditor({ derived }: { derived: PnlDerivedByView }) {
-  const { state, setState, reset } = useLocalState<PnlState>('se-pnl-v1', DEFAULT_PNL);
+  // A live account must not open on an $85,000 payroll it never entered.
+  const { state, setState, reset } = useLocalState<PnlState>(
+    'se-pnl-v1',
+    seedForWorkspace(DEFAULT_PNL, EMPTY_PNL)
+  );
   const [view, setView] = useState<PnlView>('monthly');
 
   const editList =
@@ -775,15 +789,21 @@ export interface TeamData {
 
 const TEAM_COLORS = ['blue', 'purple', 'cyan', 'yellow'];
 
+// Sample teams, demo workspace only. Every name here must exist in
+// DEFAULT_PEOPLE and appear on exactly ONE team — the previous seed put
+// Jordan Reyes in charge of both Alpha and Beta and named nine people
+// (Priya Patel, Taylor Brooks, Devon Carter, ...) who were not on the roster
+// at all, so the org chart showed staff who did not exist.
 const DEFAULT_TEAMS: TeamData[] = [
-  { name: 'Team Alpha', change: '+12%', lines: 34, premium: 18, fiber: 6, progress: 78, color: 'blue', lead: 'Alex Thompson', asm: 'Jordan Reyes', members: ['Sarah Johnson', 'Chris Lee', 'Dana White'] },
-  { name: 'Team Beta', change: '+8%', lines: 28, premium: 14, fiber: 5, progress: 64, color: 'purple', lead: 'Mike Chen', asm: 'Jordan Reyes', members: ['Priya Patel', 'Sam Ortiz'] },
-  { name: 'Team Gamma', change: '+5%', lines: 22, premium: 10, fiber: 4, progress: 52, color: 'cyan', lead: 'Jessica Williams', asm: 'Taylor Brooks', members: ['Evan Kim', 'Maria Garcia'] },
-  { name: 'Team Delta', change: '+15%', lines: 41, premium: 22, fiber: 9, progress: 92, color: 'yellow', lead: 'Devon Carter', asm: 'Taylor Brooks', members: ['Liam Nguyen', 'Aisha Bell', 'Noah Park'] },
+  { name: 'Team Alpha', change: '+12%', lines: 34, premium: 18, fiber: 6, progress: 78, color: 'blue', lead: 'Alex Thompson', asm: 'Jordan Reyes', members: ['Sarah Johnson', 'Chris Lee'] },
+  { name: 'Team Beta', change: '+8%', lines: 28, premium: 14, fiber: 5, progress: 64, color: 'purple', lead: 'Mike Chen', asm: '', members: ['Jessica Williams', 'Dana White'] },
 ];
 
 export function TeamsEditor() {
-  const { state: teams, setState: setTeams, reset } = useLocalState<TeamData[]>('se-teams-v2', DEFAULT_TEAMS);
+  const { state: teams, setState: setTeams, reset } = useLocalState<TeamData[]>(
+    'se-teams-v2',
+    seedForWorkspace(DEFAULT_TEAMS, [])
+  );
 
   const edit = (index: number, field: keyof TeamData, value: string) =>
     setTeams(prev => prev.map((t, i) => {
@@ -871,7 +891,7 @@ export function TeamsEditor() {
           <div key={i} className={cn('group glass rounded-xl p-4 border relative', borderColors[team.color] ?? borderColors.blue)}>
             <button
               onClick={() => removeTeam(i)}
-              className="absolute top-2 right-2 p-1 rounded-lg text-text-muted opacity-0 group-hover:opacity-100 hover:text-accent-red hover:bg-accent-red/10 transition-all"
+              className="absolute top-2 right-2 p-1 rounded-lg text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red hover:bg-accent-red/10 transition-all"
               aria-label={`Remove ${team.name}`}
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -900,7 +920,7 @@ export function TeamsEditor() {
                   <Editable value={member} onCommit={(v) => editMember(i, j, v)} />
                   <button
                     onClick={() => removeMember(i, j)}
-                    className="text-text-muted opacity-0 group-hover/chip:opacity-100 hover:text-accent-red transition-all"
+                    className="text-text-muted opacity-100 md:opacity-0 md:group-hover/chip:opacity-100 hover:text-accent-red transition-all"
                     aria-label={`Remove ${member} from ${team.name}`}
                   >
                     ×

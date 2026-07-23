@@ -1,0 +1,21 @@
+45:    return () => document.removeEventListener('fullscreenchange', onFs);
+77:    return () => cancelAnimationFrame(raf);
+99:  return (
+121:  return (
+130:  return (
+149:    return () => document.removeEventListener('mousedown', onDoc);
+154:  return (
+169:            return (
+191:    return () => window.removeEventListener('keydown', onKey);
+194:  return (
+276:    return () => window.removeEventListener('keydown', onKey);
+283:  return (
+389:    return () => {
+598:    return () => document.removeEventListener('fullscreenchange', onFs);
+614:    return () => window.removeEventListener('keydown', onKey);
+633:    return () => { clearTimeout(t); window.removeEventListener('afterprint', done); };
+647:  return (
+1050:                return (
+1135:        return (
+1164:                  return (
+1244:  return (

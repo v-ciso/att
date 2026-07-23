@@ -28,6 +28,8 @@ import {
   generateDemoSales, Aggregate, PersonStats, loadAttendance, attendanceForDate, todayStr,
 } from '@/lib/sales';
 import { Editable, parseNum, useLocalState } from '@/components/dashboard/editable-sections';
+import { SetupWizard, SETUP_DONE_KEY } from '@/components/dashboard/setup-wizard';
+import { readWorkspace } from '@/lib/workspace';
 
 const VALID_TABS = ['dashboard', 'tracker', 'roster', 'leaderboard', 'meeting', 'schedule', 'competition', 'pnl', 'commission', 'import'];
 
@@ -117,7 +119,7 @@ function StatCard({ label, value, sub, icon: Icon, color, onClick, className }: 
 
 function TabButton({ children, isActive, onClick }: { children: React.ReactNode; isActive: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} className={`tab-btn px-3 py-1.5 rounded-lg text-xs font-medium border transition ${isActive ? 'active' : 'inactive'}`}>
+    <button onClick={onClick} className={`tab-btn shrink-0 whitespace-nowrap px-3 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium border transition ${isActive ? 'active' : 'inactive'}`}>
       {children}
     </button>
   );
@@ -400,6 +402,17 @@ function DashboardContent() {
   const people = useMemo(loadPeople, [dataVersion]);
   const sales = useMemo(loadSales, [dataVersion]);
 
+  // First run on a real account: the roster is empty and there is nothing to
+  // derive from, so ask the few questions that make the rest of the app work.
+  // Demo never asks — it ships with a populated sample market.
+  const [setupDone, setSetupDone] = useState(true); // assume done until mounted
+  useEffect(() => {
+    const live = readWorkspace().mode === 'live';
+    const dismissed = localStorage.getItem(SETUP_DONE_KEY) === '1';
+    setSetupDone(!live || dismissed);
+  }, [dataVersion]);
+  const needsSetup = !setupDone && people.length === 0;
+
   const storeOptions = useMemo(() => {
     const set = new Set<string>();
     commission.stores.forEach(s => set.add(s.name));
@@ -633,6 +646,7 @@ function DashboardContent() {
 
   return (
     <DashboardLayout>
+      {needsSetup && <SetupWizard onDone={() => { setSetupDone(true); setDataVersion(v => v + 1); }} />}
       {/* Header — raised stacking context so its dropdowns paint over the cards below */}
       <div className="slide-in relative z-40 mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
@@ -903,7 +917,7 @@ function DashboardContent() {
               </div>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full min-w-[860px] text-xs">
                 <thead>
                   <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
                     <th className="pb-2">Rank</th><th className="pb-2">Rep</th><th className="pb-2">Store</th><th className="pb-2">Team</th>

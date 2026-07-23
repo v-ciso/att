@@ -14,7 +14,7 @@ const features = [
   { icon: Target, title: 'Meeting Mode', desc: 'Full-screen presentation with daily trackers, team overviews, and keyboard navigation', color: 'cyan' },
   { icon: DollarSign, title: 'Commission Engine', desc: 'Editable phone/fiber plans, store multipliers, and role-based overrides', color: 'green' },
   { icon: TrendingUp, title: 'P&L Management', desc: 'Revenue vs expenses, roadtrip reimbursement (60%), net profit margin tracking', color: 'yellow' },
-  { icon: Shield, title: 'White-Label Ready', desc: 'Custom branding, logo, colors, domain — sell as your own product', color: 'purple' },
+  { icon: Shield, title: 'Your Branding', desc: 'Drop in your own logo and pick your colors — the dashboard and every PDF report carry your company name', color: 'purple' },
 ];
 
 const plans = [
@@ -22,17 +22,17 @@ const plans = [
     name: 'Standard',
     price: '297',
     desc: 'Everything you need to run your market',
-    features: ['Full dashboard', 'Leaderboard & Meeting Mode', 'P&L & Commission Engine', 'Goals & Attendance', 'Up to 50 users', 'PDF exports'],
-    cta: 'Start Free Trial',
+    features: ['Full dashboard', 'Leaderboard & Meeting Mode', 'P&L & Commission Engine', 'Goals & Attendance', 'PDF exports', 'Email support'],
+    cta: 'Request Access',
     popular: false,
     color: 'blue' as const,
   },
   {
-    name: 'White-Label',
+    name: 'Branded',
     price: '494',
-    desc: 'Rebrand as your own product',
-    features: ['Everything in Standard', 'Custom branding & domain', 'Branded PDF exports', 'Unlimited users', 'Priority support', 'White-label login'],
-    cta: 'Start Free Trial',
+    desc: 'The same tool, carrying your company name',
+    features: ['Everything in Standard', 'Your logo & colors', 'Your name on PDF reports', 'Branded sign-in screen', 'Priority support', 'Onboarding session'],
+    cta: 'Request Access',
     popular: true,
     color: 'purple' as const,
   },
@@ -79,21 +79,24 @@ export default function DemoPage() {
           <Button size="lg" onClick={() => setShowDashboard(true)}>
             <Zap className="w-5 h-5" /> Launch Live Demo
           </Button>
-          <Button variant="secondary" size="lg" onClick={() => router.push('/register')}>
-            Start Free Trial <ArrowRight className="w-4 h-4" />
+          <Button variant="secondary" size="lg" onClick={() => router.push('/login')}>
+            Sign In <ArrowRight className="w-4 h-4" />
           </Button>
         </div>
-        <p className="text-text-muted text-sm mt-4">No credit card required · 14-day free trial</p>
+        <p className="text-text-muted text-sm mt-4">Accounts are set up for you — no sign-up form, no trial to cancel.</p>
       </section>
 
       {/* Stats Bar */}
       <section className="max-w-5xl mx-auto px-6 mb-20">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* Capability claims, not usage stats. The previous numbers ("15,000+
+              lines tracked", "$14M+ commission", "99.9% uptime") were invented —
+              real prospects ask for references behind figures like that. */}
           {[
-            { value: '15,000+', label: 'Lines Tracked' },
-            { value: '$14M+', label: 'Commission Calculated' },
-            { value: '500+', label: 'Teams Managed' },
-            { value: '99.9%', label: 'Uptime' },
+            { value: 'Every line', label: 'Priced through your own commission engine' },
+            { value: 'Zero typing', label: 'Revenue derives from logged sales' },
+            { value: 'Per store', label: 'Multipliers, shifts, and chargebacks' },
+            { value: 'One screen', label: 'Run the morning meeting from it' },
           ].map((stat) => (
             <Card key={stat.label} className="text-center p-6">
               <p className="text-2xl font-bold neon-text-blue">{stat.value}</p>
@@ -131,7 +134,9 @@ export default function DemoPage() {
       {/* Pricing */}
       <section className="max-w-4xl mx-auto px-6 mb-20">
         <h2 className="text-3xl font-bold text-center mb-4">Simple, Transparent Pricing</h2>
-        <p className="text-text-secondary text-center mb-12">Start with a 14-day free trial. No credit card required.</p>
+        <p className="text-text-secondary text-center mb-12">
+          Billed monthly through KGV Inc. We set your account up for you — try the live demo first.
+        </p>
         <div className="grid md:grid-cols-2 gap-6">
           {plans.map((plan) => (
             <Card key={plan.name} variant={plan.popular ? 'neon-purple' : 'elevated'} className={cn('p-8 relative', plan.popular && 'border-accent-purple/30')}>
@@ -147,7 +152,13 @@ export default function DemoPage() {
                   </li>
                 ))}
               </ul>
-              <Button fullWidth variant={plan.popular ? 'primary' : 'secondary'} onClick={() => router.push('/register')}>
+              {/* Accounts are provisioned by hand — /register is invite-only and
+                  would 403, so the CTA opens a conversation instead. */}
+              <Button
+                fullWidth
+                variant={plan.popular ? 'primary' : 'secondary'}
+                onClick={() => { window.location.href = `mailto:sameer@khatriinc.com?subject=${encodeURIComponent(`Sales Engine — ${plan.name} access`)}`; }}
+              >
                 {plan.cta}
               </Button>
             </Card>
@@ -158,13 +169,17 @@ export default function DemoPage() {
       {/* CTA */}
       <section className="text-center px-6 pb-20">
         <h2 className="text-3xl font-bold mb-4">Ready to <span className="neon-text-blue">Command Your Field</span>?</h2>
-        <p className="text-text-secondary mb-8">Join market owners who trust Sales Engine to run their business.</p>
+        <p className="text-text-secondary mb-8">Walk through the live demo, then we&apos;ll set your account up.</p>
         <div className="flex items-center justify-center gap-4 flex-wrap">
           <Button size="lg" onClick={() => setShowDashboard(true)}>
             <Zap className="w-5 h-5" /> Try Live Demo
           </Button>
-          <Button variant="secondary" size="lg" onClick={() => router.push('/register')}>
-            Start Free Trial
+          <Button
+            variant="secondary"
+            size="lg"
+            onClick={() => { window.location.href = 'mailto:sameer@khatriinc.com?subject=Sales%20Engine%20access'; }}
+          >
+            Request Access
           </Button>
         </div>
       </section>
@@ -202,7 +217,7 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
           <div className="flex items-center gap-3">
             <Badge variant="blue" dot>Live Preview</Badge>
             <Button variant="ghost" size="sm" onClick={onBack}>Back to Home</Button>
-            <Button size="sm" onClick={() => window.open('/register', '_blank')}>Get Started</Button>
+            <Button size="sm" onClick={() => { window.location.href = 'mailto:sameer@khatriinc.com?subject=Sales%20Engine%20access'; }}>Get Started</Button>
           </div>
         </div>
 
@@ -219,13 +234,19 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
 
         {/* Tabs */}
         <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1.5">
-          {['dashboard', 'leaderboard', 'commission', 'pnl'].map((tab) => (
+          {/* Explicit labels: capitalising the key rendered "pnl" as "Pnl". */}
+          {([
+            ['dashboard', 'Dashboard'],
+            ['leaderboard', 'Leaderboard'],
+            ['commission', 'Commission'],
+            ['pnl', 'P&L'],
+          ] as const).map(([tab, label]) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn('tab-btn px-4 py-2 rounded-lg text-sm font-medium border transition', activeTab === tab ? 'active' : 'inactive')}
             >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {label}
             </button>
           ))}
         </div>
@@ -430,7 +451,7 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
 
         {/* Demo Footer */}
         <div className="mt-8 text-center">
-          <p className="text-text-muted text-xs mb-4">This is a demo with sample data. <a href="/register" className="text-accent-blue hover:underline">Create your account</a> to get started.</p>
+          <p className="text-text-muted text-xs mb-4">This is a demo with sample data. <a href="mailto:sameer@khatriinc.com?subject=Sales%20Engine%20access" className="text-accent-blue hover:underline">Ask us for an account</a> to get started.</p>
         </div>
       </div>
     </div>

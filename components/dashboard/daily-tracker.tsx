@@ -280,7 +280,7 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
                 key={s}
                 onClick={() => markAttendance(p.name, status === s ? null : s)}
                 className={cn(
-                  'px-1.5 py-0.5 rounded text-[9px] font-semibold border transition-all',
+                  'px-2 py-1.5 sm:px-1.5 sm:py-0.5 rounded text-[11px] sm:text-[9px] font-semibold border transition-all',
                   status === s ? active : 'border-border-subtle text-text-muted hover:text-white hover:bg-white/5'
                 )}
               >
@@ -290,7 +290,7 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
             const late = latePreview(p.name);
             return (
               <div key={p.id} className="px-2.5 py-1.5 rounded-lg bg-white/[0.03]">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs truncate">{p.name}</span>
                   <span className="flex gap-1">
                     {chip('P', 'Present', 'bg-accent-green/20 text-accent-green border-accent-green/40')}
@@ -299,7 +299,7 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
                     <button
                       onClick={() => toggleLateOut(p.name)}
                       className={cn(
-                        'px-1.5 py-0.5 rounded text-[9px] font-semibold border transition-all',
+                        'px-2 py-1.5 sm:px-1.5 sm:py-0.5 rounded text-[11px] sm:text-[9px] font-semibold border transition-all',
                         late ? 'bg-accent-orange/20 text-accent-orange border-accent-orange/40' : 'border-border-subtle text-text-muted hover:text-white hover:bg-white/5'
                       )}
                       title="GPS late clock-out — charges the store's whole day at the Commission tab's $/line rate, split between late reps"
@@ -392,7 +392,7 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
                 </button>
                 <button
                   onClick={() => removeEntry(entry.id)}
-                  className="p-1 rounded text-text-muted opacity-0 group-hover:opacity-100 hover:text-accent-red transition-all"
+                  className="p-1 rounded text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red transition-all"
                   aria-label="Remove entry"
                 >
                   <Trash2 className="w-3.5 h-3.5" />

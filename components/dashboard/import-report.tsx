@@ -170,7 +170,7 @@ export function ImportReport({ sales, commission }: { sales: SaleEntry[]; commis
             )}
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="w-full min-w-[640px] text-xs">
               <thead>
                 <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
                   <th className="pb-2">Report Name</th><th className="pb-2">Matched</th>

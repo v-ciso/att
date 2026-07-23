@@ -35,14 +35,17 @@ export function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () =
     <div
       id="mobileMenu"
       className={cn(
-        'mobile-menu fixed inset-0 z-50 glass lg:hidden',
+        // Eleven nav items overflow a short viewport, and a fixed-position box
+        // does not extend the document scroll region — so the last few links
+        // were unreachable on an SE or in landscape.
+        'mobile-menu fixed inset-0 z-50 glass lg:hidden overflow-y-auto overscroll-contain',
         isOpen ? 'block' : 'hidden'
       )}
       role="dialog"
       aria-modal="true"
       aria-label="Mobile navigation"
     >
-      <div className="p-6 bg-bg-secondary/95 backdrop-blur-glass min-h-screen">
+      <div className="p-6 bg-bg-secondary/95 backdrop-blur-glass min-h-full">
         <div className="flex items-center justify-between mb-8">
           <Logo />
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/5 transition-colors" aria-label="Close menu">

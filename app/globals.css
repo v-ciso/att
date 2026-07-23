@@ -90,6 +90,19 @@
   ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.2);
   }
+
+  /* iOS Safari zooms the page in whenever a focused control computes under
+     16px — and never zooms back out. Every control here is 12px or smaller, so
+     the first tap on any field left the whole dashboard zoomed and scrolled
+     sideways for the rest of the session. Phones only; desktop density kept. */
+  @media (max-width: 640px) {
+    input,
+    select,
+    textarea,
+    [contenteditable] {
+      font-size: 16px !important;
+    }
+  }
 }
 
 @layer components {
@@ -161,9 +174,12 @@
     @apply block text-xs font-medium text-gray-400 mb-1.5;
   }
 
+  /* shrink-0 + whitespace-nowrap make the tab strip actually SCROLL. Without
+     them the ten tabs compress to min-content and wrap into two-line stubs.
+     py-2.5 gives a 44px touch target on phones; desktop keeps its density. */
   .tab-btn {
-    @apply px-3 py-1.5 rounded-lg text-xs font-medium border transition-all duration-200
-           cursor-pointer select-none;
+    @apply shrink-0 whitespace-nowrap px-3 py-2.5 sm:py-1.5 rounded-lg text-xs font-medium
+           border transition-all duration-200 cursor-pointer select-none;
     -webkit-tap-highlight-color: transparent;
   }
 

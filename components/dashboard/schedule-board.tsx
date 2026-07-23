@@ -78,7 +78,9 @@ export function ScheduleBoard({ people, storeOptions, compact = false }: { peopl
         </div>
       </div>
       <div className="overflow-x-auto">
-        <table className={cn('w-full', fs ? 'text-sm' : 'text-[11px]')}>
+        {/* min-w forces the existing overflow-x wrapper to actually scroll —
+            without it an 8-column grid squeezes to one letter per line. */}
+        <table className={cn('w-full min-w-[680px]', fs ? 'text-sm' : 'text-[11px]')}>
           <thead>
             <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
               <th className="pb-1.5 pr-2">Rep</th>

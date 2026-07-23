@@ -159,7 +159,7 @@ export function TeamTree({ people, assignTeam }: TeamTreeProps) {
             >
               <button
                 onClick={() => removeTeam(ti)}
-                className="absolute top-2 right-2 p-1 rounded-lg text-text-muted opacity-0 group-hover:opacity-100 hover:text-accent-red hover:bg-accent-red/10 transition-all"
+                className="absolute top-2 right-2 p-1 rounded-lg text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red hover:bg-accent-red/10 transition-all"
                 aria-label={`Remove ${team.name}`}
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -186,7 +186,7 @@ export function TeamTree({ people, assignTeam }: TeamTreeProps) {
                     <PersonChip person={asm} small />
                     <button
                       onClick={() => unassign(asm.name)}
-                      className="text-[10px] text-text-muted opacity-0 group-hover/slot:opacity-100 hover:text-accent-red transition-all"
+                      className="text-[10px] text-text-muted opacity-100 md:opacity-0 md:group-hover/slot:opacity-100 hover:text-accent-red transition-all"
                       aria-label={`Remove ${asm.name} as ASM`}
                       title="Unassign"
                     >
@@ -208,7 +208,7 @@ export function TeamTree({ people, assignTeam }: TeamTreeProps) {
                       <PersonChip person={lead} small />
                       <button
                         onClick={() => unassign(lead.name)}
-                        className="text-[10px] text-text-muted opacity-0 group-hover/slot:opacity-100 hover:text-accent-red transition-all"
+                        className="text-[10px] text-text-muted opacity-100 md:opacity-0 md:group-hover/slot:opacity-100 hover:text-accent-red transition-all"
                         aria-label={`Remove ${lead.name} as Lead`}
                         title="Unassign"
                       >

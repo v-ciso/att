@@ -49,7 +49,7 @@ export function LeaderboardRow({ entry, teamName, onEdit, onRemove, onOpenProfil
           {onOpenProfile && (
             <button
               onClick={onOpenProfile}
-              className="p-0.5 rounded text-text-muted opacity-0 group-hover:opacity-100 hover:text-accent-blue transition-all"
+              className="p-0.5 rounded text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-blue transition-all"
               aria-label={`View ${entry.name}'s profile`}
               title="View profile & roadmap"
             >
@@ -83,7 +83,7 @@ export function LeaderboardRow({ entry, teamName, onEdit, onRemove, onOpenProfil
       <td className="py-2 text-right">
         <button
           onClick={onRemove}
-          className="p-1.5 rounded-lg text-text-muted opacity-0 group-hover:opacity-100 hover:text-accent-red hover:bg-accent-red/10 transition-all"
+          className="p-1.5 rounded-lg text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red hover:bg-accent-red/10 transition-all"
           aria-label={`Remove ${entry.name}`}
         >
           <Trash2 className="w-3.5 h-3.5" />

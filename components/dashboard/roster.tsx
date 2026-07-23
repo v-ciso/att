@@ -9,6 +9,7 @@ import { Trash2, TrendingUp, Award, UserPlus, Pencil, ChevronDown, Plus, Store a
 import { TeamTree } from './team-tree';
 import { notifyDataChanged } from '@/lib/sales';
 import { RETAILERS } from '@/lib/shifts';
+import { seedForWorkspace } from '@/lib/workspace';
 
 // ---------------------------------------------------------------------------
 // People — the single roster every view joins against. A person can work one
@@ -73,10 +74,13 @@ export function primaryStore(p: Person): string {
 }
 
 export function loadPeople(): Person[] {
-  if (typeof window === 'undefined') return DEFAULT_PEOPLE;
+  // Sample reps are a demo device — a live account starts with an empty roster
+  // and fills it through the setup wizard, so no invented staff ever appears
+  // next to real numbers.
+  if (typeof window === 'undefined') return [];
   try {
     const saved = localStorage.getItem(PEOPLE_KEY);
-    if (!saved) return DEFAULT_PEOPLE;
+    if (!saved) return seedForWorkspace(DEFAULT_PEOPLE, []);
     const raw = JSON.parse(saved) as Array<Person & { store?: string }>;
     // Migrate single `store` → `stores[]`
     return raw.map(p => ({
@@ -85,7 +89,7 @@ export function loadPeople(): Person[] {
       hourlyWeekly: p.hourlyWeekly ?? 0,
     }));
   } catch {
-    return DEFAULT_PEOPLE;
+    return seedForWorkspace(DEFAULT_PEOPLE, []);
   }
 }
 
@@ -269,7 +273,7 @@ function StoresManager() {
               ×<Editable value={String(s.multiplier)} onCommit={(v) => setMult(i, parseNum(v))} />
             </span>
             {stores.length > 1 && (
-              <button onClick={() => remove(i)} className="text-text-muted opacity-0 group-hover:opacity-100 hover:text-accent-red transition-all" aria-label={`Remove ${s.name}`}>
+              <button onClick={() => remove(i)} className="text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red transition-all" aria-label={`Remove ${s.name}`}>
                 <Trash2 className="w-3 h-3" />
               </button>
             )}
@@ -431,7 +435,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
 
       {/* People table */}
       <div className="overflow-x-auto">
-        <table className="w-full text-xs">
+        <table className="w-full min-w-[1000px] text-xs">
           <thead>
             <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
               <th className="pb-2 pr-2">Employee</th>
@@ -468,7 +472,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                         </button>
                         <button
                           onClick={() => setEditingId(person.id)}
-                          className="p-0.5 rounded text-text-muted opacity-0 group-hover:opacity-100 hover:text-white transition-all"
+                          className="p-0.5 rounded text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-white transition-all"
                           aria-label={`Rename ${person.name}`}
                           title="Rename"
                         >
@@ -543,7 +547,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                   <td className="py-2 text-right">
                     <button
                       onClick={() => removePerson(person.id)}
-                      className="p-1.5 rounded-lg text-text-muted opacity-0 group-hover:opacity-100 hover:text-accent-red hover:bg-accent-red/10 transition-all"
+                      className="p-1.5 rounded-lg text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red hover:bg-accent-red/10 transition-all"
                       aria-label={`Remove ${person.name}`}
                     >
                       <Trash2 className="w-3.5 h-3.5" />

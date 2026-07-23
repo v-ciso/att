@@ -49,6 +49,17 @@ export function setWorkspace(ws: Workspace) {
   window.location.reload();
 }
 
+// Seed data (sample reps, sample teams, sample P&L lines) is a DEMO device. A
+// live account must start empty, or the owner sees invented staff and invented
+// money on day one and cannot tell which numbers are real.
+//
+//   const people = seedForWorkspace(DEFAULT_PEOPLE, []);
+//
+// Returns `demoValue` only in the demo workspace; `liveValue` otherwise.
+export function seedForWorkspace<T>(demoValue: T, liveValue: T): T {
+  return readWorkspace().mode === 'demo' ? demoValue : liveValue;
+}
+
 /** Wipe just the active bucket — used by "Reset demo data". */
 export function clearWorkspaceData(ws: Workspace) {
   const prefix = storagePrefix(ws);
