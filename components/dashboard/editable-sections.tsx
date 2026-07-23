@@ -739,12 +739,32 @@ export function PnlEditor({ derived }: { derived: PnlDerivedByView }) {
           onEdit={editRoadtrip} onAdd={addRoadtrip} onRemove={removeRoadtrip}
           footer={
             <>
-              <p className="mt-2 text-[11px] text-text-secondary">
-                One-time charge, paid up front. AT&amp;T / parent company reimburses{' '}
-                <span className="text-accent-orange font-semibold">
-                  <Editable value={String(state.reimburseRate)} onCommit={(v) => setState(p => ({ ...p, reimburseRate: parseNum(v) }))} />%
-                </span>{' '}
-                about {REIMBURSE_LAG_DAYS} days later — counted as revenue only once it lands.
+              {/* This was a bare contenteditable span — it looked like text, so
+                  nobody could tell the rate was editable. A real number input
+                  with a visible border and stepper reads as a control. */}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <label htmlFor="reimburse-rate" className="text-[11px] text-text-secondary">
+                  Reimbursed by AT&amp;T
+                </label>
+                <span className="flex items-center gap-1">
+                  <input
+                    id="reimburse-rate"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={state.reimburseRate}
+                    onChange={e => setState(p => ({ ...p, reimburseRate: Math.min(100, Math.max(0, parseNum(e.target.value))) }))}
+                    className="w-16 bg-bg-tertiary border border-border-subtle rounded-lg px-2 py-1 text-xs text-accent-orange font-semibold text-right focus:outline-none focus:border-accent-orange/50"
+                  />
+                  <span className="text-[11px] text-accent-orange font-semibold">%</span>
+                </span>
+                <span className="text-[11px] text-text-muted">
+                  about {REIMBURSE_LAG_DAYS} days after the trip
+                </span>
+              </div>
+              <p className="mt-1.5 text-[11px] text-text-muted">
+                One-time charge, paid up front — counted as revenue only once the money lands.
               </p>
               {trips.outstanding > 0 && (
                 <div className="mt-2 p-2 rounded-lg bg-accent-orange/5 border border-accent-orange/20 flex justify-between text-xs">

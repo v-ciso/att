@@ -9,12 +9,15 @@ import { todayStr } from '@/lib/sales';
 import { Person } from './roster';
 import { SHIFT_CODES, shiftTime, encodeShift } from '@/lib/shifts';
 
-// Who's where, next 7 days. Its own component so it can live as a tab, be
+// Who is where, over the next 7-30 days. Its own component so it can live as
 // presented fullscreen, and stay in sync (writes se-schedule-v1, which the
 // Daily Tracker cross-references to lock each sale to the scheduled store).
 export function ScheduleBoard({ people, storeOptions, compact = false }: { people: Person[]; storeOptions: string[]; compact?: boolean }) {
   const { state: schedule, setState: setSchedule } = useLocalState<Record<string, Record<string, string>>>('se-schedule-v1', {});
-  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => todayStr(i)), []);
+  // Rosters get built weeks ahead, not day-of. Compact (Meeting Mode) keeps the
+  // 7-day glance; the full tab can plan a fortnight or a month out.
+  const [range, setRange] = useState<7 | 14 | 30>(compact ? 7 : 14);
+  const days = useMemo(() => Array.from({ length: range }, (_, i) => todayStr(i)), [range]);
   const setShift = (date: string, person: string, store: string) =>
     setSchedule(prev => ({ ...prev, [date]: { ...(prev[date] ?? {}), [person]: store } }));
 
@@ -67,7 +70,20 @@ export function ScheduleBoard({ people, storeOptions, compact = false }: { peopl
           <CalendarCheck className={cn(compact ? 'w-4 h-4' : 'w-5 h-5')} style={{ color: 'var(--brand)' }} />
           {compact ? "Schedule · who's where" : 'Schedule'}
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {!compact && (
+            <div className="flex gap-1.5">
+              {([7, 14, 30] as const).map(r => (
+                <button
+                  key={r}
+                  onClick={() => setRange(r)}
+                  className={cn('tab-btn', range === r ? 'active' : 'inactive')}
+                >
+                  {r}d
+                </button>
+              ))}
+            </div>
+          )}
           <Button variant="secondary" size="sm" onClick={copy}>
             {copied ? '✓ Copied' : '📋 Copy for chat'}
           </Button>
@@ -85,7 +101,7 @@ export function ScheduleBoard({ people, storeOptions, compact = false }: { peopl
       <div className="overflow-x-auto">
         {/* min-w forces the existing overflow-x wrapper to actually scroll —
             without it an 8-column grid squeezes to one letter per line. */}
-        <table className={cn('w-full min-w-[680px]', fs ? 'text-sm' : 'text-[11px]')}>
+        <table className={cn('w-full', fs ? 'text-sm' : 'text-[11px]')} style={{ minWidth: `${140 + days.length * 78}px` }}>
           <thead>
             <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
               <th className="pb-1.5 pr-2">Rep</th>
@@ -133,8 +149,50 @@ export function ScheduleBoard({ people, storeOptions, compact = false }: { peopl
               </tr>
             ))}
           </tbody>
+          {/* Coverage: every store you actually run, and whether anyone is on
+              it that day. An unstaffed store is a day of zero production, so it
+              needs to be visible while you build the roster, not discovered
+              afterwards. */}
+          <tfoot className="border-t-2 border-border-strong">
+            <tr>
+              <td colSpan={days.length + 1} className="pt-2 pb-1">
+                <span className="text-[10px] uppercase tracking-wider text-text-muted">Store coverage</span>
+              </td>
+            </tr>
+            {storeOptions.map(store => (
+              <tr key={store}>
+                <td className={cn('pr-2 whitespace-nowrap text-text-secondary', cell)}>{store}</td>
+                {days.map(d => {
+                  const staffed = people.filter(p => {
+                    const v = schedule[d]?.[p.name];
+                    return v && v !== 'OFF' && v.split('|')[0] === store;
+                  }).length;
+                  return (
+                    <td key={d} className="py-1 px-0.5 text-center">
+                      <span
+                        className={cn(
+                          'inline-block min-w-[22px] px-1 py-0.5 rounded text-[10px] font-semibold border',
+                          staffed > 0
+                            ? 'border-accent-green/30 bg-accent-green/10 text-accent-green'
+                            : 'border-accent-red/30 bg-accent-red/10 text-accent-red'
+                        )}
+                        title={staffed > 0 ? `${staffed} scheduled at ${store}` : `${store} is UNSTAFFED on ${d}`}
+                      >
+                        {staffed > 0 ? staffed : '—'}
+                      </span>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tfoot>
         </table>
       </div>
+      {storeOptions.length === 0 && (
+        <p className="mt-2 text-[11px] text-text-muted p-3 rounded-xl bg-white/5">
+          No stores yet — add them in the Commission tab or run the setup guide, and coverage will appear here.
+        </p>
+      )}
       <p className="mt-2 text-[10px] text-text-muted">
         Set it in the morning meeting — the Daily Tracker locks each rep&apos;s sales to their scheduled store, and Copy exports it for Discord/iMessage.
       </p>

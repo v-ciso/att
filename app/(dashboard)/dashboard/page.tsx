@@ -18,7 +18,7 @@ import {
 import { MeetingTracker } from '@/components/dashboard/dashboard-components';
 import { CommissionEngine, PnlEditor, TeamData } from '@/components/dashboard/editable-sections';
 import { ReportTemplate } from '@/components/dashboard/report-template';
-import { RosterManager, loadPeople } from '@/components/dashboard/roster';
+import { RosterManager, loadPeople, ROSTER_ROLE_LABELS } from '@/components/dashboard/roster';
 import { Competition } from '@/components/dashboard/competition';
 import { ScheduleBoard } from '@/components/dashboard/schedule-board';
 import { ImportReport } from '@/components/dashboard/import-report';
@@ -32,6 +32,7 @@ import {
 import { Editable, parseNum, useLocalState } from '@/components/dashboard/editable-sections';
 import { SetupWizard, SETUP_DONE_KEY, SETUP_FORCE_KEY } from '@/components/dashboard/setup-wizard';
 import { PromoPanel } from '@/components/dashboard/promo-panel';
+import { computePay } from '@/lib/pay';
 import { readWorkspace } from '@/lib/workspace';
 
 const VALID_TABS = ['dashboard', 'tracker', 'roster', 'leaderboard', 'meeting', 'schedule', 'competition', 'pnl', 'commission', 'import'];
@@ -485,6 +486,7 @@ function DashboardContent() {
   const [storeSel, setStoreSel] = useState<string[]>([]);
   const [pickDate, setPickDate] = useState(''); // specific day report, e.g. last Monday
   const { state: campaign, setState: setCampaign } = useLocalState('se-campaign-v1', 'AT&T Retail EDM');
+  const b2b = isB2B(campaign);
 
   const commission = useMemo(loadCommission, [dataVersion]);
   const people = useMemo(loadPeople, [dataVersion]);
@@ -603,6 +605,9 @@ function DashboardContent() {
   const [kpiDrawer, setKpiDrawer] = useState<KpiMetric | null>(null);
   const { data: session } = useSession();
   const isOwner = session?.user?.role === 'OWNER';
+  // Sample-data generators must never appear on a live book.
+  const [isDemoWorkspace, setIsDemoWorkspace] = useState(false);
+  useEffect(() => setIsDemoWorkspace(readWorkspace().mode === 'demo'), []);
   const [profileName, setProfileName] = useState<string | null>(null);
   const [teamDrawerName, setTeamDrawerName] = useState<string | null>(null);
   const [expandChart, setExpandChart] = useState<'trend' | 'mix' | null>(null);
@@ -626,6 +631,17 @@ function DashboardContent() {
     () => aggregateSales(sales, commission, { period: meetingPeriod, stores: storeSel }),
     [sales, commission, meetingPeriod, storeSel]
   );
+  // Leads and ASMs earn off other people's production, so their pay is not
+  // visible anywhere in their own sales row.
+  const leadershipPay = useMemo(
+    () => people
+      .filter(p => p.role === 'LEAD' || p.role === 'ASM')
+      .map(person => ({ person, pay: computePay(person, { sales, commission, people, period: meetingPeriod }) }))
+      .filter(x => x.pay.total > 0)
+      .sort((a, b) => b.pay.total - a.pay.total),
+    [people, sales, commission, meetingPeriod]
+  );
+
   const meetingTeams = useMemo(() => {
     let teams: TeamData[] = [];
     try { teams = JSON.parse(localStorage.getItem('se-teams-v2') || '[]'); } catch { /* none */ }
@@ -769,6 +785,9 @@ function DashboardContent() {
             <input
               type="date"
               value={pickDate}
+              // You cannot report a day that has not happened. Picking a future
+              // date used to show a dashboard of zeros with no explanation.
+              max={todayStr()}
               onChange={e => setPickDate(e.target.value)}
               className="bg-bg-tertiary border border-border-subtle rounded-lg px-2 py-1.5 text-xs text-text-secondary focus:outline-none focus:border-accent-blue/50 cursor-pointer"
               aria-label="Report a specific date"
@@ -778,7 +797,7 @@ function DashboardContent() {
               <button onClick={() => setPickDate('')} className="p-1 rounded text-text-muted hover:text-accent-red transition-colors" aria-label="Clear date">✕</button>
             )}
           </span>
-          <StoreSelect options={storeOptions} selected={storeSel} onChange={setStoreSel} />
+          {!b2b && <StoreSelect options={storeOptions} selected={storeSel} onChange={setStoreSel} />}
           <Button onClick={() => setExporting(true)} size="sm">
             <FileText className="w-4 h-4" /> Export PDF
           </Button>
@@ -793,11 +812,16 @@ function DashboardContent() {
         <Badge variant="gray" className="text-xs flex items-center gap-1.5">
           <Building2 className="w-3 h-3" /> {campaign}
         </Badge>
-        <Badge variant="gray" className="text-xs flex items-center gap-1.5">
-          <MapPin className="w-3 h-3" /> {storeOptions.length} Stores
-        </Badge>
+        {/* B2B reps work AREAS, not assigned stores, so the store chip and the
+            "all stores" suffix would both be lying about the model. */}
+        {!b2b && (
+          <Badge variant="gray" className="text-xs flex items-center gap-1.5">
+            <MapPin className="w-3 h-3" /> {storeOptions.length} {storeOptions.length === 1 ? 'Store' : 'Stores'}
+          </Badge>
+        )}
         <Badge variant="blue" className="text-xs">
-          {pickDate ? `Date: ${pickDate}` : `${PERIOD_LABELS[period]} view`}{storeSel.length ? ` · ${storeSel.join(', ')}` : ' · all stores'}
+          {pickDate ? `Date: ${pickDate}` : `${PERIOD_LABELS[period]} view`}
+          {b2b ? '' : storeSel.length ? ` · ${storeSel.join(', ')}` : ' · all stores'}
         </Badge>
       </div>
 
@@ -826,7 +850,30 @@ function DashboardContent() {
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => switchTab('tracker')}><ClipboardList className="w-3.5 h-3.5" /> Open Tracker</Button>
-                  <Button variant="secondary" size="sm" onClick={generateDemo}><Sparkles className="w-3.5 h-3.5" /> Generate Demo Data</Button>
+                  {isDemoWorkspace && (
+                    <Button variant="secondary" size="sm" onClick={generateDemo}><Sparkles className="w-3.5 h-3.5" /> Generate Demo Data</Button>
+                  )}
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* There IS data, just none in the window you are looking at. Without
+              this the dashboard reads as broken ("my sales didn't sync") when
+              the filter is simply pointed somewhere empty. */}
+          {hasData && agg.perPerson.length === 0 && (
+            <Card className="mb-4 p-4 border-accent-yellow/30">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs text-text-secondary">
+                  <span className="font-semibold text-white">No sales in this view.</span>{' '}
+                  You have {sales.length} logged {sales.length === 1 ? 'entry' : 'entries'} — they just fall outside{' '}
+                  {pickDate ? `${pickDate}` : `the ${PERIOD_LABELS[period].toLowerCase()} window`}
+                  {storeSel.length > 0 && ' or the selected stores'}.
+                </p>
+                <div className="flex gap-2">
+                  {pickDate && <Button variant="secondary" size="sm" onClick={() => setPickDate('')}>Clear date</Button>}
+                  {storeSel.length > 0 && <Button variant="secondary" size="sm" onClick={() => setStoreSel([])}>All stores</Button>}
+                  {period !== 'all' && <Button variant="secondary" size="sm" onClick={() => { setPeriod('all'); setPickDate(''); }}>Show all time</Button>}
                 </div>
               </div>
             </Card>
@@ -1108,6 +1155,47 @@ function DashboardContent() {
                 </div>
               ))}
             </div>
+
+            {/* Leadership earnings were computed in lib/pay.ts but only visible
+                by opening one rep's profile. Leads and ASMs get paid off other
+                people's production, so it belongs on the screen you present. */}
+            {leadershipPay.length > 0 && (
+              <div className="mb-5">
+                <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-2">
+                  <Trophy className="w-4 h-4" style={{ color: 'var(--brand)' }} /> Leadership earnings · {PERIOD_LABELS[meetingPeriod]}
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[520px] text-xs">
+                    <thead>
+                      <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
+                        <th className="pb-2">Name</th><th className="pb-2">Role</th>
+                        <th className="pb-2 text-right">Own sales</th>
+                        <th className="pb-2 text-right">Lead bump</th>
+                        <th className="pb-2 text-right">ASM override</th>
+                        <th className="pb-2 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-subtle">
+                      {leadershipPay.map(({ person, pay }) => (
+                        <tr key={person.id} className="hover:bg-white/5 transition-colors">
+                          <td className="py-2">
+                            <button onClick={() => setProfileName(person.name)} className="font-medium hover:underline">{person.name}</button>
+                          </td>
+                          <td className="py-2 text-text-muted">{ROSTER_ROLE_LABELS[person.role]}</td>
+                          <td className="py-2 text-right">{formatCurrency(pay.base)}</td>
+                          <td className="py-2 text-right text-accent-purple">{pay.bump > 0 ? formatCurrency(pay.bump) : '—'}</td>
+                          <td className="py-2 text-right text-accent-yellow">
+                            {pay.override > 0 ? formatCurrency(pay.override) : '—'}
+                            {pay.teamRevenue > 0 && <span className="block text-[9px] text-text-muted">on {formatCurrency(pay.teamRevenue)} team</span>}
+                          </td>
+                          <td className="py-2 text-right text-accent-green font-bold">{formatCurrency(pay.total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-2">
               <Users className="w-4 h-4" /> Teams · live from members&apos; sales

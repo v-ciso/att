@@ -10,6 +10,7 @@ import {
   LateOutBook, loadLateOuts, saveLateOuts, isPhonePlan, scheduledStore,
 } from '@/lib/sales';
 import { loadPeople } from './roster';
+import { readWorkspace } from '@/lib/workspace';
 
 interface DailyTrackerProps {
   onDataChange: () => void; // tells the dashboard to recompute derived stats
@@ -21,7 +22,9 @@ const selectClass =
 
 export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   const [sales, setSales] = useState<SaleEntry[]>([]);
+  const [isDemo, setIsDemo] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  useEffect(() => setIsDemo(readWorkspace().mode === 'demo'), []);
   const commission = useMemo(loadCommission, [sales]); // reread after changes
   const people = useMemo(loadPeople, [sales]);
   const plans = useMemo(
@@ -197,9 +200,12 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
             {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
             {isFullscreen ? 'Exit' : 'Present'}
           </Button>
-          <Button variant="secondary" size="sm" onClick={generateDemo}>
-            <Sparkles className="w-3.5 h-3.5" /> Generate Demo Data
-          </Button>
+          {/* Sample data is a pitching device — never offer it on a live book. */}
+          {isDemo && (
+            <Button variant="secondary" size="sm" onClick={generateDemo}>
+              <Sparkles className="w-3.5 h-3.5" /> Generate Demo Data
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={clearAll}>↻ Clear All</Button>
         </div>
       </div>
