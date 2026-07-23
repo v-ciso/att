@@ -103,8 +103,13 @@ export function getOverrideRules(rules: CommissionRule[]): OverrideRule[] {
 }
 
 function getSubordinateRoles(role: Role): Role[] {
+  // MANAGER and VIEWER are ACCESS roles, not rungs on the sales ladder — they
+  // describe what someone may do in the app, not who reports to them, so they
+  // earn no override off anyone's production.
   const hierarchy: Record<Role, Role[]> = {
     OWNER: ['ASM', 'LEAD', 'REP', 'INTERN'],
+    MANAGER: [],
+    VIEWER: [],
     ASM: ['LEAD', 'REP', 'INTERN'],
     LEAD: ['REP', 'INTERN'],
     REP: [],

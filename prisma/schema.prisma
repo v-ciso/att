@@ -16,7 +16,9 @@ datasource db {
 }
 
 enum Role {
-  OWNER
+  OWNER    // the market owner: full edit, billing contact, sets the campaign
+  MANAGER  // edit access to their company's data, no billing/branding
+  VIEWER   // read-only: can see every screen, can change nothing
   ASM
   LEAD
   REP

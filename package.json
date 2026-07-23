@@ -13,6 +13,8 @@
     "db:studio": "prisma studio",
     "db:seed": "npx tsx scripts/seed-demo.ts",
     "admin:create": "npx tsx scripts/create-admin.ts",
+    "admin:adduser": "npx tsx scripts/add-user.ts",
+    "admin:audit": "npx tsx scripts/audit-db.ts",
     "test:roadtrips": "npx tsx lib/roadtrips.test.ts",
     "postinstall": "prisma generate"
   },
