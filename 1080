@@ -1,9 +1,0 @@
-34:import { PromoPanel } from '@/components/dashboard/promo-panel';
-633:  const meetingTeams = useMemo(() => {
-677:  // Weekly commitments: each rep calls their number at the morning meeting —
-1148:              <Users className="w-4 h-4" /> Teams · live from members&apos; sales
-1152:              {meetingTeams.map((team, i) => (
-1171:              {meetingTeams.length === 0 && (
-1175:            {/* Weekly commitments — reps call their number at the meeting */}
-1218:            <PromoPanel />
-1265:        const team = meetingTeams.find(t => t.name === teamDrawerName);
