@@ -358,10 +358,34 @@
     @apply animate-pulse-glow;
   }
 
-  /* Presentation mode: panel fullscreened onto a TV/projector */
+  /* Presentation mode: panel fullscreened onto a TV/projector.
+     The brand-coloured ambient orbs live in DashboardLayout as FIXED siblings
+     of <main>, so the top layer paints straight over them and the gold wash
+     vanished the moment you hit Present — flat black plus whatever accents
+     were left. Re-create the wash here from the same token. */
   #tab-meeting:fullscreen,
   .presentable:fullscreen {
-    @apply bg-bg-primary overflow-auto;
+    @apply overflow-auto;
+    background-color: #000;
+    background-image:
+      radial-gradient(58vw 58vw at 88% -12%, rgba(var(--brand-rgb), 0.16), transparent 62%),
+      radial-gradient(40vw 40vw at -6% 112%, rgba(var(--brand-rgb), 0.08), transparent 60%);
+    background-attachment: fixed;
+    padding: clamp(1rem, 4vw, 4rem);
+  }
+  #tab-meeting::backdrop,
+  .presentable::backdrop {
+    background: #000;
+  }
+  /* Safari <=16.3 only knows :-webkit-full-screen, and one unrecognised
+     selector invalidates the whole list — so this must stay a separate rule. */
+  #tab-meeting:-webkit-full-screen,
+  .presentable:-webkit-full-screen {
+    overflow: auto;
+    background-color: #000;
+    background-image:
+      radial-gradient(58vw 58vw at 88% -12%, rgba(var(--brand-rgb), 0.16), transparent 62%),
+      radial-gradient(40vw 40vw at -6% 112%, rgba(var(--brand-rgb), 0.08), transparent 60%);
     padding: clamp(1rem, 4vw, 4rem);
   }
   #tab-meeting:fullscreen > *,

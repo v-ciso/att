@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
-import { Database, FlaskConical, Lock, LogOut, RotateCcw } from 'lucide-react';
+import { Database, FlaskConical, Lock, LogOut, RotateCcw, Wand2 } from 'lucide-react';
 import {
   DataMode, Workspace, DEFAULT_WORKSPACE, readWorkspace, setWorkspace, clearWorkspaceData,
 } from '@/lib/workspace';
+import { reopenSetup } from './setup-wizard';
 
 // Demo vs Live is a real data boundary, not a display filter: each mode reads
 // and writes its own localStorage bucket (see lib/workspace.ts). Pitching from
@@ -61,6 +62,17 @@ export function WorkspaceSwitcher() {
           label="Live" onClick={() => switchTo('live')}
         />
       </div>
+
+      {/* Skipping the setup wizard used to be one-way — there was no route back
+          to it. Owner-only, live-only, since demo ships already populated. */}
+      {ws.mode === 'live' && isOwner && (
+        <button
+          onClick={reopenSetup}
+          className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] text-text-muted hover:text-white hover:bg-white/5 transition-colors"
+        >
+          <Wand2 className="w-3 h-3" /> Run setup guide
+        </button>
+      )}
 
       {ws.mode === 'demo' ? (
         <button

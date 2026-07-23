@@ -1,0 +1,4 @@
+21:import { Competition } from '@/components/dashboard/competition';
+712:        <TabButton isActive={activeTab === 'competition'} onClick={() => switchTab('competition')}>Competition</TabButton>
+1075:              <Competition sales={sales} commission={commission} storeOptions={storeOptions} compact />
+1102:            <Competition sales={sales} commission={commission} storeOptions={storeOptions} />

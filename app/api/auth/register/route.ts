@@ -98,28 +98,33 @@ export async function POST(request: NextRequest) {
       await tx.commissionRule.createMany({
         data: [
           // Phone plans
-          { marketOwnerId: marketOwner.id, category: 'PHONE', planName: 'Premium 2.0', baseAmount: 35, multiplier: 1 },
-          { marketOwnerId: marketOwner.id, category: 'PHONE', planName: 'Premium 2.0 + Next Up', baseAmount: 40, multiplier: 1 },
-          { marketOwnerId: marketOwner.id, category: 'PHONE', planName: 'Extra 2.0', baseAmount: 30, multiplier: 1 },
-          { marketOwnerId: marketOwner.id, category: 'PHONE', planName: 'Value 2.0', baseAmount: 20, multiplier: 1 },
-          { marketOwnerId: marketOwner.id, category: 'PHONE', planName: 'Upgrades', baseAmount: 15, multiplier: 1 },
-          { marketOwnerId: marketOwner.id, category: 'PHONE', planName: 'Next Up Anytime', baseAmount: 10, multiplier: 1 },
+          // baseAmount = OFFICE payout per unit at Tier 5 (what AT&T deposits),
+          // not the rep's cut. Next Up adds $15 on top of a line; Insurance $10.
+          { marketOwnerId: marketOwner.id, category: 'PHONE', planName: 'Premium 2.0', baseAmount: 144, multiplier: 1 },
+          { marketOwnerId: marketOwner.id, category: 'PHONE', planName: 'Extra 2.0', baseAmount: 134, multiplier: 1 },
+          { marketOwnerId: marketOwner.id, category: 'PHONE', planName: 'Value 2.0', baseAmount: 124, multiplier: 1 },
+          { marketOwnerId: marketOwner.id, category: 'PHONE', planName: 'Upgrades', baseAmount: 60, multiplier: 1 },
+          { marketOwnerId: marketOwner.id, category: 'PHONE', planName: 'Next Up Anytime', baseAmount: 15, multiplier: 1 },
+          { marketOwnerId: marketOwner.id, category: 'PHONE', planName: 'Insurance', baseAmount: 10, multiplier: 1 },
           // Fiber plans
-          { marketOwnerId: marketOwner.id, category: 'FIBER', planName: 'Internet Air', baseAmount: 25, multiplier: 1 },
-          { marketOwnerId: marketOwner.id, category: 'FIBER', planName: 'Fiber 300', baseAmount: 25, multiplier: 1 },
-          { marketOwnerId: marketOwner.id, category: 'FIBER', planName: 'Fiber 500', baseAmount: 35, multiplier: 1 },
-          { marketOwnerId: marketOwner.id, category: 'FIBER', planName: 'Fiber 1GIG', baseAmount: 50, multiplier: 1 },
-          { marketOwnerId: marketOwner.id, category: 'FIBER', planName: 'Fiber 2GIG', baseAmount: 75, multiplier: 1 },
-          { marketOwnerId: marketOwner.id, category: 'FIBER', planName: 'Fiber 5GIG', baseAmount: 100, multiplier: 1 },
+          { marketOwnerId: marketOwner.id, category: 'FIBER', planName: 'Internet Air', baseAmount: 40, multiplier: 1 },
+          { marketOwnerId: marketOwner.id, category: 'FIBER', planName: 'Fiber 300', baseAmount: 250, multiplier: 1 },
+          { marketOwnerId: marketOwner.id, category: 'FIBER', planName: 'Fiber 500', baseAmount: 300, multiplier: 1 },
+          { marketOwnerId: marketOwner.id, category: 'FIBER', planName: 'Fiber 1GIG', baseAmount: 360, multiplier: 1 },
+          { marketOwnerId: marketOwner.id, category: 'FIBER', planName: 'Fiber 2GIG', baseAmount: 360, multiplier: 1 },
+          { marketOwnerId: marketOwner.id, category: 'FIBER', planName: 'Fiber 5GIG', baseAmount: 400, multiplier: 1 },
           // Store multipliers
           { marketOwnerId: marketOwner.id, category: 'STORE', planName: 'COSTCO', baseAmount: 1, multiplier: 1 },
           { marketOwnerId: marketOwner.id, category: 'STORE', planName: 'TARGET', baseAmount: 1, multiplier: 1 },
           { marketOwnerId: marketOwner.id, category: 'STORE', planName: 'BJS', baseAmount: 1, multiplier: 1 },
           { marketOwnerId: marketOwner.id, category: 'STORE', planName: 'CUSTOM', baseAmount: 1, multiplier: 1 },
           // Overrides
+          // Rep base is $40/line; a Lead adds $5 on top (=$45). The ASM takes
+          // 3% of their whole team. The owner is the REMAINDER, not a fixed cut.
+          { marketOwnerId: marketOwner.id, category: 'OVERRIDE', planName: 'REP', baseAmount: 40, overrideType: 'FLAT', overrideValue: 0, appliesToRole: 'REP' },
           { marketOwnerId: marketOwner.id, category: 'OVERRIDE', planName: 'LEAD', baseAmount: 0, overrideType: 'FLAT', overrideValue: 5, appliesToRole: 'LEAD' },
-          { marketOwnerId: marketOwner.id, category: 'OVERRIDE', planName: 'ASM', baseAmount: 0, overrideType: 'PERCENT', overrideValue: 0.10, appliesToRole: 'ASM' },
-          { marketOwnerId: marketOwner.id, category: 'OVERRIDE', planName: 'OWNER', baseAmount: 0, overrideType: 'PERCENT', overrideValue: 0.15, appliesToRole: 'OWNER' },
+          { marketOwnerId: marketOwner.id, category: 'OVERRIDE', planName: 'ASM', baseAmount: 0, overrideType: 'PERCENT', overrideValue: 0.03, appliesToRole: 'ASM' },
+          { marketOwnerId: marketOwner.id, category: 'OVERRIDE', planName: 'OWNER', baseAmount: 0, overrideType: 'PERCENT', overrideValue: 0, appliesToRole: 'OWNER' },
         ],
       });
 

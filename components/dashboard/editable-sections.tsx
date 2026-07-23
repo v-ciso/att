@@ -34,7 +34,14 @@ export function useLocalState<T>(key: string, defaultValue: T) {
 
   useEffect(() => {
     if (!loaded) return;
-    localStorage.setItem(key, JSON.stringify(state));
+    try {
+      localStorage.setItem(key, JSON.stringify(state));
+    } catch {
+      // Storage is full (~5MB per origin, shared by every se-* key). Losing a
+      // write is bad; throwing inside an effect unmounts the dashboard
+      // mid-meeting, which is worse.
+      console.warn(`Could not save "${key}" — browser storage is full.`);
+    }
     // Skip the no-op write that fires right after load; only broadcast real
     // user edits so other views recompute — without a render loop.
     if (firstSaveRef.current) {
@@ -127,32 +134,34 @@ export const DEFAULT_COMMISSION: CommissionState = {
     { name: 'Target 2450', multiplier: 1.0 },
     { name: "BJ's 610", multiplier: 1.0 },
   ],
-  // payout = OFFICE total per unit (owner's numbers: Value 120, Extra 130,
-  // Premium 140, Next Up +15 at Tier 5). rep = the salesperson's cut, typed by
-  // the owner — never calculated.
+  // Office payout per line at Tier 5, with the rep's flat $40 cut out of it.
+  // Adding Next Up takes a Value line from $124 to $139; Insurance adds $10.
   phonePlans: [
-    { name: 'Premium 2.0', payout: 140, rep: 45 },
-    { name: 'Extra 2.0', payout: 130, rep: 40 },
-    { name: 'Value 2.0', payout: 120, rep: 40 },
+    { name: 'Premium 2.0', payout: 144, rep: 40 },
+    { name: 'Extra 2.0', payout: 134, rep: 40 },
+    { name: 'Value 2.0', payout: 124, rep: 40 },
     { name: 'Upgrades', payout: 60, rep: 15 },
   ],
   addOns: [
     { name: 'Next Up Anytime', payout: 15, rep: 10 },
-    { name: 'Insurance', payout: 12, rep: 5 },
+    { name: 'Insurance', payout: 10, rep: 5 },
   ],
   internet: [
-    { name: 'Internet Air', payout: 40, rep: 20 },
-    { name: 'Fiber 300', payout: 50, rep: 25 },
-    { name: 'Fiber 500', payout: 70, rep: 35 },
-    { name: 'Fiber 1GIG', payout: 100, rep: 50 },
-    { name: 'Fiber 2GIG', payout: 150, rep: 75 },
-    { name: 'Fiber 5GIG', payout: 200, rep: 100 },
+    { name: 'Internet Air', payout: 40, rep: 40 },
+    { name: 'Fiber 300', payout: 250, rep: 40 },
+    { name: 'Fiber 500', payout: 300, rep: 40 },
+    { name: 'Fiber 1GIG', payout: 360, rep: 40 },
+    { name: 'Fiber 2GIG', payout: 360, rep: 40 },
+    { name: 'Fiber 5GIG', payout: 400, rep: 40 },
   ],
+  // A Lead's amount is the BUMP over the rep's base, not their total: $40 base
+  // + $5 = $45 a line. The owner is not a fixed percentage — they keep whatever
+  // is left of the office payout after the rep, lead, and ASM are paid.
   roles: [
-    { name: 'Sales Rep / Intern', amount: 0, unit: 'base payout' },
-    { name: 'Lead', amount: 5, unit: '$/line over rep' },
+    { name: 'Sales Rep / Intern', amount: 40, unit: '$/line base' },
+    { name: 'Lead', amount: 5, unit: '$/line over rep (=$45)' },
     { name: 'ASM / AD', amount: 3, unit: '% of team production' },
-    { name: 'Market Owner', amount: 100, unit: '% of office payout' },
+    { name: 'Market Owner', amount: 0, unit: 'remainder of office payout' },
   ],
 };
 
@@ -941,7 +950,7 @@ export function TeamsEditor() {
               <span>Fiber: <Editable value={String(team.fiber)} onCommit={(v) => edit(i, 'fiber', v)} className="text-white" /></span>
             </div>
             <div className="flex items-center gap-2 mt-2">
-              <div className="flex-1 h-1 rounded-full bg-gray-700">
+              <div className="flex-1 h-1 rounded-full bg-bg-tertiary">
                 <div
                   className={cn('h-full rounded-full transition-all', progressColors[team.color] ?? progressColors.blue)}
                   style={{ width: `${Math.min(100, team.progress)}%` }}

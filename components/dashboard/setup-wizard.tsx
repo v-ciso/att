@@ -16,6 +16,15 @@ import { notifyDataChanged } from '@/lib/sales';
 // otherwise lands on an empty dashboard with no idea what to fill in first.
 // Everything captured here is editable later in Roster / Commission.
 export const SETUP_DONE_KEY = 'se-setup-done-v1';
+// Set when the owner deliberately re-opens the guide from the sidebar. Without
+// it the wizard only fires on an empty roster, so there was no way back in
+// once you had skipped it and started entering people by hand.
+export const SETUP_FORCE_KEY = 'se-setup-force-v1';
+
+export function reopenSetup() {
+  localStorage.setItem(SETUP_FORCE_KEY, '1');
+  window.location.reload();
+}
 
 interface DraftStore { retailer: string; number: string }
 interface DraftPerson { name: string; role: RosterRole; store: string; team: string }
@@ -76,12 +85,14 @@ export function SetupWizard({ onDone }: { onDone: () => void }) {
     localStorage.setItem('se-teams-v2', JSON.stringify(teamRows));
 
     localStorage.setItem(SETUP_DONE_KEY, '1');
+    localStorage.removeItem(SETUP_FORCE_KEY);
     notifyDataChanged();
     onDone();
   };
 
   const skip = () => {
     localStorage.setItem(SETUP_DONE_KEY, '1');
+    localStorage.removeItem(SETUP_FORCE_KEY);
     onDone();
   };
 

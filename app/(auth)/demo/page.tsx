@@ -17,21 +17,40 @@ const features = [
   { icon: Shield, title: 'Your Branding', desc: 'Drop in your own logo and pick your colors — the dashboard and every PDF report carry your company name', color: 'purple' },
 ];
 
+// Priced per WEEK against the admin headcount it replaces, not per seat.
 const plans = [
   {
-    name: 'Standard',
-    price: '297',
-    desc: 'Everything you need to run your market',
-    features: ['Full dashboard', 'Leaderboard & Meeting Mode', 'P&L & Commission Engine', 'Goals & Attendance', 'PDF exports', 'Email support'],
+    name: 'Single Operator',
+    price: '494',
+    unit: '/week',
+    seats: 'One login',
+    desc: 'You run the market from one screen',
+    features: [
+      'Full dashboard & Daily Tracker',
+      'Leaderboard & Meeting Mode',
+      'P&L & Commission Engine',
+      'Schedule, Goals & Attendance',
+      'Your logo & colors on the tool',
+      'PDF exports with your name',
+    ],
     cta: 'Request Access',
     popular: false,
     color: 'blue' as const,
   },
   {
-    name: 'Branded',
-    price: '494',
-    desc: 'The same tool, carrying your company name',
-    features: ['Everything in Standard', 'Your logo & colors', 'Your name on PDF reports', 'Branded sign-in screen', 'Priority support', 'Onboarding session'],
+    name: 'Team',
+    price: '766',
+    unit: '/week and up',
+    seats: 'Up to 5 logins',
+    desc: 'Your managers on the same synced dashboard',
+    features: [
+      'Everything in Single Operator',
+      'Multiple logins for your company',
+      'One shared set of numbers',
+      'Per-person roles & permissions',
+      'Priority support',
+      'Onboarding session',
+    ],
     cta: 'Request Access',
     popular: true,
     color: 'purple' as const,
@@ -134,15 +153,19 @@ export default function DemoPage() {
       {/* Pricing */}
       <section className="max-w-4xl mx-auto px-6 mb-20">
         <h2 className="text-3xl font-bold text-center mb-4">Simple, Transparent Pricing</h2>
-        <p className="text-text-secondary text-center mb-12">
-          Billed monthly through KGV Inc. We set your account up for you — try the live demo first.
+        <p className="text-text-secondary text-center mb-2">
+          Billed weekly through KGV Inc. We set your account up for you — try the live demo first.
+        </p>
+        <p className="text-text-muted text-center text-sm mb-12">
+          This replaces the reporting grunt work five reps and admins do by hand every week.
         </p>
         <div className="grid md:grid-cols-2 gap-6">
           {plans.map((plan) => (
             <Card key={plan.name} variant={plan.popular ? 'neon-purple' : 'elevated'} className={cn('p-8 relative', plan.popular && 'border-accent-purple/30')}>
               {plan.popular && <Badge variant="purple" className="absolute -top-3 right-6">Most Popular</Badge>}
               <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
-              <p className="text-3xl font-bold mb-2">${plan.price}<span className="text-text-secondary text-lg font-normal">/mo</span></p>
+              <p className="text-3xl font-bold mb-1">${plan.price}<span className="text-text-secondary text-lg font-normal">{plan.unit}</span></p>
+              <p className="text-[11px] uppercase tracking-wider text-text-muted mb-2">{plan.seats}</p>
               <p className="text-text-secondary text-sm mb-6">{plan.desc}</p>
               <ul className="space-y-3 mb-8">
                 {plan.features.map((f) => (
@@ -192,6 +215,58 @@ export default function DemoPage() {
   );
 }
 
+// Read-only week grid so a prospect can see that scheduling exists. The real
+// Schedule tab is editable per store and drives the Daily Tracker's store lock.
+function DemoSchedule() {
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const shifts: Record<string, string[]> = {
+    'Sarah Johnson': ['AM', 'AM', 'SWING', 'OFF', 'PM', 'AM', 'OFF'],
+    'Mike Chen': ['PM', 'OFF', 'AM', 'AM', 'SWING', 'PM', 'PM'],
+    'Jessica Williams': ['SWING', 'PM', 'OFF', 'PM', 'AM', 'OFF', 'AM'],
+    'Alex Thompson': ['AM', 'SWING', 'PM', 'AM', 'OFF', 'AM', 'SWING'],
+  };
+  const tone: Record<string, string> = {
+    AM: 'bg-accent-green/15 text-accent-green border-accent-green/25',
+    PM: 'bg-accent-purple/15 text-accent-purple border-accent-purple/25',
+    SWING: 'bg-accent-yellow/15 text-accent-yellow border-accent-yellow/25',
+    OFF: 'bg-white/[0.04] text-text-muted border-border-subtle',
+  };
+
+  return (
+    <Card className="p-5">
+      <h3 className="font-semibold mb-1">Weekly Schedule</h3>
+      <p className="text-xs text-text-secondary mb-4">
+        Shift hours follow the retailer — Costco AM is 9–3:30, SWING 11–6, PM 3:30–8:30. A rep&apos;s
+        scheduled store locks their sales entry for that day.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[620px] text-xs">
+          <thead>
+            <tr className="text-text-muted border-b border-border-subtle">
+              <th className="text-left pb-2 font-medium">Rep</th>
+              {days.map(d => <th key={d} className="pb-2 font-medium">{d}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(shifts).map(([name, week]) => (
+              <tr key={name} className="border-b border-border-subtle/50">
+                <td className="py-2 pr-3 whitespace-nowrap font-medium">{name}</td>
+                {week.map((s, i) => (
+                  <td key={i} className="py-2 text-center">
+                    <span className={cn('inline-block px-2 py-1 rounded border text-[10px] font-semibold', tone[s])}>
+                      {s}
+                    </span>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
 function DemoDashboard({ onBack }: { onBack: () => void }) {
   const [activeTab, setActiveTab] = useState('dashboard');
 
@@ -238,6 +313,7 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
           {([
             ['dashboard', 'Dashboard'],
             ['leaderboard', 'Leaderboard'],
+            ['schedule', 'Schedule'],
             ['commission', 'Commission'],
             ['pnl', 'P&L'],
           ] as const).map(([tab, label]) => (
@@ -370,10 +446,17 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
             <Card className="p-4 border-accent-blue/20">
               <h4 className="font-semibold text-sm mb-3 flex items-center gap-2 text-accent-blue"><Zap className="w-4 h-4" /> Phone Plans</h4>
               <div className="space-y-1">
-                {['Premium 2.0', 'Premium 2.0 + Next Up', 'Extra 2.0', 'Value 2.0'].map((name, i) => (
-                  <div key={name} className="flex justify-between text-xs py-1">
+                {/* Office payout per line at Tier 5. Next Up adds $15,
+                    Insurance another $10 — shown as the combined line. */}
+                {[
+                  ['Premium 2.0', 144], ['Premium 2.0 + Next Up', 159],
+                  ['Extra 2.0', 134], ['Extra 2.0 + Next Up', 149],
+                  ['Value 2.0', 124], ['Value 2.0 + Next Up', 139],
+                  ['Insurance attach', 10],
+                ].map(([name, amt]) => (
+                  <div key={name as string} className="flex justify-between text-xs py-1">
                     <span>{name}</span>
-                    <span className="text-accent-green">${[35, 40, 30, 20][i]}</span>
+                    <span className="text-accent-green">${amt}</span>
                   </div>
                 ))}
               </div>
@@ -381,10 +464,13 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
             <Card className="p-4 border-accent-purple/20">
               <h4 className="font-semibold text-sm mb-3 flex items-center gap-2 text-accent-purple"><TrendingUp className="w-4 h-4" /> Fiber Plans</h4>
               <div className="space-y-1">
-                {['Fiber 300', 'Fiber 500', 'Fiber 1GIG', 'Fiber 2GIG'].map((name, i) => (
-                  <div key={name} className="flex justify-between text-xs py-1">
+                {[
+                  ['Fiber 300', 250], ['Fiber 500', 300],
+                  ['Fiber 1GIG', 360], ['Fiber 2GIG', 360], ['Fiber 5GIG', 400],
+                ].map(([name, amt]) => (
+                  <div key={name as string} className="flex justify-between text-xs py-1">
                     <span>{name}</span>
-                    <span className="text-accent-green">${[25, 35, 50, 75][i]}</span>
+                    <span className="text-accent-green">${amt}</span>
                   </div>
                 ))}
               </div>
@@ -392,10 +478,17 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
             <Card className="p-4 border-accent-yellow/20">
               <h4 className="font-semibold text-sm mb-3 flex items-center gap-2 text-accent-yellow"><Users className="w-4 h-4" /> Overrides</h4>
               <div className="space-y-1">
-                {['Team Lead', 'ASM', 'Owner'].map((name, i) => (
+                {/* The owner is not a fixed cut — they keep what is left of the
+                    office payout after the rep, lead, and ASM are paid. */}
+                {[
+                  ['Sales Rep', '$40/line'],
+                  ['Team Lead', '$45/line'],
+                  ['ASM / AD', '3% of team'],
+                  ['Market Owner', 'remainder'],
+                ].map(([name, amt]) => (
                   <div key={name} className="flex justify-between text-xs py-1">
                     <span>{name}</span>
-                    <span className="text-accent-green">{['$5/line', '10%', '15%'][i]}</span>
+                    <span className="text-accent-green">{amt}</span>
                   </div>
                 ))}
               </div>
@@ -448,6 +541,8 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
             </div>
           </Card>
         )}
+
+        {activeTab === 'schedule' && <DemoSchedule />}
 
         {/* Demo Footer */}
         <div className="mt-8 text-center">

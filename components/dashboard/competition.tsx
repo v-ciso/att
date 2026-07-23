@@ -70,7 +70,7 @@ function CompCard({
             {monthName} · ranked by{' '}
             <button
               onClick={() => onEdit({ metric: METRIC_ORDER[(METRIC_ORDER.indexOf(comp.metric) + 1) % METRIC_ORDER.length] })}
-              className="text-accent-blue font-medium hover:underline"
+              className="font-medium hover:underline" style={{ color: 'var(--brand)' }}
               title="Click to change the metric"
             >
               {METRIC_LABELS[comp.metric]}
@@ -79,7 +79,7 @@ function CompCard({
             <select
               value={comp.store}
               onChange={(e) => onEdit({ store: e.target.value })}
-              className="bg-bg-tertiary border border-border-subtle rounded px-1.5 py-0.5 text-[11px] text-accent-cyan focus:outline-none cursor-pointer"
+              className="bg-bg-tertiary border border-border-subtle rounded px-1.5 py-0.5 text-[11px] text-[color:var(--brand)] focus:outline-none cursor-pointer"
               aria-label="Competition store scope"
             >
               <option value="">All stores</option>
@@ -129,7 +129,7 @@ function CompCard({
                     <span className="font-medium">{r.person}</span>
                     <span className="text-text-muted text-[10px]">{r.store}</span>
                   </span>
-                  <span className="font-semibold text-accent-blue">{fmt(r.value)}</span>
+                  <span className="font-semibold" style={{ color: 'var(--brand)' }}>{fmt(r.value)}</span>
                 </div>
               ))}
             </div>

@@ -42,7 +42,7 @@ export default function SettingsPage() {
     <DashboardLayout>
       <div className="slide-in mb-6">
         <h1 className="text-2xl lg:text-4xl font-bold neon-brand">Settings</h1>
-        <p className="text-text-secondary text-sm mt-0.5">White-label your Sales Engine — changes apply instantly, everywhere</p>
+        <p className="text-text-secondary text-sm mt-0.5">Put your company&apos;s name and logo on the tool — changes apply instantly, everywhere</p>
       </div>
 
       <div className="slide-in mb-4 flex gap-1.5">
@@ -177,7 +177,7 @@ export default function SettingsPage() {
               <li>Add that CNAME at your domain registrar</li>
               <li>SSL is issued automatically within minutes</li>
             </ol>
-            <p className="text-[10px] text-text-muted">Per-customer domains for white-label resale come with the multi-tenant database phase.</p>
+            <p className="text-[10px] text-text-muted">Running the tool on your own domain comes with the multi-tenant database phase.</p>
           </CardContent>
         </Card>
       )}

@@ -71,10 +71,15 @@ export function ScheduleBoard({ people, storeOptions, compact = false }: { peopl
           <Button variant="secondary" size="sm" onClick={copy}>
             {copied ? '✓ Copied' : '📋 Copy for chat'}
           </Button>
-          <Button size="sm" onClick={present}>
-            {fs ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-            {fs ? 'Exit' : 'Present'}
-          </Button>
+          {/* Hidden when embedded in Meeting Mode: that panel is already
+              fullscreen, so this button called exitFullscreen() and killed the
+              whole presentation instead of expanding the schedule. */}
+          {!compact && (
+            <Button size="sm" onClick={present}>
+              {fs ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              {fs ? 'Exit' : 'Present'}
+            </Button>
+          )}
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -106,7 +111,7 @@ export function ScheduleBoard({ people, storeOptions, compact = false }: { peopl
                         className={cn(
                           'w-full bg-bg-tertiary border rounded px-1 py-0.5 focus:outline-none cursor-pointer',
                           fs ? 'text-xs' : 'text-[9px]',
-                          val === 'OFF' ? 'border-border-subtle text-text-muted' : val ? 'border-accent-cyan/30 text-accent-cyan' : 'border-border-subtle text-text-muted'
+                          val === 'OFF' ? 'border-border-subtle text-text-muted' : val ? 'border-[rgba(var(--brand-rgb),0.35)] text-[color:var(--brand)]' : 'border-border-subtle text-text-muted'
                         )}
                         aria-label={`${p.name} on ${d}`}
                       >

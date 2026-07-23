@@ -159,7 +159,7 @@ export function MeetingTeam({ name, change, lines, premium, fiber, progress, col
         <span contentEditable suppressContentEditableWarning>Premium: {premium}</span>
         <span contentEditable suppressContentEditableWarning>Fiber: {fiber}</span>
       </div>
-      <div className="w-full h-1 mt-2 rounded-full bg-gray-700">
+      <div className="w-full h-1 mt-2 rounded-full bg-bg-tertiary">
         <div
           className={cn('h-full rounded-full', progressColors[color as keyof typeof progressColors])}
           style={{ width: `${progress}%` }}

@@ -13,7 +13,11 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
 export const Card = forwardRef<HTMLDivElement, CardProps>(
   ({ className, variant = 'glass', padding = 'md', hover = false, children, ...props }, ref) => {
     const variants = {
-      glass: 'bg-bg-card backdrop-blur-glass border border-border-subtle',
+      // The `.glass` class expands to exactly these utilities AND picks up the
+      // per-preset border tint in globals.css. Inlining the utilities meant
+      // every Card kept a neutral white edge while its .glass children went
+      // gold — the mismatch you see inside Meeting Mode.
+      glass: 'glass',
       elevated: 'bg-bg-tertiary shadow-glass border border-border-subtle',
       bordered: 'bg-bg-secondary border border-border-strong',
       'neon-blue': 'bg-bg-card backdrop-blur-glass border border-blue-500/30 shadow-neon-blue',

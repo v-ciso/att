@@ -35,7 +35,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         aria-hidden="true"
         style={{
           width: '40vw', height: '40vw', bottom: '-16vw', left: '-10vw',
-          background: 'radial-gradient(circle, #3B82F6, transparent 60%)',
+          background: 'radial-gradient(circle, var(--brand-3), transparent 60%)',
           opacity: 0.09, filter: 'blur(120px)',
         }}
       />

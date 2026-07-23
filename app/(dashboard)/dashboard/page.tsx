@@ -28,7 +28,8 @@ import {
   generateDemoSales, Aggregate, PersonStats, loadAttendance, attendanceForDate, todayStr,
 } from '@/lib/sales';
 import { Editable, parseNum, useLocalState } from '@/components/dashboard/editable-sections';
-import { SetupWizard, SETUP_DONE_KEY } from '@/components/dashboard/setup-wizard';
+import { SetupWizard, SETUP_DONE_KEY, SETUP_FORCE_KEY } from '@/components/dashboard/setup-wizard';
+import { PromoPanel } from '@/components/dashboard/promo-panel';
 import { readWorkspace } from '@/lib/workspace';
 
 const VALID_TABS = ['dashboard', 'tracker', 'roster', 'leaderboard', 'meeting', 'schedule', 'competition', 'pnl', 'commission', 'import'];
@@ -405,13 +406,13 @@ function DashboardContent() {
   // First run on a real account: the roster is empty and there is nothing to
   // derive from, so ask the few questions that make the rest of the app work.
   // Demo never asks — it ships with a populated sample market.
-  const [setupDone, setSetupDone] = useState(true); // assume done until mounted
+  const [showSetup, setShowSetup] = useState(false); // stays closed until mounted
   useEffect(() => {
-    const live = readWorkspace().mode === 'live';
+    if (readWorkspace().mode !== 'live') return setShowSetup(false);
+    const forced = localStorage.getItem(SETUP_FORCE_KEY) === '1';
     const dismissed = localStorage.getItem(SETUP_DONE_KEY) === '1';
-    setSetupDone(!live || dismissed);
+    setShowSetup(forced || (!dismissed && loadPeople().length === 0));
   }, [dataVersion]);
-  const needsSetup = !setupDone && people.length === 0;
 
   const storeOptions = useMemo(() => {
     const set = new Set<string>();
@@ -646,7 +647,7 @@ function DashboardContent() {
 
   return (
     <DashboardLayout>
-      {needsSetup && <SetupWizard onDone={() => { setSetupDone(true); setDataVersion(v => v + 1); }} />}
+      {showSetup && <SetupWizard onDone={() => { setShowSetup(false); setDataVersion(v => v + 1); }} />}
       {/* Header — raised stacking context so its dropdowns paint over the cards below */}
       <div className="slide-in relative z-40 mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
@@ -661,7 +662,6 @@ function DashboardContent() {
               <option value="AT&T Retail EDM">AT&amp;T Retail EDM</option>
               <option value="AT&T B2B">AT&amp;T B2B</option>
             </select>
-            · white-label ready
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -875,7 +875,7 @@ function DashboardContent() {
                           </span>
                         </div>
                         <div className="w-full h-1.5 rounded-full bg-bg-tertiary">
-                          <div className="h-full rounded-full" style={{ width: `${Math.min(100, (goal.current / goal.target) * 100)}%`, background: goal.color === 'blue' ? 'linear-gradient(to right, #3B82F6, #60A5FA)' : 'linear-gradient(to right, #A855F7, #C084FC)' }} />
+                          <div className="h-full rounded-full" style={{ width: `${Math.min(100, (goal.current / goal.target) * 100)}%`, background: goal.color === 'blue' ? 'var(--grad-brand)' : 'linear-gradient(to right, #A855F7, #C084FC)' }} />
                         </div>
                       </div>
                     ))}
@@ -1080,6 +1080,8 @@ function DashboardContent() {
             <div className="mt-5 pt-4 border-t border-border-subtle">
               <ScheduleBoard people={people} storeOptions={storeOptions} compact />
             </div>
+
+            <PromoPanel />
 
             <div className="mt-3 text-xs text-text-secondary flex items-center gap-2">
               <Users className="w-3 h-3" />
