@@ -153,7 +153,7 @@ export function Competition({ sales, commission, storeOptions, compact = false }
   storeOptions: string[];
   compact?: boolean;
 }) {
-  const { state: comps, setState: setComps } = useLocalState<Comp[]>('se-competitions-v1', DEFAULT_COMPS);
+  const { state: comps, setState: setComps } = useLocalState<Comp[]>('se-competitions-v1', DEFAULT_COMPS, []);
 
   const edit = (id: string, patch: Partial<Comp>) =>
     setComps(prev => prev.map(c => (c.id === id ? { ...c, ...patch } : c)));

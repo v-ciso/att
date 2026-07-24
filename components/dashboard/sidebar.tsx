@@ -6,6 +6,8 @@ import { useSession } from 'next-auth/react';
 import { cn, getInitials, ROLE_LABELS } from '@/lib/utils';
 import { useTheme } from '@/components/white-label/theme-provider';
 import { navigation, isNavItemActive } from './nav-items';
+import { isSuperAdminEmail } from '@/lib/super-admins';
+import { ShieldCheck } from 'lucide-react';
 import { WorkspaceSwitcher } from './workspace-switcher';
 
 export function Sidebar() {
@@ -61,6 +63,14 @@ export function Sidebar() {
         })}
       </nav>
       <div className="pt-4 border-t border-border-subtle space-y-3">
+        {isSuperAdminEmail(session?.user?.email) && (
+          <Link
+            href="/admin"
+            className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+          >
+            <ShieldCheck className="w-4 h-4" style={{ color: 'var(--brand)' }} /> Admin Console
+          </Link>
+        )}
         <WorkspaceSwitcher />
         <div className="flex items-center gap-3 px-3 py-2">
           <div

@@ -47,6 +47,7 @@ export default withAuth(
 
 export const config = {
   // /api/auth/* is excluded so sign-in and the NextAuth callbacks stay
-  // reachable to anonymous visitors; every other API route is gated.
-  matcher: ['/dashboard/:path*', '/settings/:path*', '/api/((?!auth/).*)'],
+  // reachable to anonymous visitors; every other API route is gated. The
+  // /admin page and /api/admin routes additionally check super-admin server-side.
+  matcher: ['/dashboard/:path*', '/settings/:path*', '/admin/:path*', '/api/((?!auth/).*)'],
 };

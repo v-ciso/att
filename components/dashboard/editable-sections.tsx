@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { Plus, Trash2, Smartphone, Wifi, Gift, Users, DollarSign, Receipt, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   RoadtripItem, PnlView, REIMBURSE_LAG_DAYS, roadtripTotals, isoToday, shiftDays, daysSince, inWindow,
 } from '@/lib/roadtrips';
-import { seedForWorkspace } from '@/lib/workspace';
+import { seedForWorkspace, readWorkspace } from '@/lib/workspace';
 
 export type { RoadtripItem, PnlView };
 export { REIMBURSE_LAG_DAYS, roadtripTotals };
@@ -16,15 +16,27 @@ export { REIMBURSE_LAG_DAYS, roadtripTotals };
 // Shared: localStorage-backed state + inline-editable value
 // ---------------------------------------------------------------------------
 
-export function useLocalState<T>(key: string, defaultValue: T) {
-  const [state, setState] = useState<T>(defaultValue);
+// `liveDefault` is what a LIVE workspace starts from when nothing is saved yet.
+// Demo defaults (sample reps, teams, competitions) must never appear on — or
+// leak into — a real account. Pass `[]` (or an empty config) for anything that
+// is demo furniture; omit it for legitimate defaults like plan payouts.
+export function useLocalState<T>(key: string, defaultValue: T, liveDefault?: T) {
+  const resolveDefault = (): T =>
+    liveDefault !== undefined && typeof window !== 'undefined' && readWorkspace().mode === 'live'
+      ? liveDefault
+      : defaultValue;
+
+  const [state, setStateRaw] = useState<T>(resolveDefault);
   const [loaded, setLoaded] = useState(false);
-  const firstSaveRef = useRef(true);
+  // True once this key is genuinely "owned" — either a saved value was loaded,
+  // or the user edited. Until then we do NOT write, so opening a tab can never
+  // seed its defaults into storage (that was the demo→live roster leak).
+  const ownedRef = useRef(false);
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(key);
-      if (saved) setState(JSON.parse(saved));
+      if (saved) { setStateRaw(JSON.parse(saved)); ownedRef.current = true; }
     } catch {
       // corrupted storage — keep defaults
     }
@@ -32,8 +44,13 @@ export function useLocalState<T>(key: string, defaultValue: T) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
+  const setState = useCallback<React.Dispatch<React.SetStateAction<T>>>((value) => {
+    ownedRef.current = true; // a real edit — persist from here on
+    setStateRaw(value);
+  }, []);
+
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || !ownedRef.current) return;
     try {
       localStorage.setItem(key, JSON.stringify(state));
     } catch {
@@ -42,18 +59,13 @@ export function useLocalState<T>(key: string, defaultValue: T) {
       // mid-meeting, which is worse.
       console.warn(`Could not save "${key}" — browser storage is full.`);
     }
-    // Skip the no-op write that fires right after load; only broadcast real
-    // user edits so other views recompute — without a render loop.
-    if (firstSaveRef.current) {
-      firstSaveRef.current = false;
-      return;
-    }
     window.dispatchEvent(new Event('se:data'));
   }, [state, loaded, key]);
 
   const reset = () => {
-    setState(defaultValue);
+    ownedRef.current = false; // back to unowned so live re-empties, not re-seeds
     localStorage.removeItem(key);
+    setStateRaw(resolveDefault());
   };
 
   return { state, setState, reset } as const;
@@ -247,7 +259,7 @@ function PayItemList({
 }
 
 export function CommissionEngine() {
-  const { state, setState, reset } = useLocalState<CommissionState>('se-commission-v2', DEFAULT_COMMISSION);
+  const { state, setState, reset } = useLocalState<CommissionState>('se-commission-v2', DEFAULT_COMMISSION, { ...DEFAULT_COMMISSION, stores: [], storeIndex: 0 });
   const store = state.stores[state.storeIndex] ?? state.stores[0];
   const effective = (base: number) =>
     Math.max(0, (base - (5 - state.tier) * state.tierDelta) * (store?.multiplier ?? 1));
@@ -837,10 +849,7 @@ const DEFAULT_TEAMS: TeamData[] = [
 ];
 
 export function TeamsEditor() {
-  const { state: teams, setState: setTeams, reset } = useLocalState<TeamData[]>(
-    'se-teams-v2',
-    seedForWorkspace(DEFAULT_TEAMS, [])
-  );
+  const { state: teams, setState: setTeams, reset } = useLocalState<TeamData[]>('se-teams-v2', DEFAULT_TEAMS, []);
 
   const edit = (index: number, field: keyof TeamData, value: string) =>
     setTeams(prev => prev.map((t, i) => {

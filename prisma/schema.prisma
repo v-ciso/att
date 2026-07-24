@@ -82,7 +82,17 @@ enum SubscriptionTier {
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
-  passwordHash  String
+  // Legacy bcrypt hash. Accounts created through the admin console authenticate
+  // via Supabase Auth instead (authId set, passwordHash left blank), so this is
+  // optional now. Existing accounts keep using it - see lib/auth.ts dual path.
+  passwordHash  String    @default("")
+  // Supabase auth.users UUID. When set, the login verifies against Supabase
+  // Auth (so the user shows up in the Authentication tab and can be given OAuth
+  // / MFA from the Supabase console). When null, the bcrypt hash is used.
+  authId        String?   @unique
+  // A disabled account cannot sign in even though the row survives (so its
+  // history stays intact). Toggled per company from the admin console.
+  disabled      Boolean   @default(false)
   name          String
   role          Role      @default(REP)
   employeeId    String?   @unique
@@ -109,6 +119,9 @@ model MarketOwner {
   stripeSubscriptionId   String?
   subscriptionTier       SubscriptionTier @default(STANDARD)
   theme                  Json      // White-label config
+  // A suspended company (non-payment, offboarding): every login under it is
+  // refused, but the rows survive so it can be reinstated without data loss.
+  disabled               Boolean   @default(false)
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 

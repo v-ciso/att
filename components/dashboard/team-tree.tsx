@@ -45,7 +45,7 @@ interface TeamTreeProps {
 }
 
 export function TeamTree({ people, assignTeam }: TeamTreeProps) {
-  const { state: teams, setState: setTeams, reset } = useLocalState<TeamData[]>('se-teams-v2', DEFAULT_TREE_TEAMS);
+  const { state: teams, setState: setTeams, reset } = useLocalState<TeamData[]>('se-teams-v2', DEFAULT_TREE_TEAMS, []);
   const [dragOver, setDragOver] = useState<string | null>(null);
 
   const byName = (name: string) => people.find(p => p.name.toLowerCase() === name.toLowerCase());

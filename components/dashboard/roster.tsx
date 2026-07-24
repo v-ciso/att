@@ -356,7 +356,7 @@ function AddEmployeeModal({ storeOptions, teamOptions, onAdd, onClose }: {
 }
 
 export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string) => void }) {
-  const { state: people, setState: setPeople, reset: resetPeople } = useLocalState<Person[]>(PEOPLE_KEY, DEFAULT_PEOPLE);
+  const { state: people, setState: setPeople, reset: resetPeople } = useLocalState<Person[]>(PEOPLE_KEY, DEFAULT_PEOPLE, []);
   const { state: rules, setState: setRules, reset: resetRules } = useLocalState<PromotionRules>(PROMO_RULES_KEY, DEFAULT_PROMO_RULES);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
