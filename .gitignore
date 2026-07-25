@@ -39,3 +39,6 @@ tsconfig.tsbuildinfo
 # stray test scripts
 _*.mjs
 _*.ts
+
+# Installed agent skills (dev tooling, not app code)
+.agents/skills/
