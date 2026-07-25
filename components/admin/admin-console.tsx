@@ -117,6 +117,7 @@ export function AdminConsole({ adminEmail }: { adminEmail: string }) {
                     </div>
                   </button>
                   <div className="flex items-center gap-2">
+                    <SeatEditor company={c} onSaved={load} />
                     <button
                       onClick={() => toggleCompany(c)}
                       className={cn('flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] transition-colors',
@@ -143,7 +144,7 @@ export function AdminConsole({ adminEmail }: { adminEmail: string }) {
 function CreateCompany({ onDone }: { onDone: (banner: { title: string; lines: string[] } | null) => void }) {
   const [form, setForm] = useState({
     companyName: '', ownerEmail: '', ownerName: '', password: '',
-    campaign: 'retail', tier: 'single', theme: 'obsidian-gold',
+    campaign: 'retail', seats: '1', theme: 'obsidian-gold',
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -153,7 +154,8 @@ function CreateCompany({ onDone }: { onDone: (banner: { title: string; lines: st
     setBusy(true); setErr('');
     try {
       const res = await fetch('/api/admin/companies', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, seats: parseInt(form.seats, 10) || 1 }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -181,8 +183,8 @@ function CreateCompany({ onDone }: { onDone: (banner: { title: string; lines: st
         <Field label="Campaign">
           <Select value={form.campaign} onChange={v => set('campaign', v)} options={[['retail', 'Retail EDM'], ['b2b', 'B2B (50% split)']]} />
         </Field>
-        <Field label="Plan">
-          <Select value={form.tier} onChange={v => set('tier', v)} options={[['single', 'Single operator (1)'], ['team', 'Team (up to 5)']]} />
+        <Field label="Seats (logins)">
+          <Input type="number" min={1} value={form.seats} onChange={e => set('seats', e.target.value)} placeholder="1" />
         </Field>
         <Field label="Theme">
           <Select value={form.theme} onChange={v => set('theme', v)} options={[['obsidian-gold', 'Obsidian & Gold'], ['command-blue', 'Command Blue'], ['emerald', 'Emerald']]} />
@@ -193,6 +195,47 @@ function CreateCompany({ onDone }: { onDone: (banner: { title: string; lines: st
         </div>
       </form>
     </Card>
+  );
+}
+
+function SeatEditor({ company, onSaved }: { company: Company; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [seats, setSeats] = useState(String(company.seats));
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    setBusy(true);
+    const res = await fetch('/api/admin/companies', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: company.id, seats: parseInt(seats, 10) || 1 }),
+    });
+    setBusy(false);
+    if (!res.ok) { alert((await res.json()).error); return; }
+    setEditing(false);
+    onSaved();
+  };
+
+  if (!editing) {
+    return (
+      <button
+        onClick={() => setEditing(true)}
+        className="px-2 py-1 rounded-lg text-[11px] text-text-muted hover:text-white hover:bg-white/5 transition-colors"
+        title="Change how many logins this company may have"
+      >
+        {company.users.length}/{company.seats} seats
+      </button>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1">
+      <input
+        type="number" min={company.users.length} value={seats}
+        onChange={e => setSeats(e.target.value)}
+        className="w-14 bg-bg-tertiary border border-border-subtle rounded px-1.5 py-1 text-[11px] focus:outline-none"
+      />
+      <button onClick={save} disabled={busy} className="px-1.5 py-1 rounded text-[11px] text-accent-green hover:bg-accent-green/10">save</button>
+      <button onClick={() => { setEditing(false); setSeats(String(company.seats)); }} className="px-1 text-[11px] text-text-muted hover:text-white">✕</button>
+    </span>
   );
 }
 

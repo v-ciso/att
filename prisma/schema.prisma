@@ -132,6 +132,25 @@ model MarketOwner {
   roadtrips              Roadtrip[]
   commissionRules        CommissionRule[]
   goals                  Goal[]
+  data                   TenantData[]
+}
+
+// Per-company operational data (roster, sales, schedule, attendance, P&L, ...),
+// stored as the same JSON blobs the app already uses, one row per (tenant, key).
+// This is the tenant's "container": every row is scoped to a marketOwnerId, and
+// the API only ever reads/writes the marketOwnerId from the caller's SESSION -
+// so company A can never see or touch company B's rows. Cross-device sync comes
+// for free because the browser becomes a cache of these rows, not the source.
+model TenantData {
+  id            String      @id @default(cuid())
+  marketOwnerId String
+  marketOwner   MarketOwner @relation(fields: [marketOwnerId], references: [id], onDelete: Cascade)
+  key           String      // e.g. 'se-people-v1'
+  value         Json
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([marketOwnerId, key])
+  @@index([marketOwnerId])
 }
 
 model Team {

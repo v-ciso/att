@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { MeetingTracker } from '@/components/dashboard/dashboard-components';
 import { CommissionEngine, PnlEditor, TeamData } from '@/components/dashboard/editable-sections';
-import { ReportTemplate } from '@/components/dashboard/report-template';
+import { ReportTemplate, ReportSections, ALL_SECTIONS, SECTION_LABELS } from '@/components/dashboard/report-template';
 import { RosterManager, loadPeople, ROSTER_ROLE_LABELS } from '@/components/dashboard/roster';
 import { Competition } from '@/components/dashboard/competition';
 import { ScheduleBoard } from '@/components/dashboard/schedule-board';
@@ -728,17 +728,30 @@ function DashboardContent() {
     }
   }, [activeTab, pendingPresent]);
 
-  // PDF: crisp print-based export (vector text, browser Save as PDF)
-  const [exporting, setExporting] = useState(false);
+  // PDF: crisp print-based export (vector text, browser Save as PDF).
+  // `exportSel` non-null = which sections to print; `exportMenu` = the chooser.
+  const [exportMenu, setExportMenu] = useState(false);
+  const [exportSel, setExportSel] = useState<ReportSections | null>(null);
   useEffect(() => {
-    if (!exporting) return;
+    if (!exportSel) return;
     const prevTitle = document.title;
     document.title = `Sales_Engine_Report_${new Date().toISOString().slice(0, 10)}`;
-    const done = () => { document.title = prevTitle; setExporting(false); };
+    const done = () => { document.title = prevTitle; setExportSel(null); };
     window.addEventListener('afterprint', done, { once: true });
     const t = setTimeout(() => window.print(), 150);
     return () => { clearTimeout(t); window.removeEventListener('afterprint', done); };
-  }, [exporting]);
+  }, [exportSel]);
+
+  // Pre-check the section that matches the tab you're on, so exporting from P&L
+  // defaults to P&L rather than the whole report.
+  const defaultSections = (): ReportSections => {
+    const map: Record<string, keyof ReportSections> = {
+      pnl: 'pnl', leaderboard: 'leaderboard', commission: 'commission', roster: 'roster', dashboard: 'kpis',
+    };
+    const only = map[activeTab];
+    if (!only) return { ...ALL_SECTIONS };
+    return { kpis: false, leaderboard: false, pnl: false, commission: false, roster: false, [only]: true };
+  };
 
   const reportRows = useMemo(
     () => leaderboardRows
@@ -799,7 +812,7 @@ function DashboardContent() {
             )}
           </span>
           {!b2b && <StoreSelect options={storeOptions} selected={storeSel} onChange={setStoreSel} />}
-          <Button onClick={() => setExporting(true)} size="sm">
+          <Button onClick={() => setExportMenu(true)} size="sm">
             <FileText className="w-4 h-4" /> Export PDF
           </Button>
         </div>
@@ -1431,12 +1444,58 @@ function DashboardContent() {
         </FsPortal>
       )}
 
-      {exporting && (
+      {exportMenu && (
+        <ExportDialog initial={defaultSections()} onCancel={() => setExportMenu(false)} onExport={(sel) => { setExportMenu(false); setExportSel(sel); }} />
+      )}
+      {exportSel && (
         <div id="print-root">
-          <ReportTemplate leaderboard={reportRows} />
+          <ReportTemplate leaderboard={reportRows} sections={exportSel} />
         </div>
       )}
     </DashboardLayout>
+  );
+}
+
+function ExportDialog({ initial, onCancel, onExport }: {
+  initial: ReportSections; onCancel: () => void; onExport: (s: ReportSections) => void;
+}) {
+  const [sel, setSel] = useState<ReportSections>(initial);
+  const keys = Object.keys(SECTION_LABELS) as (keyof ReportSections)[];
+  const any = keys.some(k => sel[k]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label="Export PDF">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative w-full sm:max-w-sm glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95">
+        <h3 className="text-lg font-bold mb-1">Export PDF</h3>
+        <p className="text-xs text-text-secondary mb-4">Pick what to include. The tab you&apos;re on is pre-selected.</p>
+        <div className="space-y-1.5 mb-5">
+          {keys.map(k => (
+            <label key={k} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-white/[0.03] hover:bg-white/[0.06] cursor-pointer text-sm">
+              <input
+                type="checkbox"
+                checked={sel[k]}
+                onChange={e => setSel(s => ({ ...s, [k]: e.target.checked }))}
+                className="w-4 h-4 accent-[var(--brand)]"
+              />
+              {SECTION_LABELS[k]}
+            </label>
+          ))}
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <button onClick={() => setSel({ ...ALL_SECTIONS })} className="text-xs text-text-muted hover:text-white">Select all</button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
+            <Button size="sm" disabled={!any} onClick={() => onExport(sel)}>Export</Button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

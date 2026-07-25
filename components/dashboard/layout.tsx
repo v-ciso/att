@@ -3,6 +3,7 @@
 import { ReactNode, Suspense, useState } from 'react';
 import { Sidebar } from './sidebar';
 import { MobileHeader, MobileMenu } from './mobile-header';
+import { TenantSync } from './tenant-sync';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -16,6 +17,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <div className="min-h-screen bg-bg-primary">
+      <TenantSync />
       {/* Live ambient background. The dominant orb is BRAND-coloured and sized in
           vw, which is what actually makes the page read gold (or blue/emerald).
           The two supporting orbs stay fixed and faint so the wash never turns

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireSuperAdmin } from '@/lib/admin';
-import { provisionCompany, setCompanyDisabled } from '@/lib/provision';
+import { provisionCompany, setCompanyDisabled, setCompanySeats } from '@/lib/provision';
 
 // Vendor admin surface. Every handler re-checks super-admin — the middleware
 // gate is defence in depth, not the only lock.
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       ownerName: body.ownerName,
       password: body.password,
       campaign: body.campaign,
-      tier: body.tier,
+      seats: body.seats,
       theme: body.theme,
       logoUrl: body.logoUrl,
     });
@@ -52,10 +52,17 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   if (!(await requireSuperAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   try {
-    const { id, disabled } = await request.json();
-    if (!id || typeof disabled !== 'boolean') return NextResponse.json({ error: 'id and disabled required' }, { status: 400 });
-    const result = await setCompanyDisabled(id, disabled);
-    return NextResponse.json({ success: true, ...result });
+    const body = await request.json();
+    if (!body.id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+    if (typeof body.seats === 'number') {
+      const result = await setCompanySeats(body.id, body.seats);
+      return NextResponse.json({ success: true, ...result });
+    }
+    if (typeof body.disabled === 'boolean') {
+      const result = await setCompanyDisabled(body.id, body.disabled);
+      return NextResponse.json({ success: true, ...result });
+    }
+    return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Failed' }, { status: 400 });
   }

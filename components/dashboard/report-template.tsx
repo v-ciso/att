@@ -42,7 +42,27 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[] }) {
+// Which sections to include in the exported PDF — the owner picks these from
+// the export dialog so a P&L export isn't padded with roster and payout tables.
+export interface ReportSections {
+  kpis: boolean;
+  leaderboard: boolean;
+  pnl: boolean;
+  commission: boolean;
+  roster: boolean;
+}
+
+export const ALL_SECTIONS: ReportSections = { kpis: true, leaderboard: true, pnl: true, commission: true, roster: true };
+
+export const SECTION_LABELS: Record<keyof ReportSections, string> = {
+  kpis: 'KPI summary',
+  leaderboard: 'Leaderboard',
+  pnl: 'Profit & Loss',
+  commission: 'Payout structure',
+  roster: 'Roster & roadmap',
+};
+
+export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leaderboard: LeaderboardEntry[]; sections?: ReportSections }) {
   const theme = load<{ companyName?: string; primaryColor?: string }>('se-theme-v1', {});
   const commission = loadCommission();
   const pnl = load<PnlState>('se-pnl-v1', DEFAULT_PNL);
@@ -97,6 +117,7 @@ export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[
 
       <div style={{ padding: '16px 28px 24px' }}>
         {/* KPI row */}
+        {sections.kpis && (
         <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '5px 0', marginTop: 6, tableLayout: 'fixed' }}>
           <tbody>
             <tr>
@@ -110,7 +131,10 @@ export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[
           </tbody>
         </table>
 
+        )}
+
         {/* Leaderboard */}
+        {sections.leaderboard && (<>
         <SectionTitle>Team Leaderboard</SectionTitle>
         <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
           <colgroup>
@@ -142,7 +166,10 @@ export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[
           </tbody>
         </table>
 
+        </>)}
+
         {/* P&L */}
+        {sections.pnl && (<>
         <SectionTitle>Profit &amp; Loss</SectionTitle>
         <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '8px 0', tableLayout: 'fixed' }}><tbody><tr>
           <td style={{ verticalAlign: 'top' }}>
@@ -178,7 +205,10 @@ export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[
           <span style={{ fontSize: 16, fontWeight: 800, color: net >= 0 ? '#047857' : '#B91C1C' }}>{fmt(net)} <span style={{ fontSize: 10, color: MUTED, fontWeight: 600 }}>({margin}% margin)</span></span>
         </div>
 
+        </>)}
+
         {/* Commission structure */}
+        {sections.commission && (<>
         <SectionTitle>Payout Structure — Tier {commission.tier} · {store?.name}</SectionTitle>
         <div style={{ display: 'flex', gap: 16 }}>
           {([['Phone Lines', commission.phonePlans], ['Internet', commission.internet], ['Add-Ons', commission.addOns]] as const).map(([title, items]) => (
@@ -196,7 +226,10 @@ export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[
           ))}
         </div>
 
+        </>)}
+
         {/* Roster & leadership roadmap */}
+        {sections.roster && (<>
         <SectionTitle>Roster &amp; Leadership Roadmap</SectionTitle>
         <p style={{ fontSize: 9, color: MUTED, margin: '0 0 6px' }}>
           Promotion rule: {fmt(promoRules.profitPerWeek)}/week profit for {promoRules.weeks} week(s) with ≥{promoRules.minAttendance}% attendance.
@@ -232,6 +265,8 @@ export function ReportTemplate({ leaderboard }: { leaderboard: LeaderboardEntry[
             })}
           </tbody>
         </table>
+
+        </>)}
 
         {/* Footer */}
         <div style={{ marginTop: 22, paddingTop: 10, borderTop: `1px solid ${LINE}`, display: 'flex', justifyContent: 'space-between' }}>

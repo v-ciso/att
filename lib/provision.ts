@@ -39,9 +39,16 @@ export interface CompanyInput {
   ownerName?: string;
   password?: string;              // vendor-typed temp password; generated if absent
   campaign?: 'retail' | 'b2b';
-  tier?: 'single' | 'team';
+  seats?: number;                 // how many logins allowed; base 1, no cap
   theme?: keyof typeof THEME_PRESETS;
   logoUrl?: string;
+}
+
+// Seats are whatever the vendor decides to grant — the base plan is one login,
+// but there is no upper cap. Clamp only to a sane minimum of 1.
+function normalizeSeats(seats?: number): number {
+  const n = Math.floor(Number(seats));
+  return Number.isFinite(n) && n >= 1 ? n : 1;
 }
 
 export async function provisionCompany(input: CompanyInput) {
@@ -61,7 +68,7 @@ export async function provisionCompany(input: CompanyInput) {
   if (password.length < 8) throw new Error('Temporary password must be at least 8 characters.');
 
   const campaign = input.campaign === 'b2b' ? 'AT&T B2B' : 'AT&T Retail EDM';
-  const seats = input.tier === 'team' ? 5 : 1;
+  const seats = normalizeSeats(input.seats);
   const preset = input.theme && THEME_PRESETS[input.theme] ? input.theme : 'obsidian-gold';
   const palette = THEME_PRESETS[preset];
 
@@ -81,6 +88,9 @@ export async function provisionCompany(input: CompanyInput) {
     const owner = await prisma.marketOwner.create({
       data: { name: input.companyName, slug, subscriptionTier: seats > 1 ? 'WHITE_LABEL' : 'STANDARD', theme },
     });
+    // Seed this tenant's operational data so a brand-new live account starts
+    // clean (empty roster, no demo furniture) in the DB itself.
+    await seedTenantData(owner.id, campaign);
     await prisma.user.create({
       data: {
         email,
@@ -146,6 +156,43 @@ export async function addCompanyUser(input: {
 export async function setCompanyDisabled(marketOwnerId: string, disabled: boolean) {
   const owner = await prisma.marketOwner.update({ where: { id: marketOwnerId }, data: { disabled } });
   return { slug: owner.slug, disabled: owner.disabled };
+}
+
+// Change how many logins a company may have. Cannot drop below the number
+// already in use, or existing users would be silently over the limit.
+export async function setCompanySeats(marketOwnerId: string, seats: number) {
+  const n = normalizeSeats(seats);
+  const owner = await prisma.marketOwner.findUniqueOrThrow({ where: { id: marketOwnerId } });
+  const used = await prisma.user.count({ where: { marketOwnerId } });
+  if (n < used) throw new Error(`This company already has ${used} logins — set seats to ${used} or more.`);
+  const theme = { ...(owner.theme as Record<string, unknown>), seats: n };
+  await prisma.marketOwner.update({ where: { id: marketOwnerId }, data: { theme } });
+  return { seats: n, used };
+}
+
+// The clean starting point for a new tenant. Empty collections so no invented
+// staff or money appears; the client fills the commission plan payouts from its
+// own liveDefault. Kept as JSON blobs matching the app's localStorage shapes.
+// No 'use client' import here — this runs server-side.
+async function seedTenantData(marketOwnerId: string, campaign: string) {
+  const seed: Record<string, unknown> = {
+    'se-people-v1': [],
+    'se-teams-v2': [],
+    'se-sales-v1': [],
+    'se-competitions-v1': [],
+    'se-schedule-v1': {},
+    'se-attendance-v1': {},
+    'se-campaign-v1': campaign,
+  };
+  await prisma.$transaction(
+    Object.entries(seed).map(([key, value]) =>
+      prisma.tenantData.upsert({
+        where: { marketOwnerId_key: { marketOwnerId, key } },
+        create: { marketOwnerId, key, value: value as object },
+        update: {}, // never clobber existing tenant data on re-run
+      })
+    )
+  );
 }
 
 export async function removeCompanyUser(userId: string) {
