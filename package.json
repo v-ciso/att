@@ -18,7 +18,8 @@
     "admin:removeuser": "npx tsx scripts/remove-user.ts",
     "test:roadtrips": "npx tsx lib/roadtrips.test.ts",
     "test:pay": "npx tsx lib/pay.test.ts",
-    "test": "npm run test:roadtrips && npm run test:pay",
+    "test:shifts": "npx tsx lib/shifts.test.ts",
+    "test": "npm run test:roadtrips && npm run test:pay && npm run test:shifts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

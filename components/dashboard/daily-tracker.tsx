@@ -7,7 +7,7 @@ import { Plus, Trash2, Sparkles, ClipboardList, ChevronDown, ChevronUp, Maximize
 import {
   SaleEntry, loadSales, saveSales, loadCommission, entryRevenue, todayStr, generateDemoSales,
   AttendanceBook, AttendanceStatus, loadAttendance, saveAttendance, attendanceForDate,
-  LateOutBook, loadLateOuts, saveLateOuts, isPhonePlan, scheduledStore,
+  LateOutBook, loadLateOuts, saveLateOuts, isPhonePlan, scheduledStore, notifyDataChanged,
 } from '@/lib/sales';
 import { loadPeople } from './roster';
 import { readWorkspace } from '@/lib/workspace';
@@ -127,6 +127,32 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
       onDataChange();
       return next;
     });
+  };
+
+  // Morning-meeting attendance, kept alongside P/L/A. Read straight from the
+  // schedule so each rep's row shows the shift they were assigned that day.
+  const [meeting, setMeeting] = useState<Record<string, Record<string, boolean>>>({});
+  useEffect(() => {
+    try { setMeeting(JSON.parse(localStorage.getItem('se-mtg-v1') || '{}')); } catch { setMeeting({}); }
+  }, [loaded]);
+  const toggleMeeting = (name: string) => {
+    setMeeting(prev => {
+      const day = { ...(prev[date] ?? {}) };
+      if (day[name]) delete day[name]; else day[name] = true;
+      const next = { ...prev, [date]: day };
+      try { localStorage.setItem('se-mtg-v1', JSON.stringify(next)); } catch { /* quota */ }
+      notifyDataChanged();
+      return next;
+    });
+  };
+  const scheduledFor = (name: string, forDate: string): string => {
+    try {
+      const sched = JSON.parse(localStorage.getItem('se-schedule-v1') || '{}') as Record<string, Record<string, string>>;
+      const v = sched[forDate]?.[name];
+      if (!v || v === 'OFF') return '';
+      const [store, code] = v.split('|');
+      return code ? `${code} · ${store}` : store;
+    } catch { return ''; }
   };
 
   const attSummary = attendanceForDate(attendance, date);
@@ -294,10 +320,24 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
               </button>
             );
             const late = latePreview(p.name);
+            const sched = scheduledFor(p.name, date);
+            const atMeeting = !!meeting[date]?.[p.name];
             return (
               <div key={p.id} className="px-2.5 py-1.5 rounded-lg bg-white/[0.03]">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs truncate">{p.name}</span>
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-xs truncate">{p.name}</span>
+                    {sched && <span className="text-[9px] px-1 py-0.5 rounded bg-white/5 text-text-muted flex-none" title="Scheduled shift">{sched}</span>}
+                    {/* Morning-meeting attendance, synced with the roster. */}
+                    <button
+                      onClick={() => toggleMeeting(p.name)}
+                      className={cn('text-[9px] px-1.5 py-0.5 rounded border flex-none transition-all',
+                        atMeeting ? 'bg-accent-green/20 text-accent-green border-accent-green/40' : 'border-border-subtle text-text-muted hover:text-white')}
+                      title="Attended the morning meeting"
+                    >
+                      {atMeeting ? '✓ Mtg' : 'Mtg'}
+                    </button>
+                  </span>
                   <span className="flex gap-1">
                     {chip('P', 'Present', 'bg-accent-green/20 text-accent-green border-accent-green/40')}
                     {chip('L', 'Late', 'bg-accent-yellow/20 text-accent-yellow border-accent-yellow/40')}

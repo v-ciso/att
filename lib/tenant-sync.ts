@@ -12,7 +12,7 @@ const KEYS = [
   'se-sales-v1', 'se-people-v1', 'se-teams-v2', 'se-commission-v2', 'se-pnl-v1',
   'se-attendance-v1', 'se-lateouts-v1', 'se-commit-v1', 'se-schedule-v1',
   'se-goals-v1', 'se-competitions-v1', 'se-promo-rules-v1', 'se-campaign-v1',
-  'se-theme-v1',
+  'se-theme-v1', 'se-store-closed-v1', 'se-mtg-v1',
 ];
 
 let installed = false;

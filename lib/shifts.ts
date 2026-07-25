@@ -46,3 +46,41 @@ export function parseShift(value: string): { store: string; code: ShiftCode | nu
   const [store, code] = value.split('|');
   return { store, code: (code as ShiftCode) || null };
 }
+
+// ---------------------------------------------------------------------------
+// Staffing coverage — is a store actually covered open-to-close on a given day?
+// A store must not be "half assed": either full-day / AM+PM cover, or closed.
+// FULL covers both halves; a lone PM leaves the morning open, and one person
+// all day is covered-but-thin (the owner should confirm it on purpose).
+// ---------------------------------------------------------------------------
+
+export type CoverageStatus = 'ok' | 'thin' | 'gap' | 'unstaffed' | 'closed';
+
+export interface Coverage {
+  status: CoverageStatus;
+  label: string;
+  am: number;   // bodies covering the morning (AM or FULL)
+  pm: number;   // bodies covering the evening (PM or FULL)
+  swing: number;
+  total: number;
+}
+
+// `codes` = the shift each assigned rep works at this store that day.
+export function storeCoverage(codes: ShiftCode[], closed: boolean): Coverage {
+  if (closed) return { status: 'closed', label: 'Closed', am: 0, pm: 0, swing: 0, total: 0 };
+
+  let am = 0, pm = 0, swing = 0;
+  for (const c of codes) {
+    if (c === 'AM' || c === 'FULL') am++;
+    if (c === 'PM' || c === 'FULL') pm++;
+    if (c === 'SWING') swing++;
+  }
+  const total = codes.length;
+
+  if (total === 0) return { status: 'unstaffed', label: 'No one scheduled', am, pm, swing, total };
+  // A swing shift bridges the middle but does not open or close alone.
+  if (am === 0) return { status: 'gap', label: 'No morning coverage', am, pm, swing, total };
+  if (pm === 0) return { status: 'gap', label: 'No evening coverage', am, pm, swing, total };
+  if (total === 1) return { status: 'thin', label: 'Only 1 person all day', am, pm, swing, total };
+  return { status: 'ok', label: 'Covered', am, pm, swing, total };
+}

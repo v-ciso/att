@@ -252,6 +252,15 @@ function CompanyUsers({ company, onChange, onBanner }: {
     e.preventDefault();
     setBusy(true); setErr('');
     try {
+      // Seats are unlimited (base 1). Rather than dead-end at the cap, raise it
+      // by one so adding a login is always one action.
+      if (atCapacity) {
+        const bump = await fetch('/api/admin/companies', {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: company.id, seats: company.users.length + 1 }),
+        });
+        if (!bump.ok) throw new Error((await bump.json()).error ?? 'Could not raise seats');
+      }
       const res = await fetch('/api/admin/users', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, marketOwnerId: company.id }),
@@ -284,12 +293,10 @@ function CompanyUsers({ company, onChange, onBanner }: {
         <p className="text-xs font-semibold text-text-secondary flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /> Users</p>
         <button
           onClick={() => setAdding(v => !v)}
-          disabled={atCapacity}
-          className={cn('flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] transition-colors',
-            atCapacity ? 'text-text-muted/40 cursor-not-allowed' : 'text-text-secondary hover:text-white hover:bg-white/5')}
-          title={atCapacity ? 'Seat limit reached — upgrade the plan first' : 'Add a login'}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+          title={atCapacity ? 'At the seat limit — adding will raise seats by one' : 'Add a login'}
         >
-          <Plus className="w-3 h-3" /> Add user
+          <Plus className="w-3 h-3" /> Add user{atCapacity ? ' (+1 seat)' : ''}
         </button>
       </div>
 

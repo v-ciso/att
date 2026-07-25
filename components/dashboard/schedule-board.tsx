@@ -3,23 +3,72 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { CalendarCheck, Maximize2, Minimize2 } from 'lucide-react';
+import { CalendarCheck, ChevronLeft, ChevronRight, Maximize2, Minimize2, AlertTriangle, Store as StoreIcon, X } from 'lucide-react';
 import { useLocalState } from './editable-sections';
 import { todayStr } from '@/lib/sales';
 import { Person } from './roster';
-import { SHIFT_CODES, shiftTime, encodeShift } from '@/lib/shifts';
+import { SHIFT_CODES, ShiftCode, shiftTime, encodeShift, parseShift, storeCoverage, Coverage } from '@/lib/shifts';
 
-// Who is where, over the next 7-30 days. Its own component so it can live as
-// presented fullscreen, and stay in sync (writes se-schedule-v1, which the
-// Daily Tracker cross-references to lock each sale to the scheduled store).
-export function ScheduleBoard({ people, storeOptions, compact = false }: { people: Person[]; storeOptions: string[]; compact?: boolean }) {
-  const { state: schedule, setState: setSchedule } = useLocalState<Record<string, Record<string, string>>>('se-schedule-v1', {});
-  // Rosters get built weeks ahead, not day-of. Compact (Meeting Mode) keeps the
-  // 7-day glance; the full tab can plan a fortnight or a month out.
-  const [range, setRange] = useState<7 | 14 | 30>(compact ? 7 : 14);
-  const days = useMemo(() => Array.from({ length: range }, (_, i) => todayStr(i)), [range]);
-  const setShift = (date: string, person: string, store: string) =>
-    setSchedule(prev => ({ ...prev, [date]: { ...(prev[date] ?? {}), [person]: store } }));
+// Store-first, one-day-at-a-time schedule. The old rep x 30-day grid forced a
+// horizontal scroll; this pages by DATE (arrows + a picker) and stacks one card
+// per store, so it fits any screen including a phone. Each card shows coverage
+// and warns when a store is not properly staffed.
+//
+// Data shapes are unchanged so the Daily Tracker's store-lock and the sync
+// layer keep working:
+//   se-schedule-v1     { date: { person: "store|CODE" | "OFF" } }
+//   se-store-closed-v1 { date: string[] }   // stores marked closed that day
+
+type ScheduleMap = Record<string, Record<string, string>>;
+type ClosedMap = Record<string, string[]>;
+
+const STATUS_STYLE: Record<Coverage['status'], string> = {
+  ok: 'bg-accent-green/15 text-accent-green border-accent-green/30',
+  thin: 'bg-accent-yellow/15 text-accent-yellow border-accent-yellow/30',
+  gap: 'bg-accent-orange/15 text-accent-orange border-accent-orange/30',
+  unstaffed: 'bg-accent-red/15 text-accent-red border-accent-red/30',
+  closed: 'bg-white/5 text-text-muted border-border-subtle',
+};
+
+function fmtDay(dateStr: string): string {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+}
+
+export function ScheduleBoard({ people, storeOptions, compact = false }: {
+  people: Person[]; storeOptions: string[]; compact?: boolean;
+}) {
+  const { state: schedule, setState: setSchedule } = useLocalState<ScheduleMap>('se-schedule-v1', {});
+  const { state: closed, setState: setClosed } = useLocalState<ClosedMap>('se-store-closed-v1', {});
+  const [date, setDate] = useState(() => todayStr());
+
+  const dayPlan = schedule[date] ?? {};
+  const closedToday = closed[date] ?? [];
+
+  const setShift = (person: string, value: string) =>
+    setSchedule(prev => {
+      const day = { ...(prev[date] ?? {}) };
+      if (!value) delete day[person]; else day[person] = value;
+      return { ...prev, [date]: day };
+    });
+
+  const toggleClosed = (store: string) =>
+    setClosed(prev => {
+      const list = new Set(prev[date] ?? []);
+      if (list.has(store)) list.delete(store); else list.add(store);
+      return { ...prev, [date]: Array.from(list) };
+    });
+
+  // person -> {store, code} for this date (Map for O(1) lookups per the guide)
+  const placed = useMemo(() => {
+    const m = new Map<string, { store: string; code: ShiftCode }>();
+    for (const [person, value] of Object.entries(dayPlan)) {
+      const { store, code } = parseShift(value);
+      if (store && code) m.set(person, { store, code });
+    }
+    return m;
+  }, [dayPlan]);
+
+  const unscheduled = people.filter(p => !placed.has(p.name));
 
   const panelRef = useRef<HTMLDivElement>(null);
   const [fs, setFs] = useState(false);
@@ -35,61 +84,52 @@ export function ScheduleBoard({ people, storeOptions, compact = false }: { peopl
 
   const [copied, setCopied] = useState(false);
   const copy = async () => {
-    const lines: string[] = ['📅 Schedule'];
-    for (const d of days) {
-      const label = new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' });
-      const day = schedule[d] ?? {};
-      const byStore = new Map<string, string[]>();
-      const off: string[] = [];
-      people.forEach(p => {
-        const v = day[p.name];
-        if (!v) return;
-        if (v === 'OFF') { off.push(p.name); return; }
-        const [store, code] = v.split('|');
-        const label = code ? `${p.name} (${code} ${shiftTime(store, d, code as never)})` : p.name;
-        byStore.set(store, [...(byStore.get(store) ?? []), label]);
-      });
-      if (byStore.size === 0 && off.length === 0) continue;
-      lines.push(`\n${label}`);
-      Array.from(byStore.entries()).forEach(([store, names]) => lines.push(`  ${store}: ${names.join(', ')}`));
-      if (off.length) lines.push(`  OFF: ${off.join(', ')}`);
+    const lines: string[] = [`Schedule - ${fmtDay(date)}`];
+    for (const store of storeOptions) {
+      if (closedToday.includes(store)) { lines.push(`\n${store}: CLOSED`); continue; }
+      const here = Array.from(placed.entries()).filter(([, v]) => v.store === store);
+      if (!here.length) continue;
+      lines.push(`\n${store}`);
+      // AM first, then SWING, PM, FULL - one consistent order.
+      for (const code of SHIFT_CODES) {
+        const names = here.filter(([, v]) => v.code === code).map(([n]) => n);
+        if (names.length) lines.push(`  ${code} ${shiftTime(store, date, code)}: ${names.join(', ')}`);
+      }
     }
     try {
       await navigator.clipboard.writeText(lines.join('\n'));
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
+      setCopied(true); setTimeout(() => setCopied(false), 2500);
     } catch { /* clipboard blocked */ }
   };
 
-  const cell = fs ? 'text-sm py-1.5' : compact ? 'text-[11px]' : 'text-xs';
+  const step = (days: number) => setDate(d => {
+    const nd = new Date(d + 'T12:00:00'); nd.setDate(nd.getDate() + days);
+    return nd.toISOString().slice(0, 10);
+  });
+
+  const warnings = storeOptions
+    .map(store => ({ store, cov: coverageFor(store, placed, closedToday) }))
+    .filter(x => x.cov.status === 'gap' || x.cov.status === 'unstaffed' || x.cov.status === 'thin');
 
   return (
     <div ref={panelRef} className="presentable">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h3 className={cn('font-semibold text-text-secondary flex items-center gap-2', compact ? 'text-sm' : 'text-xl neon-brand')}>
           <CalendarCheck className={cn(compact ? 'w-4 h-4' : 'w-5 h-5')} style={{ color: 'var(--brand)' }} />
-          {compact ? "Schedule · who's where" : 'Schedule'}
+          {compact ? "Schedule" : 'Schedule'}
         </h3>
         <div className="flex flex-wrap items-center gap-2">
-          {!compact && (
-            <div className="flex gap-1.5">
-              {([7, 14, 30] as const).map(r => (
-                <button
-                  key={r}
-                  onClick={() => setRange(r)}
-                  className={cn('tab-btn', range === r ? 'active' : 'inactive')}
-                >
-                  {r}d
-                </button>
-              ))}
-            </div>
-          )}
-          <Button variant="secondary" size="sm" onClick={copy}>
-            {copied ? '✓ Copied' : '📋 Copy for chat'}
-          </Button>
-          {/* Hidden when embedded in Meeting Mode: that panel is already
-              fullscreen, so this button called exitFullscreen() and killed the
-              whole presentation instead of expanding the schedule. */}
+          {/* Date pager: arrows + a picker to jump to any specific day. */}
+          <div className="flex items-center gap-1 rounded-lg bg-white/5 border border-border-subtle p-0.5">
+            <button onClick={() => step(-1)} className="p-1.5 rounded hover:bg-white/10" aria-label="Previous day"><ChevronLeft className="w-4 h-4" /></button>
+            <input
+              type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)}
+              className="bg-transparent text-sm px-1 focus:outline-none" aria-label="Pick a date"
+            />
+            <button onClick={() => step(1)} className="p-1.5 rounded hover:bg-white/10" aria-label="Next day"><ChevronRight className="w-4 h-4" /></button>
+          </div>
+          <button onClick={() => setDate(todayStr())} className="tab-btn inactive">Today</button>
+          <Button variant="secondary" size="sm" onClick={copy}>{copied ? 'Copied' : 'Copy'}</Button>
           {!compact && (
             <Button size="sm" onClick={present}>
               {fs ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
@@ -98,104 +138,130 @@ export function ScheduleBoard({ people, storeOptions, compact = false }: { peopl
           )}
         </div>
       </div>
-      <div className="overflow-x-auto">
-        {/* min-w forces the existing overflow-x wrapper to actually scroll —
-            without it an 8-column grid squeezes to one letter per line. */}
-        <table className={cn('w-full', fs ? 'text-sm' : 'text-[11px]')} style={{ minWidth: `${140 + days.length * 78}px` }}>
-          <thead>
-            <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
-              <th className="pb-1.5 pr-2">Rep</th>
-              {days.map(d => (
-                <th key={d} className="pb-1.5 px-1 text-center">
-                  {new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' })}
-                  <span className="block text-[9px] normal-case font-normal">{d.slice(5)}</span>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-subtle">
-            {people.map(p => (
-              <tr key={p.id}>
-                <td className={cn('pr-2 font-medium whitespace-nowrap', cell)}>{p.name}</td>
-                {days.map(d => {
-                  const val = schedule[d]?.[p.name] ?? '';
-                  return (
-                    <td key={d} className="py-1 px-0.5 text-center">
-                      <select
-                        value={val}
-                        onChange={e => setShift(d, p.name, e.target.value)}
-                        className={cn(
-                          'w-full bg-bg-tertiary border rounded px-1 py-0.5 focus:outline-none cursor-pointer',
-                          fs ? 'text-xs' : 'text-[9px]',
-                          val === 'OFF' ? 'border-border-subtle text-text-muted' : val ? 'border-[rgba(var(--brand-rgb),0.35)] text-[color:var(--brand)]' : 'border-border-subtle text-text-muted'
-                        )}
-                        aria-label={`${p.name} on ${d}`}
-                      >
-                        <option value="">—</option>
-                        {(p.stores?.length ? p.stores : storeOptions).map(s => (
-                          <optgroup key={s} label={s}>
-                            {SHIFT_CODES.map(code => (
-                              <option key={`${s}|${code}`} value={encodeShift(s, code)}>
-                                {code} {shiftTime(s, d, code)}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                        <option value="OFF">OFF</option>
-                      </select>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-          {/* Coverage: every store you actually run, and whether anyone is on
-              it that day. An unstaffed store is a day of zero production, so it
-              needs to be visible while you build the roster, not discovered
-              afterwards. */}
-          <tfoot className="border-t-2 border-border-strong">
-            <tr>
-              <td colSpan={days.length + 1} className="pt-2 pb-1">
-                <span className="text-[10px] uppercase tracking-wider text-text-muted">Store coverage</span>
-              </td>
-            </tr>
-            {storeOptions.map(store => (
-              <tr key={store}>
-                <td className={cn('pr-2 whitespace-nowrap text-text-secondary', cell)}>{store}</td>
-                {days.map(d => {
-                  const staffed = people.filter(p => {
-                    const v = schedule[d]?.[p.name];
-                    return v && v !== 'OFF' && v.split('|')[0] === store;
-                  }).length;
-                  return (
-                    <td key={d} className="py-1 px-0.5 text-center">
-                      <span
-                        className={cn(
-                          'inline-block min-w-[22px] px-1 py-0.5 rounded text-[10px] font-semibold border',
-                          staffed > 0
-                            ? 'border-accent-green/30 bg-accent-green/10 text-accent-green'
-                            : 'border-accent-red/30 bg-accent-red/10 text-accent-red'
-                        )}
-                        title={staffed > 0 ? `${staffed} scheduled at ${store}` : `${store} is UNSTAFFED on ${d}`}
-                      >
-                        {staffed > 0 ? staffed : '—'}
-                      </span>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tfoot>
-        </table>
-      </div>
-      {storeOptions.length === 0 && (
-        <p className="mt-2 text-[11px] text-text-muted p-3 rounded-xl bg-white/5">
-          No stores yet — add them in the Commission tab or run the setup guide, and coverage will appear here.
-        </p>
+
+      <p className="text-sm text-text-secondary mb-3">{fmtDay(date)}</p>
+
+      {warnings.length > 0 && (
+        <div className="mb-4 p-3 rounded-xl bg-accent-orange/10 border border-accent-orange/25 flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 text-accent-orange flex-none mt-0.5" />
+          <p className="text-xs text-text-secondary">
+            <span className="font-semibold text-accent-orange">Staffing gaps: </span>
+            {warnings.map(w => `${w.store} (${w.cov.label.toLowerCase()})`).join(' · ')}. Fix them below, or mark a store closed.
+          </p>
+        </div>
       )}
-      <p className="mt-2 text-[10px] text-text-muted">
-        Set it in the morning meeting — the Daily Tracker locks each rep&apos;s sales to their scheduled store, and Copy exports it for Discord/iMessage.
+
+      {storeOptions.length === 0 ? (
+        <p className="text-xs text-text-muted p-3 rounded-xl bg-white/5">No stores yet - add them in the Commission tab or the setup guide.</p>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {storeOptions.map(store => (
+            <StoreCard
+              key={store}
+              store={store} date={date} people={people} placed={placed}
+              closed={closedToday.includes(store)}
+              onToggleClosed={() => toggleClosed(store)}
+              onAssign={(person, code) => setShift(person, code ? encodeShift(store, code) : '')}
+            />
+          ))}
+        </div>
+      )}
+
+      {unscheduled.length > 0 && (
+        <div className="mt-4 p-3 rounded-xl bg-white/[0.03] border border-border-subtle">
+          <p className="text-[11px] uppercase tracking-wider text-text-muted mb-2">Not scheduled ({unscheduled.length})</p>
+          <div className="flex flex-wrap gap-1.5">
+            {unscheduled.map(p => <span key={p.id} className="px-2 py-1 rounded-lg bg-white/5 text-xs">{p.name}</span>)}
+          </div>
+        </div>
+      )}
+
+      <p className="mt-3 text-[11px] text-text-muted">
+        Assign each rep to a shift per store. The Daily Tracker locks a rep&apos;s sale to their scheduled store, and Copy exports it for chat.
       </p>
+    </div>
+  );
+}
+
+// Coverage for one store, from the shared pure helper.
+function coverageFor(store: string, placed: Map<string, { store: string; code: ShiftCode }>, closedToday: string[]): Coverage {
+  const codes = Array.from(placed.values()).filter(v => v.store === store).map(v => v.code);
+  return storeCoverage(codes, closedToday.includes(store));
+}
+
+function StoreCard({ store, date, people, placed, closed, onToggleClosed, onAssign }: {
+  store: string; date: string; people: Person[];
+  placed: Map<string, { store: string; code: ShiftCode }>;
+  closed: boolean;
+  onToggleClosed: () => void;
+  onAssign: (person: string, code: ShiftCode | null) => void;
+}) {
+  const cov = coverageFor(store, placed, closed ? [store] : []);
+  // Only reps who can work this store (their stores list, or anyone if unset).
+  const eligible = people.filter(p => !p.stores?.length || p.stores.includes(store));
+
+  return (
+    <div className={cn('p-4 rounded-xl glass border', closed ? 'border-border-subtle opacity-70' : 'border-border-subtle')}>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h4 className="font-semibold flex items-center gap-2">
+          <StoreIcon className="w-4 h-4" style={{ color: 'var(--brand)' }} /> {store}
+        </h4>
+        <div className="flex items-center gap-2">
+          <span className={cn('text-[10px] px-2 py-0.5 rounded-full border', STATUS_STYLE[cov.status])}>{cov.label}</span>
+          <button
+            onClick={onToggleClosed}
+            className={cn('text-[10px] px-2 py-0.5 rounded-lg border transition-colors',
+              closed ? 'border-accent-red/40 text-accent-red' : 'border-border-subtle text-text-muted hover:text-white')}
+          >
+            {closed ? 'Closed' : 'Mark closed'}
+          </button>
+        </div>
+      </div>
+
+      {closed ? (
+        <p className="text-xs text-text-muted">Store marked closed for this day - no coverage expected.</p>
+      ) : (
+        <div className="space-y-2">
+          {SHIFT_CODES.map(code => {
+            const assigned = eligible.filter(p => placed.get(p.name)?.store === store && placed.get(p.name)?.code === code);
+            return (
+              <div key={code} className="flex flex-wrap items-center gap-1.5">
+                <span className="w-24 flex-none text-[11px] text-text-muted">
+                  <span className="font-semibold text-text-secondary">{code}</span> {shiftTime(store, date, code)}
+                </span>
+                {assigned.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => onAssign(p.name, null)}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs bg-[rgba(var(--brand-rgb),0.15)] text-[color:var(--brand)] border border-[rgba(var(--brand-rgb),0.3)]"
+                    title="Click to unassign"
+                  >
+                    {p.name} <X className="w-3 h-3" />
+                  </button>
+                ))}
+                <select
+                  value=""
+                  onChange={e => { if (e.target.value) onAssign(e.target.value, code); }}
+                  className="text-xs bg-bg-tertiary border border-border-subtle rounded-lg px-2 py-1 text-text-secondary focus:outline-none cursor-pointer"
+                  aria-label={`Add someone to ${store} ${code}`}
+                >
+                  <option value="">+ add</option>
+                  {eligible
+                    .filter(p => {
+                      const cur = placed.get(p.name);
+                      return !cur || cur.store !== store || cur.code !== code;
+                    })
+                    .map(p => {
+                      const cur = placed.get(p.name);
+                      const elsewhere = cur ? ` (${cur.store === store ? cur.code : cur.store})` : '';
+                      return <option key={p.id} value={p.name}>{p.name}{elsewhere}</option>;
+                    })}
+                </select>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
