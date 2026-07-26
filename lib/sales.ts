@@ -381,6 +381,24 @@ export function attendanceForDate(book: AttendanceBook, date: string) {
 }
 
 // Demo data: a few weeks of plausible entries for the current roster
+// Demo attendance: mostly Present with a sprinkle of Late/Absent over the last
+// ~21 days, so the Attendance tab has something to show alongside demo sales.
+export function generateDemoAttendance(people: Person[]): AttendanceBook {
+  const book: AttendanceBook = {};
+  let seed = 20260101;
+  const rand = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+  for (let day = 0; day < 21; day++) {
+    const date = todayStr(-day);
+    const marks: Record<string, AttendanceStatus> = {};
+    for (const p of people) {
+      const r = rand();
+      marks[p.name] = r < 0.82 ? 'P' : r < 0.93 ? 'L' : 'A';
+    }
+    book[date] = marks;
+  }
+  return book;
+}
+
 export function generateDemoSales(people: Person[], commission: CommissionState): SaleEntry[] {
   const sellers = people.filter(p => p.role !== 'ASM');
   const plans = [...commission.phonePlans.map(p => p.name), ...commission.internet.map(p => p.name)];

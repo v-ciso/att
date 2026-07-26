@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import {
-  Building2, Plus, Users, Power, Trash2, Copy, Check, ShieldCheck, ChevronDown, ChevronRight, KeyRound,
+  Building2, Plus, Users, Power, Trash2, Copy, Check, ShieldCheck, ChevronDown, ChevronRight, KeyRound, Upload,
 } from 'lucide-react';
 
 interface AdminUser {
@@ -144,10 +144,18 @@ export function AdminConsole({ adminEmail }: { adminEmail: string }) {
 function CreateCompany({ onDone }: { onDone: (banner: { title: string; lines: string[] } | null) => void }) {
   const [form, setForm] = useState({
     companyName: '', ownerEmail: '', ownerName: '', password: '',
-    campaign: 'retail', seats: '1', theme: 'obsidian-gold',
+    campaign: 'retail', seats: '1', theme: 'obsidian-gold', logoUrl: '',
   });
+  const [logoName, setLogoName] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+
+  const onLogo = (file: File) => {
+    if (file.size > 512 * 1024) { setErr('Logo must be under 512KB.'); return; }
+    const reader = new FileReader();
+    reader.onload = () => { setForm(f => ({ ...f, logoUrl: String(reader.result) })); setLogoName(file.name); };
+    reader.readAsDataURL(file);
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,6 +196,16 @@ function CreateCompany({ onDone }: { onDone: (banner: { title: string; lines: st
         </Field>
         <Field label="Theme">
           <Select value={form.theme} onChange={v => set('theme', v)} options={[['obsidian-gold', 'Obsidian & Gold'], ['command-blue', 'Command Blue'], ['emerald', 'Emerald']]} />
+        </Field>
+        <Field label="Logo (their dashboard + PDF)">
+          <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-bg-tertiary border border-border-subtle text-sm cursor-pointer hover:bg-white/5">
+            {form.logoUrl ? (
+              <img src={form.logoUrl} alt="" className="h-6 w-auto rounded" />
+            ) : <Upload className="w-4 h-4 text-text-muted" />}
+            <span className="text-text-muted truncate">{logoName || 'Upload PNG/SVG (under 512KB)'}</span>
+            <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) onLogo(f); }} />
+          </label>
         </Field>
         <div className="sm:col-span-2 flex items-center gap-3 mt-1">
           <Button type="submit" loading={busy} disabled={busy}>Create company</Button>

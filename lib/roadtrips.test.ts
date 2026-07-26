@@ -62,3 +62,13 @@ const RATE = 0.6;
 }
 
 console.log('roadtrips: all checks passed');
+
+// Manual "mark received" overrides the 14-day lag: a trip taken today but
+// confirmed received today counts as received now, and is not outstanding.
+{
+  const t = roadtripTotals([{ name: 'Confirmed', amount: 1000, date: today, receivedDate: today }], RATE, 'weekly', NOW);
+  assert.strictEqual(t.cost, 1000, 'cost still lands the week of the trip');
+  assert.strictEqual(t.received, 600, 'confirmed reimbursement is recognised now');
+  assert.strictEqual(t.outstanding, 0, 'a confirmed trip is never outstanding');
+}
+console.log('roadtrips: received-override check passed');

@@ -384,7 +384,12 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
   const addPerson = (p: Omit<Person, 'id'>) =>
     setPeople(prev => [...prev, { ...p, id: `p${Date.now()}-${personCounter++}` }]);
 
-  const removePerson = (id: string) => setPeople(prev => prev.filter(p => p.id !== id));
+  const removePerson = (id: string) => {
+    const p = people.find(x => x.id === id);
+    // A person carries sales/attendance history — confirm before erasing them.
+    if (p && !window.confirm(`Remove ${p.name} from the roster? Their name stays on any sales already logged, but they'll be gone from scheduling and attendance.`)) return;
+    setPeople(prev => prev.filter(x => x.id !== id));
+  };
 
   const promote = (id: string) =>
     setPeople(prev => prev.map(p => {

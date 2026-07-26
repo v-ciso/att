@@ -26,7 +26,7 @@ import { ProfileDrawer } from '@/components/dashboard/profile-drawer';
 import { DailyTracker } from '@/components/dashboard/daily-tracker';
 import {
   Period, PERIOD_LABELS, aggregateSales, loadSales, saveSales, loadCommission,
-  generateDemoSales, Aggregate, PersonStats, loadAttendance, attendanceForDate, todayStr,
+  generateDemoSales, generateDemoAttendance, saveAttendance, Aggregate, PersonStats, loadAttendance, attendanceForDate, todayStr,
   CAMPAIGNS, isB2B,
 } from '@/lib/sales';
 import { Editable, parseNum, useLocalState } from '@/components/dashboard/editable-sections';
@@ -35,6 +35,7 @@ import { PromoPanel } from '@/components/dashboard/promo-panel';
 import { AttendanceSheet } from '@/components/dashboard/attendance-sheet';
 import { computePay } from '@/lib/pay';
 import { readWorkspace } from '@/lib/workspace';
+import { useTheme } from '@/components/white-label/theme-provider';
 
 const VALID_TABS = ['dashboard', 'tracker', 'roster', 'leaderboard', 'meeting', 'schedule', 'attendance', 'competition', 'pnl', 'commission', 'import'];
 
@@ -460,6 +461,8 @@ function DashboardContent() {
 
   // ---- Derived data core: sales entries → everything -----------------------
   const [dataVersion, setDataVersion] = useState(0);
+  const { theme } = useTheme();
+  const companyName = theme.companyName;
   const bump = useCallback(() => setDataVersion(v => v + 1), []);
 
   // Re-read on tab return too (edits on other tabs change commission/roster)
@@ -544,6 +547,7 @@ function DashboardContent() {
 
   const generateDemo = () => {
     saveSales(generateDemoSales(people, commission));
+    saveAttendance(generateDemoAttendance(people));
     bump();
   };
 
@@ -770,7 +774,9 @@ function DashboardContent() {
       {/* Header — raised stacking context so its dropdowns paint over the cards below */}
       <div className="slide-in relative z-40 mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl lg:text-4xl font-bold neon-brand">Dashboard</h1>
+          <h1 className="text-2xl lg:text-4xl font-bold neon-brand">
+            {companyName && companyName !== 'Sales Engine' ? `Welcome, ${companyName}` : 'Dashboard'}
+          </h1>
           {/* The campaign decides how reps get paid, so it is not a view toggle
               anyone can flip mid-month. Owners set it; everyone else reads it. */}
           <p className="text-text-secondary text-sm mt-0.5 flex flex-wrap items-center gap-1.5">

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useSession } from 'next-auth/react';
 import { DashboardLayout } from '@/components/dashboard/layout';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,7 @@ import { useTheme } from '@/components/white-label/theme-provider';
 import { cn } from '@/lib/utils';
 import { Palette, Globe, CheckCircle, Upload, Lock, KeyRound } from 'lucide-react';
 import { ChangePassword } from '@/components/dashboard/change-password';
+import { isSuperAdminEmail } from '@/lib/super-admins';
 import type { ThemePreset } from '@/lib/theme';
 
 const PRESETS: { id: ThemePreset; name: string; swatch: string; note: string }[] = [
@@ -22,12 +24,17 @@ const PRESETS: { id: ThemePreset; name: string; swatch: string; note: string }[]
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
+  const { data: session } = useSession();
+  // Branding + domain are the VENDOR's white-label controls. A customer sets
+  // those at purchase (the admin console); in their own Settings they only get
+  // to change their password.
+  const canBrand = isSuperAdminEmail(session?.user?.email);
   const [draft, setDraft] = useState({
     companyName: theme.companyName,
     logoUrl: theme.logoUrl ?? '',
   });
   const [saved, setSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState<'branding' | 'domain' | 'account'>('branding');
+  const [activeTab, setActiveTab] = useState<'branding' | 'domain' | 'account'>(canBrand ? 'branding' : 'account');
 
   const save = () => {
     setTheme({
@@ -46,12 +53,16 @@ export default function SettingsPage() {
       </div>
 
       <div className="slide-in mb-4 flex gap-1.5">
-        <button onClick={() => setActiveTab('branding')} className={cn('tab-btn', activeTab === 'branding' ? 'active' : 'inactive')}>
-          <Palette className="w-3 h-3 inline mr-1" /> Branding
-        </button>
-        <button onClick={() => setActiveTab('domain')} className={cn('tab-btn', activeTab === 'domain' ? 'active' : 'inactive')}>
-          <Globe className="w-3 h-3 inline mr-1" /> Domain
-        </button>
+        {canBrand && (
+          <>
+            <button onClick={() => setActiveTab('branding')} className={cn('tab-btn', activeTab === 'branding' ? 'active' : 'inactive')}>
+              <Palette className="w-3 h-3 inline mr-1" /> Branding
+            </button>
+            <button onClick={() => setActiveTab('domain')} className={cn('tab-btn', activeTab === 'domain' ? 'active' : 'inactive')}>
+              <Globe className="w-3 h-3 inline mr-1" /> Domain
+            </button>
+          </>
+        )}
         <button onClick={() => setActiveTab('account')} className={cn('tab-btn', activeTab === 'account' ? 'active' : 'inactive')}>
           <KeyRound className="w-3 h-3 inline mr-1" /> Account
         </button>

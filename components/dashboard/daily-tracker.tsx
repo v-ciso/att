@@ -5,7 +5,7 @@ import { cn, formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Plus, Trash2, Sparkles, ClipboardList, ChevronDown, ChevronUp, Maximize2, Minimize2, CalendarCheck } from 'lucide-react';
 import {
-  SaleEntry, loadSales, saveSales, loadCommission, entryRevenue, todayStr, generateDemoSales,
+  SaleEntry, loadSales, saveSales, loadCommission, entryRevenue, todayStr, generateDemoSales, generateDemoAttendance,
   AttendanceBook, AttendanceStatus, loadAttendance, saveAttendance, attendanceForDate,
   LateOutBook, loadLateOuts, saveLateOuts, isPhonePlan, scheduledStore, notifyDataChanged,
 } from '@/lib/sales';
@@ -196,7 +196,7 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
 
   const removeEntry = (id: string) => setSales(prev => prev.filter(e => e.id !== id));
 
-  const generateDemo = () => setSales(generateDemoSales(people, commission));
+  const generateDemo = () => { setSales(generateDemoSales(people, commission)); const att = generateDemoAttendance(people); saveAttendance(att); setAttendance(att); };
   const clearAll = () => {
     setSales([]);
     setAttendance({});

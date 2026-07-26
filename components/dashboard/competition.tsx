@@ -157,7 +157,11 @@ export function Competition({ sales, commission, storeOptions, compact = false }
 
   const edit = (id: string, patch: Partial<Comp>) =>
     setComps(prev => prev.map(c => (c.id === id ? { ...c, ...patch } : c)));
-  const remove = (id: string) => setComps(prev => (prev.length > 1 ? prev.filter(c => c.id !== id) : prev));
+  const remove = (id: string) => {
+    const c = comps.find(x => x.id === id);
+    if (c && !window.confirm(`Delete the "${c.title}" competition? This can't be undone.`)) return;
+    setComps(prev => (prev.length > 1 ? prev.filter(x => x.id !== id) : prev));
+  };
   const add = () =>
     setComps(prev => [...prev, {
       id: `c${Date.now()}-${compCounter++}`,

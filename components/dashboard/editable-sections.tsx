@@ -561,7 +561,7 @@ function RoadtripList({
 }: {
   items: RoadtripItem[];
   view: PnlView;
-  onEdit: (index: number, field: 'name' | 'amount' | 'date', value: string) => void;
+  onEdit: (index: number, field: 'name' | 'amount' | 'date' | 'receivedDate', value: string) => void;
   onAdd: () => void;
   onRemove: (index: number) => void;
   footer?: React.ReactNode;
@@ -603,7 +603,7 @@ function RoadtripList({
                   </button>
                 </span>
               </div>
-              <div className="flex items-center justify-between gap-2 text-[10px]">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[10px]">
                 <input
                   type="date"
                   value={date}
@@ -611,12 +611,29 @@ function RoadtripList({
                   className="bg-transparent border border-border-subtle rounded px-1.5 py-0.5 text-text-secondary focus:border-border-strong focus:outline-none"
                   aria-label={`${trip.name} date`}
                 />
-                <span className={cn(daysOut > 0 ? 'text-accent-orange' : 'text-text-muted')}>
-                  {daysOut > 0
-                    ? `paid back in ${daysOut}d`
-                    : `reimbursed ${payDate}`}
-                  {!counted && ` · outside ${view}`}
-                </span>
+                {trip.receivedDate ? (
+                  <button
+                    onClick={() => onEdit(i, 'receivedDate', '')}
+                    className="text-accent-green font-semibold hover:underline"
+                    title="Click to undo — mark as not yet received"
+                  >
+                    ✓ received {trip.receivedDate}
+                  </button>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <span className={cn(daysOut > 0 ? 'text-accent-orange' : 'text-text-muted')}>
+                      {daysOut > 0 ? `~paid back in ${daysOut}d` : `~reimbursed ${payDate}`}
+                      {!counted && ` · outside ${view}`}
+                    </span>
+                    <button
+                      onClick={() => onEdit(i, 'receivedDate', isoToday())}
+                      className="px-1.5 py-0.5 rounded border border-accent-green/40 text-accent-green hover:bg-accent-green/10 transition-colors"
+                      title="Confirm the reimbursement actually landed today"
+                    >
+                      Mark received
+                    </button>
+                  </span>
+                )}
               </div>
             </div>
           );
@@ -635,11 +652,9 @@ export interface PnlDerivedByView {
 }
 
 export function PnlEditor({ derived }: { derived: PnlDerivedByView }) {
-  // A live account must not open on an $85,000 payroll it never entered.
-  const { state, setState, reset } = useLocalState<PnlState>(
-    'se-pnl-v1',
-    seedForWorkspace(DEFAULT_PNL, EMPTY_PNL)
-  );
+  // A live account must not open on an $85,000 payroll it never entered — demo
+  // shows sample expenses, live starts empty.
+  const { state, setState, reset } = useLocalState<PnlState>('se-pnl-v1', DEFAULT_PNL, EMPTY_PNL);
   const [view, setView] = useState<PnlView>('monthly');
 
   const editList =
@@ -656,13 +671,14 @@ export function PnlEditor({ derived }: { derived: PnlDerivedByView }) {
         ),
       }));
 
-  const editRoadtrip = (index: number, field: 'name' | 'amount' | 'date', value: string) =>
+  const editRoadtrip = (index: number, field: 'name' | 'amount' | 'date' | 'receivedDate', value: string) =>
     setState(prev => ({
       ...prev,
       roadtrips: prev.roadtrips.map((trip, i) => {
         if (i !== index) return trip;
         if (field === 'amount') return { ...trip, amount: parseNum(value) };
         if (field === 'date') return { ...trip, date: value || isoToday() };
+        if (field === 'receivedDate') return { ...trip, receivedDate: value || undefined };
         return { ...trip, name: value.trim() || trip.name };
       }),
     }));

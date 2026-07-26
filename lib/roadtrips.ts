@@ -15,7 +15,8 @@ const VIEW_WINDOW_DAYS: Record<PnlView, number> = { daily: 1, weekly: 7, monthly
 export interface RoadtripItem {
   name: string;
   amount: number;
-  date?: string; // YYYY-MM-DD; missing on pre-existing saved data → today
+  date?: string;         // YYYY-MM-DD; missing on pre-existing saved data → today
+  receivedDate?: string; // set when the owner confirms the money actually landed
 }
 
 export interface RoadtripTotals {
@@ -69,7 +70,9 @@ export function roadtripTotals(
   return trips.reduce<RoadtripTotals>((acc, trip) => {
     const date = trip.date || isoToday(now);
     const amount = Number(trip.amount) || 0;
-    const payDate = shiftDays(date, REIMBURSE_LAG_DAYS);
+    // If the owner confirmed the money landed, use that date; otherwise assume
+    // the standard ~2-week lag. A confirmed trip is never still "outstanding".
+    const payDate = trip.receivedDate || shiftDays(date, REIMBURSE_LAG_DAYS);
     const paid = daysSince(payDate, now) >= 0;
 
     if (inWindow(date, view, now)) acc.cost += amount;
