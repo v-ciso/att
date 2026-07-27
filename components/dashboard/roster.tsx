@@ -7,7 +7,7 @@ import { cn, formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Trash2, TrendingUp, Award, UserPlus, Pencil, ChevronDown, Plus, Store as StoreIcon } from 'lucide-react';
 import { TeamTree } from './team-tree';
-import { notifyDataChanged } from '@/lib/sales';
+import { notifyDataChanged, loadCommission } from '@/lib/sales';
 import { RETAILERS } from '@/lib/shifts';
 import { seedForWorkspace } from '@/lib/workspace';
 
@@ -231,9 +231,12 @@ function StoresManager() {
   const persist = (next: StoreRule[]) => {
     setStores(next);
     try {
-      const c = JSON.parse(localStorage.getItem('se-commission-v2') || '{}');
+      // Merge into the FULL commission (loadCommission fills any missing lists),
+      // never a bare {stores} — writing a partial object used to drop the plan
+      // lists and crash the Commission tab.
+      const c = loadCommission();
       c.stores = next;
-      if (typeof c.storeIndex === 'number' && c.storeIndex >= next.length) c.storeIndex = 0;
+      if (c.storeIndex >= next.length) c.storeIndex = 0;
       localStorage.setItem('se-commission-v2', JSON.stringify(c));
     } catch { /* ignore */ }
     notifyDataChanged();
@@ -286,6 +289,91 @@ function StoresManager() {
 }
 
 // Pop-up for adding an employee: name, role, stores, team
+// Full edit of one person in a modal — everything the inline row edits, in one
+// place, so "edit" opens a real form instead of scattering fields across cells.
+function EditEmployeeModal({ person, storeOptions, teamOptions, onSave, onClose }: {
+  person: Person;
+  storeOptions: string[];
+  teamOptions: string[];
+  onSave: (patch: Partial<Person>) => void;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState(person.name);
+  const [role, setRole] = useState<RosterRole>(person.role);
+  const [stores, setStores] = useState<string[]>(person.stores ?? []);
+  const [team, setTeam] = useState(person.team ?? '');
+  const [hourly, setHourly] = useState(String(person.hourlyWeekly ?? 0));
+  const [attendance, setAttendance] = useState(String(person.attendance ?? 100));
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const selectClass = 'w-full bg-bg-tertiary border border-border-subtle rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-blue/50';
+
+  const save = () => {
+    onSave({
+      name: name.trim() || person.name,
+      role,
+      stores: stores.length ? stores : person.stores,
+      team,
+      hourlyWeekly: Math.max(0, parseNum(hourly)),
+      attendance: Math.min(100, Math.max(0, parseNum(attendance))),
+    });
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-label={`Edit ${person.name}`}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full sm:max-w-sm max-h-[90vh] overflow-y-auto glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold flex items-center gap-2"><Pencil className="w-4 h-4" style={{ color: 'var(--brand)' }} /> Edit {person.name}</h3>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="label-base">Name</label>
+            <input autoFocus value={name} onChange={e => setName(e.target.value)} className={selectClass} />
+          </div>
+          <div>
+            <label className="label-base">Role</label>
+            <select value={role} onChange={e => setRole(e.target.value as RosterRole)} className={selectClass}>
+              {ROLE_LADDER.map(r => <option key={r} value={r}>{ROSTER_ROLE_LABELS[r]}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label-base">Stores</label>
+            <StoresPicker value={stores} options={storeOptions} onChange={setStores} label={`Stores for ${person.name}`} />
+          </div>
+          <div>
+            <label className="label-base">Team</label>
+            <select value={team} onChange={e => setTeam(e.target.value)} className={selectClass}>
+              <option value="">Unassigned</option>
+              {teamOptions.map(t => <option key={t} value={t}>{t}</option>)}
+              {team && !teamOptions.includes(team) && <option value={team}>{team}</option>}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label-base">Hourly / week ($)</label>
+              <input type="number" min={0} value={hourly} onChange={e => setHourly(e.target.value)} className={selectClass} />
+            </div>
+            <div>
+              <label className="label-base">Attendance (%)</label>
+              <input type="number" min={0} max={100} value={attendance} onChange={e => setAttendance(e.target.value)} className={selectClass} />
+            </div>
+          </div>
+          <p className="text-[10px] text-text-muted">Attendance here is the manual fallback — real Daily-Tracker marks override it.</p>
+          <Button className="w-full" onClick={save}>Save changes</Button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function AddEmployeeModal({ storeOptions, teamOptions, onAdd, onClose }: {
   storeOptions: string[];
   teamOptions: string[];
@@ -359,6 +447,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
   const { state: people, setState: setPeople, reset: resetPeople } = useLocalState<Person[]>(PEOPLE_KEY, DEFAULT_PEOPLE, []);
   const { state: rules, setState: setRules, reset: resetRules } = useLocalState<PromotionRules>(PROMO_RULES_KEY, DEFAULT_PROMO_RULES);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editModalId, setEditModalId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
 
   // Store options come from the Commission Engine's store list
@@ -476,10 +565,10 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                           {person.name}
                         </button>
                         <button
-                          onClick={() => setEditingId(person.id)}
+                          onClick={() => setEditModalId(person.id)}
                           className="p-0.5 rounded text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-white transition-all"
-                          aria-label={`Rename ${person.name}`}
-                          title="Rename"
+                          aria-label={`Edit ${person.name}`}
+                          title="Edit everything about this person"
                         >
                           <Pencil className="w-3 h-3" />
                         </button>
@@ -579,6 +668,20 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
           onClose={() => setShowAdd(false)}
         />
       )}
+
+      {editModalId && (() => {
+        const p = people.find(x => x.id === editModalId);
+        if (!p) return null;
+        return (
+          <EditEmployeeModal
+            person={p}
+            storeOptions={storeOptions}
+            teamOptions={teamOptions}
+            onSave={(patch) => { edit(p.id, patch); setEditModalId(null); }}
+            onClose={() => setEditModalId(null)}
+          />
+        );
+      })()}
     </div>
   );
 }

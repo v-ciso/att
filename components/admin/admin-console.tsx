@@ -216,6 +216,64 @@ function CreateCompany({ onDone }: { onDone: (banner: { title: string; lines: st
   );
 }
 
+interface StoreRule { name: string; multiplier: number }
+
+// Vendor store setup for a tenant (handoff). The client can edit/remove their
+// own stores later; this seeds them so the tool is usable on day one.
+function TenantStores({ company }: { company: Company }) {
+  const [stores, setStores] = useState<StoreRule[] | null>(null);
+  const [retailer, setRetailer] = useState('Costco');
+  const [num, setNum] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/admin/stores?marketOwnerId=${company.id}`)
+      .then(r => r.json()).then(d => setStores(d.stores ?? [])).catch(() => setStores([]));
+  }, [company.id]);
+
+  const save = async (next: StoreRule[]) => {
+    setStores(next);
+    setBusy(true);
+    await fetch('/api/admin/stores', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ marketOwnerId: company.id, stores: next }),
+    }).catch(() => {});
+    setBusy(false);
+  };
+
+  if (stores === null) return <p className="text-[11px] text-text-muted">Loading stores…</p>;
+
+  return (
+    <div className="mb-2">
+      <p className="text-xs font-semibold text-text-secondary flex items-center gap-1.5 mb-2">
+        <Building2 className="w-3.5 h-3.5" /> Stores {busy && <span className="text-[10px] text-text-muted">saving…</span>}
+      </p>
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {stores.map((s, i) => (
+          <span key={i} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 text-xs">
+            {s.name}
+            <button onClick={() => save(stores.filter((_, j) => j !== i))} className="text-text-muted hover:text-accent-red" aria-label={`Remove ${s.name}`}>✕</button>
+          </span>
+        ))}
+        {stores.length === 0 && <span className="text-[11px] text-text-muted">No stores yet.</span>}
+      </div>
+      <div className="flex items-center gap-1.5">
+        <select value={retailer} onChange={e => setRetailer(e.target.value)} className="bg-bg-tertiary border border-border-subtle rounded-lg px-2 py-1 text-xs focus:outline-none">
+          {['Costco', 'Target', "BJ's", 'Sam’s Club', 'Custom'].map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <input value={num} onChange={e => setNum(e.target.value)} placeholder="Store # (e.g. 1018)"
+          className="w-32 bg-bg-tertiary border border-border-subtle rounded-lg px-2 py-1 text-xs focus:outline-none" />
+        <button
+          onClick={() => { const name = `${retailer}${num.trim() ? ' ' + num.trim() : ''}`; save([...stores, { name, multiplier: 1 }]); setNum(''); }}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] text-text-secondary hover:text-white hover:bg-white/5"
+        >
+          <Plus className="w-3 h-3" /> Add store
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SeatEditor({ company, onSaved }: { company: Company; onSaved: () => void }) {
   const [editing, setEditing] = useState(false);
   const [seats, setSeats] = useState(String(company.seats));
@@ -307,7 +365,9 @@ function CompanyUsers({ company, onChange, onBanner }: {
 
   return (
     <div className="mt-4 pt-4 border-t border-border-subtle">
-      <div className="flex items-center justify-between mb-2">
+      <TenantStores company={company} />
+
+      <div className="flex items-center justify-between mb-2 mt-4">
         <p className="text-xs font-semibold text-text-secondary flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /> Users</p>
         <button
           onClick={() => setAdding(v => !v)}

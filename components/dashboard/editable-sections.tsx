@@ -185,6 +185,29 @@ export const DEFAULT_COMMISSION: CommissionState = {
   ],
 };
 
+// Fill in anything a saved commission is MISSING. A partial write (a legacy
+// StoresManager bug wrote just {stores}) would otherwise leave phonePlans /
+// addOns / internet / roles undefined, which emptied the plan dropdown and
+// crashed the Commission tab. Pay lists fall back to defaults; stores stay
+// as-is (a live account legitimately has none until it's set up).
+export function normalizeCommission(raw: Partial<CommissionState> | null): CommissionState {
+  const state: CommissionState = {
+    ...DEFAULT_COMMISSION,
+    ...(raw ?? {}),
+    phonePlans: raw?.phonePlans?.length ? raw.phonePlans : DEFAULT_COMMISSION.phonePlans,
+    addOns: raw?.addOns?.length ? raw.addOns : DEFAULT_COMMISSION.addOns,
+    internet: raw?.internet?.length ? raw.internet : DEFAULT_COMMISSION.internet,
+    roles: raw?.roles?.length ? raw.roles : DEFAULT_COMMISSION.roles,
+    stores: raw?.stores ?? [],
+  };
+  (['phonePlans', 'addOns', 'internet'] as const).forEach(list => {
+    state[list] = state[list].map(item => ({ ...item, rep: item.rep ?? 0 }));
+  });
+  if (typeof state.latePenaltyPerLine !== 'number') state.latePenaltyPerLine = 15;
+  if (typeof state.storeIndex !== 'number' || state.storeIndex >= state.stores.length) state.storeIndex = 0;
+  return state;
+}
+
 function PayItemList({
   title,
   icon: Icon,
@@ -259,7 +282,18 @@ function PayItemList({
 }
 
 export function CommissionEngine() {
-  const { state, setState, reset } = useLocalState<CommissionState>('se-commission-v2', DEFAULT_COMMISSION, { ...DEFAULT_COMMISSION, stores: [], storeIndex: 0 });
+  const { state: rawState, setState, reset } = useLocalState<CommissionState>('se-commission-v2', DEFAULT_COMMISSION, { ...DEFAULT_COMMISSION, stores: [], storeIndex: 0 });
+  // Repair any partial commission once (a legacy {stores}-only write left the
+  // pay lists undefined, which crashed this tab). normalizeCommission fills the
+  // gaps; if it changed anything, persist the repaired version.
+  useEffect(() => {
+    const fixed = normalizeCommission(rawState);
+    if (JSON.stringify(fixed) !== JSON.stringify(rawState)) setState(fixed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Guard the render too — the effect runs AFTER the first paint, so the very
+  // first render must not touch an undefined list.
+  const state = normalizeCommission(rawState);
   const store = state.stores[state.storeIndex] ?? state.stores[0];
   const effective = (base: number) =>
     Math.max(0, (base - (5 - state.tier) * state.tierDelta) * (store?.multiplier ?? 1));

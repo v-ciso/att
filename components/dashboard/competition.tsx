@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { Editable, useLocalState, CommissionState } from './editable-sections';
 import { SaleEntry, aggregateSales } from '@/lib/sales';
@@ -36,7 +37,7 @@ const RANK_STYLES = ['text-accent-yellow', 'text-text-secondary', 'text-accent-o
 const MEDALS = ['🥇', '🥈', '🥉'];
 
 function CompCard({
-  comp, sales, commission, storeOptions, compact, onEdit, onRemove,
+  comp, sales, commission, storeOptions, compact, onEdit, onRemove, onArchive,
 }: {
   comp: Comp;
   sales: SaleEntry[];
@@ -45,6 +46,7 @@ function CompCard({
   compact: boolean;
   onEdit: (patch: Partial<Comp>) => void;
   onRemove: () => void;
+  onArchive: (standings: { person: string; value: string }[]) => void;
 }) {
   const agg = aggregateSales(sales, commission, { period: 'monthly', stores: comp.store ? [comp.store] : undefined });
   const metricValue = (p: (typeof agg.perPerson)[number]) =>
@@ -92,6 +94,15 @@ function CompCard({
             <Gift className="w-4 h-4" style={{ color: 'var(--brand)' }} />
             <Editable value={comp.prize} onCommit={(v) => onEdit({ prize: v.trim() || comp.prize })} className="text-sm font-semibold text-white" />
           </div>
+          {!compact && (
+            <button
+              onClick={() => onArchive(ranked.map(r => ({ person: r.person, value: fmt(r.value) })))}
+              className="px-2 py-1.5 rounded-lg text-[11px] text-accent-green border border-accent-green/40 hover:bg-accent-green/10 transition-all"
+              title="Save the final standings and clear this competition"
+            >
+              End &amp; save
+            </button>
+          )}
           <button onClick={onRemove} className="p-1.5 rounded-lg text-text-muted hover:text-accent-red hover:bg-accent-red/10 transition-all" aria-label={`Remove ${comp.title}`}>
             <Trash2 className="w-4 h-4" />
           </button>
@@ -147,6 +158,17 @@ function CompCard({
 
 let compCounter = 1;
 
+// A finished competition, kept so past winners can be looked up later.
+interface ArchivedComp {
+  id: string;
+  title: string;
+  prize: string;
+  metricLabel: string;
+  store: string;
+  endedOn: string;
+  standings: { person: string; value: string }[];
+}
+
 export function Competition({ sales, commission, storeOptions, compact = false }: {
   sales: SaleEntry[];
   commission: CommissionState;
@@ -154,12 +176,26 @@ export function Competition({ sales, commission, storeOptions, compact = false }
   compact?: boolean;
 }) {
   const { state: comps, setState: setComps } = useLocalState<Comp[]>('se-competitions-v1', DEFAULT_COMPS, []);
+  const { state: archive, setState: setArchive } = useLocalState<ArchivedComp[]>('se-competitions-archive-v1', []);
+  const [showPast, setShowPast] = useState(false);
 
   const edit = (id: string, patch: Partial<Comp>) =>
     setComps(prev => prev.map(c => (c.id === id ? { ...c, ...patch } : c)));
   const remove = (id: string) => {
     const c = comps.find(x => x.id === id);
-    if (c && !window.confirm(`Delete the "${c.title}" competition? This can't be undone.`)) return;
+    if (c && !window.confirm(`Delete the "${c.title}" competition? Its standings are NOT saved. Use "End & save" instead if you want to keep the results.`)) return;
+    setComps(prev => (prev.length > 1 ? prev.filter(x => x.id !== id) : prev));
+  };
+  // End a competition: snapshot the final standings to the archive, then clear
+  // it from the active list. This is the recoverable path.
+  const archiveComp = (id: string, standings: { person: string; value: string }[]) => {
+    const c = comps.find(x => x.id === id);
+    if (!c) return;
+    setArchive(prev => [{
+      id: `arch-${Date.now()}`, title: c.title, prize: c.prize,
+      metricLabel: METRIC_LABELS[c.metric], store: c.store || 'All stores',
+      endedOn: new Date().toISOString().slice(0, 10), standings,
+    }, ...prev]);
     setComps(prev => (prev.length > 1 ? prev.filter(x => x.id !== id) : prev));
   };
   const add = () =>
@@ -174,7 +210,14 @@ export function Competition({ sales, commission, storeOptions, compact = false }
         <h2 className={cn('font-bold neon-brand', compact ? 'text-lg' : 'text-xl')}>
           {compact ? 'Competitions' : 'Monthly Competitions'}
         </h2>
-        <Button size="sm" onClick={add}><Plus className="w-3.5 h-3.5" /> New Competition</Button>
+        <div className="flex items-center gap-2">
+          {!compact && archive.length > 0 && (
+            <Button variant="secondary" size="sm" onClick={() => setShowPast(v => !v)}>
+              Past ({archive.length})
+            </Button>
+          )}
+          <Button size="sm" onClick={add}><Plus className="w-3.5 h-3.5" /> New Competition</Button>
+        </div>
       </div>
       <div className="space-y-3">
         {comps.map(comp => (
@@ -187,12 +230,38 @@ export function Competition({ sales, commission, storeOptions, compact = false }
             compact={compact}
             onEdit={(patch) => edit(comp.id, patch)}
             onRemove={() => remove(comp.id)}
+            onArchive={(standings) => archiveComp(comp.id, standings)}
           />
         ))}
       </div>
+
+      {showPast && archive.length > 0 && (
+        <div className="mt-5 pt-4 border-t border-border-subtle">
+          <h3 className="text-sm font-semibold text-text-secondary mb-3">Past competitions</h3>
+          <div className="space-y-2">
+            {archive.map(a => (
+              <div key={a.id} className="p-3 rounded-xl bg-white/[0.03] border border-border-subtle">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-semibold">{a.title} <span className="text-[10px] text-text-muted font-normal">· {a.store} · {a.metricLabel} · ended {a.endedOn}</span></span>
+                  <button onClick={() => setArchive(prev => prev.filter(x => x.id !== a.id))} className="text-text-muted hover:text-accent-red text-[11px]" title="Delete this record">✕</button>
+                </div>
+                {a.standings.length > 0 && (
+                  <p className="text-xs text-text-secondary mt-1">
+                    🥇 {a.standings[0]?.person} ({a.standings[0]?.value})
+                    {a.standings[1] && ` · 🥈 ${a.standings[1].person} (${a.standings[1].value})`}
+                    {a.standings[2] && ` · 🥉 ${a.standings[2].person} (${a.standings[2].value})`}
+                  </p>
+                )}
+                <p className="text-[10px] text-text-muted mt-0.5">Prize: {a.prize}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {!compact && (
         <p className="mt-3 text-xs text-text-secondary">
-          Add one for all stores or one per store. Click any title, prize, metric, or store to edit — the same controls appear in Meeting Mode.
+          &quot;End &amp; save&quot; archives the final standings so you can look up past winners; delete removes without saving.
         </p>
       )}
     </div>

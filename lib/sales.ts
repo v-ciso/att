@@ -4,7 +4,7 @@
 // KPIs, product mix, P&L commission, meeting stats) derives from these entries
 // priced through the editable Commission Engine.
 
-import { CommissionState, DEFAULT_COMMISSION } from '@/components/dashboard/editable-sections';
+import { CommissionState, DEFAULT_COMMISSION, normalizeCommission } from '@/components/dashboard/editable-sections';
 import { Person } from '@/components/dashboard/roster';
 import { seedForWorkspace } from '@/lib/workspace';
 
@@ -65,13 +65,10 @@ export function loadCommission(): CommissionState {
   try {
     const saved = localStorage.getItem('se-commission-v2');
     if (!saved) return freshCommission();
-    const state = JSON.parse(saved) as CommissionState;
-    // Normalize: items saved before the office/rep split get a rep cut of 0
-    (['phonePlans', 'addOns', 'internet'] as const).forEach(list => {
-      state[list] = (state[list] ?? []).map(item => ({ ...item, rep: item.rep ?? 0 }));
-    });
-    if (typeof state.latePenaltyPerLine !== 'number') state.latePenaltyPerLine = 15;
-    return state;
+    // normalizeCommission fills any missing pay lists (a legacy partial write
+    // left them undefined, which emptied the plan dropdown and crashed the
+    // Commission tab).
+    return normalizeCommission(JSON.parse(saved));
   } catch {
     return freshCommission();
   }

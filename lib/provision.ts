@@ -153,6 +153,34 @@ export async function addCompanyUser(input: {
   }
 }
 
+interface StoreRule { name: string; multiplier: number }
+
+// The vendor sets up a client's stores during handoff. Stores live inside the
+// tenant's se-commission-v2 blob in TenantData; read it, merge, write it back.
+export async function getTenantStores(marketOwnerId: string): Promise<StoreRule[]> {
+  const row = await prisma.tenantData.findUnique({
+    where: { marketOwnerId_key: { marketOwnerId, key: 'se-commission-v2' } },
+  });
+  const commission = (row?.value ?? {}) as { stores?: StoreRule[] };
+  return commission.stores ?? [];
+}
+
+export async function setTenantStores(marketOwnerId: string, stores: StoreRule[]): Promise<StoreRule[]> {
+  const clean = stores
+    .map(s => ({ name: String(s.name).trim(), multiplier: Number(s.multiplier) || 1 }))
+    .filter(s => s.name);
+  const row = await prisma.tenantData.findUnique({
+    where: { marketOwnerId_key: { marketOwnerId, key: 'se-commission-v2' } },
+  });
+  const commission = { ...((row?.value ?? {}) as object), stores: clean, storeIndex: 0 };
+  await prisma.tenantData.upsert({
+    where: { marketOwnerId_key: { marketOwnerId, key: 'se-commission-v2' } },
+    create: { marketOwnerId, key: 'se-commission-v2', value: commission },
+    update: { value: commission },
+  });
+  return clean;
+}
+
 export async function setCompanyDisabled(marketOwnerId: string, disabled: boolean) {
   const owner = await prisma.marketOwner.update({ where: { id: marketOwnerId }, data: { disabled } });
   return { slug: owner.slug, disabled: owner.disabled };
