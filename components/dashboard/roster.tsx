@@ -10,6 +10,7 @@ import { TeamTree } from './team-tree';
 import { notifyDataChanged, loadCommission } from '@/lib/sales';
 import { RETAILERS } from '@/lib/shifts';
 import { seedForWorkspace } from '@/lib/workspace';
+import { useConfirm } from '@/hooks/use-confirm';
 
 // ---------------------------------------------------------------------------
 // People — the single roster every view joins against. A person can work one
@@ -449,6 +450,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editModalId, setEditModalId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const { confirm, confirmDialog } = useConfirm();
 
   // Store options come from the Commission Engine's store list
   const [storeOptions, setStoreOptions] = useState<string[]>(['Costco 1018', 'Costco 1020', 'Target 2450', "BJ's 610"]);
@@ -473,10 +475,15 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
   const addPerson = (p: Omit<Person, 'id'>) =>
     setPeople(prev => [...prev, { ...p, id: `p${Date.now()}-${personCounter++}` }]);
 
-  const removePerson = (id: string) => {
+  const removePerson = async (id: string) => {
     const p = people.find(x => x.id === id);
     // A person carries sales/attendance history — confirm before erasing them.
-    if (p && !window.confirm(`Remove ${p.name} from the roster? Their name stays on any sales already logged, but they'll be gone from scheduling and attendance.`)) return;
+    if (p && !(await confirm({
+      title: `Remove ${p.name} from the roster?`,
+      description: `Their name stays on any sales already logged, but they will be gone from scheduling and attendance.`,
+      confirmLabel: 'Remove from roster',
+      destructive: true,
+    }))) return;
     setPeople(prev => prev.filter(x => x.id !== id));
   };
 
@@ -498,7 +505,23 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
         <h2 className="text-xl font-bold neon-brand">Roster &amp; Promotions</h2>
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={() => setShowAdd(true)}><UserPlus className="w-3.5 h-3.5" /> Add Employee</Button>
-          <Button variant="ghost" size="sm" onClick={() => { resetPeople(); resetRules(); }}>↻ Reset</Button>
+          {/* Reset wipes the entire roster — never a single unguarded click. */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              if (!(await confirm({
+                title: 'Reset roster and promotion rules?',
+                description: 'This clears every person on the roster and restores the default promotion rules. Sales already logged keep the rep names attached, but scheduling and attendance assignments are lost.',
+                confirmLabel: 'Reset roster',
+                destructive: true,
+              }))) return;
+              resetPeople();
+              resetRules();
+            }}
+          >
+            ↻ Reset
+          </Button>
         </div>
       </div>
 
@@ -682,6 +705,8 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
           />
         );
       })()}
+
+      {confirmDialog}
     </div>
   );
 }

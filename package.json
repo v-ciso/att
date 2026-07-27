@@ -16,10 +16,13 @@
     "admin:adduser": "npx tsx scripts/add-user.ts",
     "admin:audit": "npx tsx scripts/audit-db.ts",
     "admin:removeuser": "npx tsx scripts/remove-user.ts",
+    "admin:backup": "npx tsx scripts/backup-tenants.ts",
+    "admin:verify-isolation": "npx tsx scripts/verify-isolation.ts",
     "test:roadtrips": "npx tsx lib/roadtrips.test.ts",
     "test:pay": "npx tsx lib/pay.test.ts",
     "test:shifts": "npx tsx lib/shifts.test.ts",
-    "test": "npm run test:roadtrips && npm run test:pay && npm run test:shifts",
+    "test:workspace": "npx tsx lib/workspace.test.ts",
+    "test": "npm run test:roadtrips && npm run test:pay && npm run test:shifts && npm run test:workspace",
     "postinstall": "prisma generate"
   },
   "dependencies": {

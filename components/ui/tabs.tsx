@@ -56,10 +56,42 @@ Tabs.displayName = 'Tabs';
 export const TabList = forwardRef<HTMLDivElement, TabListProps>(
   ({ className, children, ...props }, ref) => {
     const { variant } = useTabs();
+
+    /**
+     * Arrow-key navigation. An element with role="tablist" is REQUIRED to
+     * support arrow keys — without it a keyboard user has to Tab through every
+     * tab to reach the last one, and the roving-tabindex contract below breaks.
+     * Implemented on the container so individual tabs stay dumb.
+     */
+    const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+      const keys = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
+      if (!keys.includes(e.key)) return;
+
+      const tabs = Array.from(
+        e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]:not([disabled])')
+      );
+      if (!tabs.length) return;
+
+      const current = tabs.indexOf(document.activeElement as HTMLButtonElement);
+      let next = current;
+
+      if (e.key === 'ArrowRight') next = current < 0 ? 0 : (current + 1) % tabs.length;
+      else if (e.key === 'ArrowLeft') next = current <= 0 ? tabs.length - 1 : current - 1;
+      else if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = tabs.length - 1;
+
+      e.preventDefault();
+      // Focus + activate: this is an automatic-activation tablist, which matches
+      // how the panels are already rendered (cheap, no async loading).
+      tabs[next].focus();
+      tabs[next].click();
+    };
+
     return (
       <div
         ref={ref}
         role="tablist"
+        onKeyDown={onKeyDown}
         className={twMerge(clsx(
           'flex gap-1.5 overflow-x-auto pb-1.5 scrollbar-hide',
           variant === 'pill' && 'bg-white/5 rounded-xl p-1',
@@ -79,27 +111,35 @@ export const Tab = forwardRef<HTMLButtonElement, TabProps>(
     const { value: currentValue, onChange, variant } = useTabs();
     const isActive = currentValue === value;
 
+    // text-text-secondary instead of text-gray-400: gray-400 (#9ca3af) on the
+    // translucent panel background lands under the 4.5:1 contrast floor, so
+    // inactive tab labels were failing WCAG AA.
     const variants = {
       line: isActive
         ? 'bg-transparent text-white border-b-2 border-accent-blue'
-        : 'text-gray-400 hover:text-white',
+        : 'text-text-secondary hover:text-white',
       pill: isActive
         ? 'bg-accent-blue text-white shadow-sm'
-        : 'text-gray-400 hover:text-white hover:bg-white/5',
+        : 'text-text-secondary hover:text-white hover:bg-white/5',
       underline: isActive
         ? 'text-white border-b-2 border-accent-blue'
-        : 'text-gray-400 hover:text-white',
+        : 'text-text-secondary hover:text-white',
     };
 
     return (
       <button
         ref={ref}
+        type="button"
         role="tab"
         aria-selected={isActive}
         aria-controls={`panel-${value}`}
         id={`tab-${value}`}
+        // Roving tabindex: only the selected tab is a Tab stop. Arrow keys move
+        // between tabs (handled by TabList), which is the expected pattern.
+        tabIndex={isActive ? 0 : -1}
         className={twMerge(clsx(
-          'tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap',
+          'tab-btn px-4 py-2 min-h-11 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]',
           variants[variant as keyof typeof variants],
           disabled && 'opacity-50 cursor-not-allowed',
           className

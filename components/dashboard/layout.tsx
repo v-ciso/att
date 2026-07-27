@@ -17,6 +17,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <div className="min-h-screen bg-bg-primary">
+      {/* Skip link: without it a keyboard or screen-reader user has to walk the
+          entire 12-item sidebar again on every page before reaching content.
+          Visually hidden until focused. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:px-4 focus:py-2.5 focus:rounded-xl focus:bg-bg-tertiary focus:text-white focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
+      >
+        Skip to main content
+      </a>
       <TenantSync />
       {/* Live ambient background. The dominant orb is BRAND-coloured and sized in
           vw, which is what actually makes the page read gold (or blue/emerald).
@@ -61,7 +70,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <Sidebar />
         </Suspense>
 
-        <main id="reportContent" className="flex-1 lg:ml-64 p-4 lg:p-8">
+        {/* id="reportContent" is the PDF/print capture target and is relied on
+            elsewhere — keep it. The skip link needs its own stable anchor, and
+            tabIndex={-1} lets focus actually land here when the link is used. */}
+        <main
+          id="reportContent"
+          className="flex-1 lg:ml-64 p-4 lg:p-8 min-w-0"
+          tabIndex={-1}
+        >
+          <span id="main-content" className="sr-only" tabIndex={-1} />
           {children}
         </main>
       </div>

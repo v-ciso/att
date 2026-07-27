@@ -10,6 +10,7 @@ import {
 } from '@/lib/workspace';
 import { reopenSetup } from './setup-wizard';
 import { isSuperAdminEmail } from '@/lib/super-admins';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 // Demo vs Live is a real data boundary, not a display filter: each mode reads
 // and writes its own localStorage bucket (see lib/workspace.ts).
@@ -17,10 +18,17 @@ import { isSuperAdminEmail } from '@/lib/super-admins';
 // Only the VENDOR (super-admin) gets the Demo sandbox — it exists to pitch from.
 // A customer is always Live and never sees a Demo option, so they can't
 // accidentally land in an empty sandbox and think their data vanished.
+
+/** Shared row styling. min-h-11 keeps every control at the 44px touch target. */
+const ROW =
+  'w-full flex items-center gap-2 px-3 py-2 min-h-11 rounded-lg text-xs font-medium transition-colors ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] ' +
+  'focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]';
+
 export function WorkspaceSwitcher() {
   const { data: session } = useSession();
   const [ws, setWs] = useState<Workspace>(DEFAULT_WORKSPACE);
-  const [confirmReset, setConfirmReset] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
 
   const superAdmin = session?.user?.isSuperAdmin ?? isSuperAdminEmail(session?.user?.email);
   const isOwner = session?.user?.role === 'OWNER';
@@ -69,121 +77,140 @@ export function WorkspaceSwitcher() {
   };
 
   const resetDemo = () => {
-    if (!confirmReset) {
-      setConfirmReset(true);
-      setTimeout(() => setConfirmReset(false), 4000);
-      return;
-    }
     clearWorkspaceData({ mode: 'demo', scope: 'demo' });
     window.location.reload();
   };
+
+  const setupButton = (
+    <button onClick={reopenSetup} className={cn(ROW, 'text-text-secondary hover:text-white hover:bg-white/5')}>
+      <Wand2 className="w-4 h-4 flex-none" aria-hidden="true" />
+      Run setup guide
+    </button>
+  );
+
+  const signOutButton = (
+    <button onClick={handleSignOut} className={cn(ROW, 'text-text-secondary hover:text-white hover:bg-white/5')}>
+      <LogOut className="w-4 h-4 flex-none" aria-hidden="true" />
+      Sign out
+    </button>
+  );
 
   // Customer view: no demo, just the setup guide (if they're an owner with an
   // empty book) and sign out.
   if (!superAdmin) {
     return (
-      <div className="space-y-2">
-        {isOwner && (
-          <button
-            onClick={reopenSetup}
-            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] text-text-muted hover:text-white hover:bg-white/5 transition-colors"
-          >
-            <Wand2 className="w-3 h-3" /> Run setup guide
-          </button>
-        )}
-        <button
-          onClick={handleSignOut}
-          className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] text-text-muted hover:text-white hover:bg-white/5 transition-colors"
-        >
-          <LogOut className="w-3 h-3" /> Sign out
-        </button>
+      <div className="space-y-1">
+        {isOwner && setupButton}
+        {signOutButton}
       </div>
     );
   }
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between px-1">
-        <span className="text-[10px] uppercase tracking-wider text-text-muted">Data source (vendor)</span>
+      <div className="flex items-center justify-between gap-2 px-1">
+        <span className="text-[11px] uppercase tracking-wider text-text-secondary">
+          Data source (vendor)
+        </span>
         {!isOwner && (
-          <span className="flex items-center gap-1 text-[10px] text-text-muted" title="Only the account owner can view live data">
-            <Lock className="w-2.5 h-2.5" /> locked
+          <span className="flex items-center gap-1 text-[11px] text-text-secondary">
+            <Lock className="w-3 h-3 flex-none" aria-hidden="true" />
+            locked
           </span>
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-white/5 border border-border-subtle">
+      {/* A real radiogroup: arrow keys move between modes and the active mode is
+          announced, rather than being conveyed by background colour alone. */}
+      <div
+        role="radiogroup"
+        aria-label="Data source"
+        className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-white/5 border border-border-subtle"
+      >
         <ModeButton
-          mode="demo" active={ws.mode === 'demo'} enabled icon={FlaskConical}
+          active={ws.mode === 'demo'} enabled icon={FlaskConical}
           label="Demo" onClick={() => switchTo('demo')}
         />
         <ModeButton
-          mode="live" active={ws.mode === 'live'} enabled={isOwner} icon={Database}
+          active={ws.mode === 'live'} enabled={isOwner} icon={Database}
           label="Live" onClick={() => switchTo('live')}
+          disabledReason="Owner accounts only"
         />
       </div>
 
-      {ws.mode === 'live' && isOwner && (
-        <button
-          onClick={reopenSetup}
-          className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] text-text-muted hover:text-white hover:bg-white/5 transition-colors"
-        >
-          <Wand2 className="w-3 h-3" /> Run setup guide
-        </button>
+      {!isOwner && (
+        <p className="px-1 text-[11px] text-text-secondary">
+          Only the account owner can switch to live data.
+        </p>
       )}
+
+      {ws.mode === 'live' && isOwner && setupButton}
 
       {ws.mode === 'demo' ? (
         <button
-          onClick={resetDemo}
-          className={cn(
-            'w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] transition-colors',
-            confirmReset
-              ? 'bg-accent-red/15 text-accent-red border border-accent-red/30'
-              : 'text-text-muted hover:text-white hover:bg-white/5'
-          )}
+          onClick={() => setResetOpen(true)}
+          className={cn(ROW, 'text-text-secondary hover:text-white hover:bg-white/5')}
         >
-          <RotateCcw className="w-3 h-3" />
-          {confirmReset ? 'Click again to wipe demo' : 'Reset demo data'}
+          <RotateCcw className="w-4 h-4 flex-none" aria-hidden="true" />
+          Reset demo data
         </button>
       ) : (
-        <p className="px-1 text-[10px] text-accent-green/80">
+        <p className="px-1 text-[11px] text-accent-green">
           Live numbers — edits here are your real book.
         </p>
       )}
 
-      <button
-        onClick={handleSignOut}
-        className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] text-text-muted hover:text-white hover:bg-white/5 transition-colors"
-      >
-        <LogOut className="w-3 h-3" /> Sign out
-      </button>
+      {signOutButton}
+
+      <ConfirmDialog
+        open={resetOpen}
+        onOpenChange={setResetOpen}
+        onConfirm={resetDemo}
+        title="Reset demo data?"
+        description="This wipes every sample figure in the Demo sandbox and reloads the page. Your live book is not touched."
+        confirmLabel="Wipe demo data"
+        destructive
+      />
     </div>
   );
 }
 
 function ModeButton({
-  active, enabled, icon: Icon, label, onClick,
+  active, enabled, icon: Icon, label, onClick, disabledReason,
 }: {
-  mode: DataMode;
   active: boolean;
   enabled: boolean;
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   onClick: () => void;
+  disabledReason?: string;
 }) {
   return (
     <button
+      type="button"
+      role="radio"
+      aria-checked={active}
       onClick={onClick}
       disabled={!enabled}
-      title={enabled ? `Switch to ${label.toLowerCase()} data` : 'Owner accounts only'}
+      // aria-disabled keeps the control discoverable to screen readers while
+      // `disabled` stops activation; the reason is text, not just a tooltip.
+      aria-disabled={!enabled}
+      aria-describedby={!enabled && disabledReason ? `mode-${label}-reason` : undefined}
       className={cn(
-        'flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all',
-        active && 'bg-accent-blue/20 text-white shadow-inner',
+        'flex items-center justify-center gap-1.5 px-2 py-2 min-h-11 rounded-lg text-xs font-medium transition-all',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]',
+        active && 'bg-accent-blue/30 text-white shadow-inner',
         !active && enabled && 'text-text-secondary hover:text-white hover:bg-white/5',
-        !enabled && 'text-text-muted/40 cursor-not-allowed'
+        !enabled && 'text-text-muted cursor-not-allowed'
       )}
     >
-      <Icon className="w-3 h-3" /> {label}
+      <Icon className="w-4 h-4 flex-none" aria-hidden="true" />
+      {label}
+      {!enabled && disabledReason && (
+        <span id={`mode-${label}-reason`} className="sr-only">
+          {disabledReason}
+        </span>
+      )}
     </button>
   );
 }

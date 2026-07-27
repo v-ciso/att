@@ -108,8 +108,8 @@ async function main() {
     // Does this company's roster share identities with the origin? If so, its
     // whole operational book came from the leak and must be cleared.
     const theirPeople = rows.find(r => r.key === 'se-people-v1')?.value;
-    const sharedIds = [...personIds(theirPeople)].filter(id => originIds.has(id));
-    const sharedNames = [...personNames(theirPeople)].filter(n => originNames.has(n));
+    const sharedIds = Array.from(personIds(theirPeople)).filter(id => originIds.has(id));
+    const sharedNames = Array.from(personNames(theirPeople)).filter(n => originNames.has(n));
 
     if (!sharedIds.length) {
       console.log(`[purge] ${company.name}: no shared person ids — clean, skipping`);

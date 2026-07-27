@@ -181,9 +181,14 @@ export function Competition({ sales, commission, storeOptions, compact = false }
 
   const edit = (id: string, patch: Partial<Comp>) =>
     setComps(prev => prev.map(c => (c.id === id ? { ...c, ...patch } : c)));
-  const remove = (id: string) => {
+  const remove = async (id: string) => {
     const c = comps.find(x => x.id === id);
-    if (c && !window.confirm(`Delete the "${c.title}" competition? Its standings are NOT saved. Use "End & save" instead if you want to keep the results.`)) return;
+    if (c && !(await confirm({
+      title: `Delete the "${c.title}" competition?`,
+      description: 'Its standings are NOT saved. Use "End & save" instead if you want to keep the results in the archive.',
+      confirmLabel: 'Delete without saving',
+      destructive: true,
+    }))) return;
     setComps(prev => (prev.length > 1 ? prev.filter(x => x.id !== id) : prev));
   };
   // End a competition: snapshot the final standings to the archive, then clear
