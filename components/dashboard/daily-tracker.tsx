@@ -10,6 +10,7 @@ import {
   LateOutBook, loadLateOuts, saveLateOuts, isPhonePlan, scheduledStore, notifyDataChanged,
 } from '@/lib/sales';
 import { loadPeople } from './roster';
+import { DEFAULT_COMMISSION } from './editable-sections';
 import { readWorkspace } from '@/lib/workspace';
 
 interface DailyTrackerProps {
@@ -25,8 +26,14 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   const [isDemo, setIsDemo] = useState(false);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => setIsDemo(readWorkspace().mode === 'demo'), []);
-  const commission = useMemo(loadCommission, [sales]); // reread after changes
-  const people = useMemo(loadPeople, [sales]);
+  // These read localStorage, so they must not run during the first render: the
+  // server returned DEFAULT_COMMISSION with no people while the client returned
+  // the real saved roster, and the differing table rows tripped a hydration
+  // mismatch ("server HTML contained a <tr> in <tbody>"). `loaded` flips in the
+  // mount effect below, so gating on it keeps render #1 identical to the server
+  // and still rereads whenever sales change.
+  const commission = useMemo(() => (loaded ? loadCommission() : DEFAULT_COMMISSION), [sales, loaded]);
+  const people = useMemo(() => (loaded ? loadPeople() : []), [sales, loaded]);
   const plans = useMemo(
     () => [...commission.phonePlans.map(p => p.name), ...commission.internet.map(p => p.name)],
     [commission]

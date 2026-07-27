@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { FileSpreadsheet, Upload, AlertTriangle, CheckCircle } from 'lucide-react';
@@ -54,7 +54,12 @@ export function ImportReport({ sales, commission }: { sales: SaleEntry[]; commis
   const [period, setPeriod] = useState<Period>('weekly');
   const [paste, setPaste] = useState('');
   const [fileName, setFileName] = useState('');
-  const people = useMemo(loadPeople, [rows]);
+  // loadPeople reads localStorage, which is empty during SSR. Gate on mount so
+  // the first client render matches the server instead of hydrating a different
+  // row count into the report table.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const people = useMemo(() => (mounted ? loadPeople() : []), [rows, mounted]);
 
   const [error, setError] = useState('');
 
