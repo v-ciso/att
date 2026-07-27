@@ -121,14 +121,35 @@ export function ScheduleBoard({ people, storeOptions, compact = false }: {
         <div className="flex flex-wrap items-center gap-2">
           {/* Date pager: arrows + a picker to jump to any specific day. */}
           <div className="flex items-center gap-1 rounded-lg bg-white/5 border border-border-subtle p-0.5">
-            <button onClick={() => step(-1)} className="p-1.5 rounded hover:bg-white/10" aria-label="Previous day"><ChevronLeft className="w-4 h-4" /></button>
+            <button
+              type="button"
+              onClick={() => step(-1)}
+              className="w-9 h-9 inline-flex items-center justify-center rounded hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+              aria-label="Previous day"
+            >
+              <ChevronLeft className="w-4 h-4" aria-hidden="true" />
+            </button>
             <input
               type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)}
-              className="bg-transparent text-sm px-1 focus:outline-none" aria-label="Pick a date"
+              className="bg-transparent text-sm px-1 min-h-9 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] rounded"
+              aria-label="Pick a schedule date"
             />
-            <button onClick={() => step(1)} className="p-1.5 rounded hover:bg-white/10" aria-label="Next day"><ChevronRight className="w-4 h-4" /></button>
+            <button
+              type="button"
+              onClick={() => step(1)}
+              className="w-9 h-9 inline-flex items-center justify-center rounded hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+              aria-label="Next day"
+            >
+              <ChevronRight className="w-4 h-4" aria-hidden="true" />
+            </button>
           </div>
-          <button onClick={() => setDate(todayStr())} className="tab-btn inactive">Today</button>
+          <button
+            type="button"
+            onClick={() => setDate(todayStr())}
+            className="tab-btn inactive min-h-9 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+          >
+            Today
+          </button>
           <Button variant="secondary" size="sm" onClick={copy}>{copied ? 'Copied' : 'Copy'}</Button>
           {!compact && (
             <Button size="sm" onClick={present}>

@@ -67,7 +67,7 @@ function CompCard({
         <div>
           <h3 className={cn('font-bold neon-brand flex items-center gap-2', compact ? 'text-base' : 'text-lg')}>
             <Trophy className={compact ? 'w-4 h-4' : 'w-5 h-5'} style={{ color: 'var(--brand)' }} />
-            <Editable value={comp.title} onCommit={(v) => onEdit({ title: v.trim() || comp.title })} />
+            <Editable label="Competition title" value={comp.title} onCommit={(v) => onEdit({ title: v.trim() || comp.title })} />
           </h3>
           <p className="text-xs text-text-secondary mt-0.5 flex flex-wrap items-center gap-x-1.5">
             {monthName} · ranked by{' '}
@@ -93,7 +93,7 @@ function CompCard({
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-border-subtle">
             <Gift className="w-4 h-4" style={{ color: 'var(--brand)' }} />
-            <Editable value={comp.prize} onCommit={(v) => onEdit({ prize: v.trim() || comp.prize })} className="text-sm font-semibold text-white" />
+            <Editable label="Competition prize" value={comp.prize} onCommit={(v) => onEdit({ prize: v.trim() || comp.prize })} className="text-sm font-semibold text-white" />
           </div>
           {!compact && (
             <button

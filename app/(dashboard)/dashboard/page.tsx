@@ -1075,6 +1075,7 @@ function DashboardContent() {
                           <span className={cn('font-medium', goal.color === 'blue' ? 'text-accent-blue' : 'text-accent-purple')}>
                             {formatNumber(goal.current)} /{' '}
                             <Editable
+                              label={`${goal.label} target`}
                               value={String(goal.target)}
                               onCommit={(v) => setGoalTargets(prev => ({ ...prev, [goal.key]: Math.max(1, parseNum(v)) }))}
                             />
@@ -1211,6 +1212,7 @@ function DashboardContent() {
                     <span className={cn('font-medium', goal.color === 'blue' ? 'text-accent-blue' : 'text-accent-purple')}>
                       {formatNumber(goal.current)} /{' '}
                       <Editable
+                        label={`${goal.label} target`}
                         value={String(goal.target)}
                         onCommit={(v) => setGoalTargets(prev => ({ ...prev, [goal.key]: Math.max(1, parseNum(v)) }))}
                       />
@@ -1308,6 +1310,7 @@ function DashboardContent() {
                     <span className="text-[10px] text-text-muted">
                       called{' '}
                       <Editable
+                        label={`${p.name} called number`}
                         value={String(committed)}
                         onCommit={(v) => setCommits(prev => ({ ...prev, [p.name]: Math.max(0, parseNum(v)) }))}
                         className="text-accent-yellow font-semibold"

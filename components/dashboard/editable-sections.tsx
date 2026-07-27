@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { cn, formatCurrency } from '@/lib/utils';
-import { Plus, Trash2, Smartphone, Wifi, Gift, Users, DollarSign, Receipt, MapPin } from 'lucide-react';
+import { Plus, Trash2, Smartphone, Wifi, Gift, Users, DollarSign, Receipt, MapPin, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   RoadtripItem, PnlView, REIMBURSE_LAG_DAYS, roadtripTotals, isoToday, shiftDays, daysSince, inWindow,
@@ -80,18 +80,42 @@ interface EditableProps {
   value: string;
   onCommit: (value: string) => void;
   className?: string;
+  /**
+   * Accessible name. A contentEditable span is announced as an unlabelled
+   * editing region, so without this a screen-reader user hears the current
+   * value with no idea what it represents. Required for that reason.
+   */
+  label: string;
 }
 
-export function Editable({ value, onCommit, className }: EditableProps) {
+export function Editable({ value, onCommit, className, label }: EditableProps) {
   return (
     <span
       contentEditable
       suppressContentEditableWarning
-      className={cn('outline-none hover:bg-white/5 focus:bg-white/10 focus:px-1 rounded transition-colors cursor-text', className)}
+      // role/aria-label/tabIndex: makes this announce as a labelled text box
+      // and reachable by keyboard. A dotted underline is the only affordance
+      // that this text is editable, so it must not rely on hover alone.
+      role="textbox"
+      aria-label={label}
+      tabIndex={0}
+      className={cn(
+        'outline-none rounded transition-colors cursor-text',
+        'underline decoration-dotted decoration-text-muted/60 underline-offset-2',
+        'hover:bg-white/5 focus-visible:bg-white/10 focus-visible:px-1',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]',
+        className
+      )}
       onBlur={(e) => onCommit(e.currentTarget.textContent ?? '')}
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
+          (e.currentTarget as HTMLElement).blur();
+        }
+        // Escape reverts instead of committing a half-typed value.
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.currentTarget.textContent = value;
           (e.currentTarget as HTMLElement).blur();
         }
       }}
@@ -255,20 +279,21 @@ function PayItemList({
         </div>
         {items.map((item, i) => (
           <div key={i} className="group flex items-center justify-between gap-2">
-            <Editable value={item.name} onCommit={(v) => onEdit(i, 'name', v)} className="flex-1 min-w-0" />
+            <Editable label={`${title} item ${i + 1} name`} value={item.name} onCommit={(v) => onEdit(i, 'name', v)} className="flex-1 min-w-0" />
             <span className="flex items-center gap-1.5">
-              <span className="text-accent-green font-semibold" title="Total office payout / direct deposit per unit">
-                $<Editable value={String(item.payout)} onCommit={(v) => onEdit(i, 'payout', v)} />
+              <span className="text-accent-green font-semibold">
+                $<Editable label={`${item.name} office payout per unit`} value={String(item.payout)} onCommit={(v) => onEdit(i, 'payout', v)} />
               </span>
               {effective(item.payout) !== item.payout && (
                 <span className="text-text-muted">→ {formatCurrency(effective(item.payout))}</span>
               )}
-              <span className="text-accent-blue font-medium" title="Rep's commission per unit — you set this">
-                $<Editable value={String(item.rep ?? 0)} onCommit={(v) => onEdit(i, 'rep', v)} />
+              <span className="text-accent-blue font-medium">
+                $<Editable label={`${item.name} rep commission per unit`} value={String(item.rep ?? 0)} onCommit={(v) => onEdit(i, 'rep', v)} />
               </span>
               <button
+                type="button"
                 onClick={() => onRemove(i)}
-                className="p-0.5 rounded text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red transition-all"
+                className="w-7 h-7 inline-flex items-center justify-center flex-none rounded text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 hover:text-accent-red hover:bg-accent-red/10 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-red"
                 aria-label={`Remove ${item.name}`}
               >
                 <Trash2 className="w-3 h-3" />
@@ -333,19 +358,26 @@ export function CommissionEngine() {
         <div className="p-4 rounded-xl glass border border-border-subtle">
           <p className="text-[10px] text-text-muted uppercase tracking-wider mb-2">
             Payout Tier <span className="normal-case">(Tier 5 = highest; −$
-            <Editable value={String(state.tierDelta)} onCommit={(v) => setState(p => ({ ...p, tierDelta: parseNum(v) }))} /> per tier below)</span>
+            <Editable label="Dollar reduction per tier below the top tier" value={String(state.tierDelta)} onCommit={(v) => setState(p => ({ ...p, tierDelta: parseNum(v) }))} /> per tier below)</span>
             <span className="normal-case block mt-1">
               Late clock-out chargeback: $
-              <Editable value={String(state.latePenaltyPerLine ?? 15)} onCommit={(v) => setState(p => ({ ...p, latePenaltyPerLine: parseNum(v) }))} className="text-accent-red font-semibold" />
+              <Editable label="Late clock-out chargeback dollars per phone line" value={String(state.latePenaltyPerLine ?? 15)} onCommit={(v) => setState(p => ({ ...p, latePenaltyPerLine: parseNum(v) }))} className="text-accent-red font-semibold" />
               /line on the store&apos;s phone lines that day (internet doesn&apos;t count; no lines = no charge) — split between late reps, deducted from their pay
             </span>
           </p>
-          <div className="flex gap-1.5">
+          <div className="flex gap-1.5" role="radiogroup" aria-label="Payout tier">
             {[1, 2, 3, 4, 5].map(t => (
               <button
                 key={t}
+                type="button"
+                role="radio"
+                aria-checked={state.tier === t}
                 onClick={() => setState(p => ({ ...p, tier: t }))}
-                className={cn('tab-btn', state.tier === t ? 'active' : 'inactive')}
+                className={cn(
+                  'tab-btn min-h-11',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]',
+                  state.tier === t ? 'active' : 'inactive'
+                )}
               >
                 Tier {t}
               </button>
@@ -357,35 +389,62 @@ export function CommissionEngine() {
             <p className="text-[10px] text-text-muted uppercase tracking-wider">Store multipliers · select active store</p>
             <span className="text-[9px] text-text-muted">manage stores on the Roster tab</span>
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          {/* The store name and multiplier used to be contentEditable spans
+              nested INSIDE the select button — invalid HTML, and the button
+              swallowed clicks so the fields were effectively uneditable by
+              keyboard. Select is now its own radio control, with the two
+              editable fields as siblings beside it. */}
+          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Active store">
             {state.stores.map((s, i) => (
-              <span key={i} className="group/store relative inline-flex">
+              <span
+                key={i}
+                className={cn(
+                  'group/store relative inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs',
+                  state.storeIndex === i
+                    ? 'bg-accent-blue/15 border-accent-blue/50 text-white'
+                    : 'bg-white/5 border-border-subtle text-text-secondary'
+                )}
+              >
                 <button
+                  type="button"
+                  role="radio"
+                  aria-checked={state.storeIndex === i}
+                  aria-label={`Use ${s.name} as the active store`}
                   onClick={() => setState(p => ({ ...p, storeIndex: i }))}
-                  className={cn('tab-btn flex items-center gap-1', state.storeIndex === i ? 'active' : 'inactive')}
+                  className={cn(
+                    'inline-flex items-center justify-center w-4 h-4 rounded-full border flex-none',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]',
+                    state.storeIndex === i ? 'border-accent-blue bg-accent-blue' : 'border-border-strong'
+                  )}
                 >
-                  <Editable
-                    value={s.name}
-                    onCommit={(v) => setState(p => ({ ...p, stores: p.stores.map((st, j) => j === i ? { ...st, name: v.trim() || st.name } : st) }))}
-                  />
-                  <span className="text-text-muted">
-                    ×<Editable
-                      value={String(s.multiplier)}
-                      onCommit={(v) => setState(p => ({ ...p, stores: p.stores.map((st, j) => j === i ? { ...st, multiplier: parseNum(v) || 1 } : st) }))}
-                    />
-                  </span>
+                  {state.storeIndex === i && <Check className="w-2.5 h-2.5 text-white" aria-hidden="true" />}
                 </button>
+                <Editable
+                  label={`Store ${i + 1} name`}
+                  value={s.name}
+                  onCommit={(v) => setState(p => ({ ...p, stores: p.stores.map((st, j) => j === i ? { ...st, name: v.trim() || st.name } : st) }))}
+                />
+                <span className="text-text-muted">
+                  ×<Editable
+                    label={`${s.name} payout multiplier`}
+                    value={String(s.multiplier)}
+                    onCommit={(v) => setState(p => ({ ...p, stores: p.stores.map((st, j) => j === i ? { ...st, multiplier: parseNum(v) || 1 } : st) }))}
+                  />
+                </span>
                 {state.stores.length > 1 && (
                   <button
+                    type="button"
                     onClick={() => setState(p => ({
                       ...p,
                       stores: p.stores.filter((_, j) => j !== i),
                       storeIndex: Math.min(p.storeIndex > i ? p.storeIndex - 1 : p.storeIndex, p.stores.length - 2),
                     }))}
-                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-bg-tertiary border border-border-strong text-[9px] text-text-muted opacity-100 md:opacity-0 md:group-hover/store:opacity-100 hover:text-accent-red hover:border-accent-red/50 transition-all flex items-center justify-center"
+                    // Always visible on focus (was opacity-0 until hover, so a
+                    // keyboard user could focus an invisible control).
+                    className="ml-0.5 w-6 h-6 rounded-full text-text-muted opacity-100 md:opacity-0 md:group-hover/store:opacity-100 focus-visible:opacity-100 hover:text-accent-red hover:bg-accent-red/10 transition-all inline-flex items-center justify-center flex-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-red"
                     aria-label={`Remove ${s.name}`}
                   >
-                    ×
+                    <X className="w-3 h-3" aria-hidden="true" />
                   </button>
                 )}
               </span>
@@ -418,17 +477,20 @@ export function CommissionEngine() {
           {state.roles.map((role, i) => (
             <div key={i} className="p-3 rounded-lg bg-white/5">
               <Editable
+                label={`Role ${i + 1} name`}
                 value={role.name}
                 onCommit={(v) => setState(p => ({ ...p, roles: p.roles.map((r, j) => j === i ? { ...r, name: v.trim() || r.name } : r) }))}
                 className="font-medium block"
               />
               <span className="text-accent-green font-bold text-sm">
                 <Editable
+                  label={`${role.name} pay amount`}
                   value={String(role.amount)}
                   onCommit={(v) => setState(p => ({ ...p, roles: p.roles.map((r, j) => j === i ? { ...r, amount: parseNum(v) } : r) }))}
                 />
               </span>{' '}
               <Editable
+                label={`${role.name} pay unit`}
                 value={role.unit}
                 onCommit={(v) => setState(p => ({ ...p, roles: p.roles.map((r, j) => j === i ? { ...r, unit: v.trim() || r.unit } : r) }))}
                 className="text-text-muted"
@@ -556,15 +618,18 @@ function MoneyList({
           const converted = toView(item.amount, cadence, view);
           return (
             <div key={i} className="group flex items-center justify-between gap-2 p-2 rounded-lg bg-white/5">
-              <Editable value={item.name} onCommit={(v) => onEdit(i, 'name', v)} className="flex-1 min-w-0" />
+              <Editable label={`${title} item ${i + 1} name`} value={item.name} onCommit={(v) => onEdit(i, 'name', v)} className="flex-1 min-w-0" />
               <span className="flex items-center gap-1.5">
                 <span className={cn('font-semibold', colorClasses[color])}>
-                  $<Editable value={String(item.amount)} onCommit={(v) => onEdit(i, 'amount', v)} />
+                  $<Editable label={`${item.name} amount, billed ${cadence}`} value={String(item.amount)} onCommit={(v) => onEdit(i, 'amount', v)} />
                 </span>
                 <button
+                  type="button"
                   onClick={() => onCadence(i)}
-                  className="px-1.5 py-0.5 rounded border border-border-subtle text-[9px] font-bold text-text-secondary hover:text-white hover:border-border-strong transition-all"
-                  title={`Billed ${cadence} — click to change (Weekly / Monthly / Yearly)`}
+                  // Was title-only, which screen readers and touch users never
+                  // get. aria-label states the current value and the action.
+                  aria-label={`${item.name} is billed ${cadence}. Change billing cadence.`}
+                  className="px-2 py-1 min-h-8 rounded border border-border-subtle text-[10px] font-bold text-text-secondary hover:text-white hover:border-border-strong transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
                 >
                   {CADENCE_LABELS[cadence]}
                 </button>
@@ -623,14 +688,15 @@ function RoadtripList({
           return (
             <div key={i} className="group p-2 rounded-lg bg-white/5 space-y-1">
               <div className="flex items-center justify-between gap-2">
-                <Editable value={trip.name} onCommit={(v) => onEdit(i, 'name', v)} className="flex-1 min-w-0" />
+                <Editable label={`Road trip ${i + 1} name`} value={trip.name} onCommit={(v) => onEdit(i, 'name', v)} className="flex-1 min-w-0" />
                 <span className="flex items-center gap-1.5">
                   <span className="font-semibold text-accent-orange">
-                    $<Editable value={String(trip.amount)} onCommit={(v) => onEdit(i, 'amount', v)} />
+                    $<Editable label={`${trip.name} cost`} value={String(trip.amount)} onCommit={(v) => onEdit(i, 'amount', v)} />
                   </span>
                   <button
+                    type="button"
                     onClick={() => onRemove(i)}
-                    className="p-0.5 rounded text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red transition-all"
+                    className="w-7 h-7 inline-flex items-center justify-center flex-none rounded text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 hover:text-accent-red hover:bg-accent-red/10 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-red"
                     aria-label={`Remove ${trip.name}`}
                   >
                     <Trash2 className="w-3 h-3" />
@@ -760,9 +826,20 @@ export function PnlEditor({ derived }: { derived: PnlDerivedByView }) {
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h2 className="text-xl font-bold neon-brand">Profit &amp; Loss</h2>
         <div className="flex items-center gap-2">
-          <div className="flex gap-1.5">
+          <div className="flex gap-1.5" role="radiogroup" aria-label="Profit and loss period">
             {(['daily', 'weekly', 'monthly', 'yearly'] as PnlView[]).map(v => (
-              <button key={v} onClick={() => setView(v)} className={cn('tab-btn', view === v ? 'active' : 'inactive')}>
+              <button
+                key={v}
+                type="button"
+                role="radio"
+                aria-checked={view === v}
+                onClick={() => setView(v)}
+                className={cn(
+                  'tab-btn min-h-11',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]',
+                  view === v ? 'active' : 'inactive'
+                )}
+              >
                 {v.charAt(0).toUpperCase() + v.slice(1)}
               </button>
             ))}
@@ -993,19 +1070,19 @@ export function TeamsEditor() {
               <Trash2 className="w-3.5 h-3.5" />
             </button>
             <div className="flex justify-between items-center mb-2 pr-6">
-              <Editable value={team.name} onCommit={(v) => edit(i, 'name', v)} className="font-medium" />
-              <Editable value={team.change} onCommit={(v) => edit(i, 'change', v)} className="text-xs text-accent-green" />
+              <Editable label={`Team ${i + 1} name`} value={team.name} onCommit={(v) => edit(i, 'name', v)} className="font-medium" />
+              <Editable label={`${team.name} change vs last period`} value={team.change} onCommit={(v) => edit(i, 'change', v)} className="text-xs text-accent-green" />
             </div>
 
             {/* Leadership appointments */}
             <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2 text-xs">
               <span className="text-text-muted">
                 Lead:{' '}
-                <Editable value={team.lead} onCommit={(v) => edit(i, 'lead', v)} className="text-accent-purple font-medium" />
+                <Editable label={`${team.name} lead`} value={team.lead} onCommit={(v) => edit(i, 'lead', v)} className="text-accent-purple font-medium" />
               </span>
               <span className="text-text-muted">
                 ASM/AD:{' '}
-                <Editable value={team.asm} onCommit={(v) => edit(i, 'asm', v)} className="text-accent-yellow font-medium" />
+                <Editable label={`${team.name} ASM or AD`} value={team.asm} onCommit={(v) => edit(i, 'asm', v)} className="text-accent-yellow font-medium" />
               </span>
             </div>
 
@@ -1013,38 +1090,49 @@ export function TeamsEditor() {
             <div className="flex flex-wrap items-center gap-1.5 mb-2">
               {team.members.map((member, j) => (
                 <span key={j} className="group/chip inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/5 border border-border-subtle text-[11px]">
-                  <Editable value={member} onCommit={(v) => editMember(i, j, v)} />
+                  <Editable label={`${team.name} member ${j + 1} name`} value={member} onCommit={(v) => editMember(i, j, v)} />
                   <button
+                    type="button"
                     onClick={() => removeMember(i, j)}
-                    className="text-text-muted opacity-100 md:opacity-0 md:group-hover/chip:opacity-100 hover:text-accent-red transition-all"
+                    className="w-5 h-5 inline-flex items-center justify-center flex-none rounded-full text-text-muted opacity-100 md:opacity-0 md:group-hover/chip:opacity-100 focus-visible:opacity-100 hover:text-accent-red hover:bg-accent-red/10 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-red"
                     aria-label={`Remove ${member} from ${team.name}`}
                   >
-                    ×
+                    <X className="w-3 h-3" aria-hidden="true" />
                   </button>
                 </span>
               ))}
               <button
+                type="button"
                 onClick={() => addMember(i)}
-                className="px-2 py-0.5 rounded-full text-[11px] text-text-muted border border-dashed border-border-strong hover:text-white hover:bg-white/5 transition-all"
+                aria-label={`Add a member to ${team.name}`}
+                className="px-2 py-1 rounded-full text-[11px] text-text-muted border border-dashed border-border-strong hover:text-white hover:bg-white/5 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
               >
                 + member
               </button>
             </div>
 
             <div className="flex justify-between text-xs text-text-secondary">
-              <span>Lines: <Editable value={String(team.lines)} onCommit={(v) => edit(i, 'lines', v)} className="text-white" /></span>
-              <span>Premium: <Editable value={String(team.premium)} onCommit={(v) => edit(i, 'premium', v)} className="text-white" /></span>
-              <span>Fiber: <Editable value={String(team.fiber)} onCommit={(v) => edit(i, 'fiber', v)} className="text-white" /></span>
+              <span>Lines: <Editable label={`${team.name} lines`} value={String(team.lines)} onCommit={(v) => edit(i, 'lines', v)} className="text-white" /></span>
+              <span>Premium: <Editable label={`${team.name} premium units`} value={String(team.premium)} onCommit={(v) => edit(i, 'premium', v)} className="text-white" /></span>
+              <span>Fiber: <Editable label={`${team.name} fiber units`} value={String(team.fiber)} onCommit={(v) => edit(i, 'fiber', v)} className="text-white" /></span>
             </div>
             <div className="flex items-center gap-2 mt-2">
-              <div className="flex-1 h-1 rounded-full bg-bg-tertiary">
+              {/* The bar is decorative; the percentage beside it is the value. */}
+              <div
+                className="flex-1 h-1 rounded-full bg-bg-tertiary"
+                role="progressbar"
+                aria-valuenow={Math.min(100, team.progress)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`${team.name} progress to goal`}
+              >
                 <div
                   className={cn('h-full rounded-full transition-all', progressColors[team.color] ?? progressColors.blue)}
                   style={{ width: `${Math.min(100, team.progress)}%` }}
                 />
               </div>
-              <span className="text-[10px] text-text-muted">
-                <Editable value={String(team.progress)} onCommit={(v) => edit(i, 'progress', v)} />%
+              <span className="text-[11px] text-text-muted">
+                <Editable label={`${team.name} progress percent`} value={String(team.progress)} onCommit={(v) => edit(i, 'progress', v)} />%
               </span>
             </div>
           </div>

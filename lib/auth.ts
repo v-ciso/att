@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { verifySupabasePassword } from '@/lib/supabase-admin';
 import { isSuperAdminEmail } from '@/lib/super-admins';
+import { authSecret } from '@/lib/auth-secret';
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -88,22 +89,10 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
+  // Shared with middleware.ts via lib/auth-secret.ts so both sides always
+  // agree on the signing key.
   secret: authSecret(),
 };
-
-// This secret signs the session JWT. A known/shared value means anyone can mint
-// an OWNER session, so production refuses to boot without a real one rather
-// than falling back to a guessable default.
-function authSecret(): string {
-  const secret = process.env.NEXTAUTH_SECRET;
-  if (secret && secret.length >= 32 && !secret.startsWith('demo-')) return secret;
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error(
-      'NEXTAUTH_SECRET is missing or insecure. Generate one with: openssl rand -base64 32'
-    );
-  }
-  return 'dev-only-secret-not-used-in-production-builds';
-}
 
 export async function auth() {
   return getServerSession(authOptions);

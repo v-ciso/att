@@ -272,9 +272,9 @@ function StoresManager() {
       <div className="flex flex-wrap gap-2">
         {stores.map((s, i) => (
           <div key={i} className="group flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 border border-border-subtle text-xs">
-            <Editable value={s.name} onCommit={(v) => rename(i, v)} className="font-medium" />
+            <Editable label={`Store ${i + 1} name`} value={s.name} onCommit={(v) => rename(i, v)} className="font-medium" />
             <span className="text-text-muted">
-              ×<Editable value={String(s.multiplier)} onCommit={(v) => setMult(i, parseNum(v))} />
+              ×<Editable label={`${s.name} payout multiplier`} value={String(s.multiplier)} onCommit={(v) => setMult(i, parseNum(v))} />
             </span>
             {stores.length > 1 && (
               <button onClick={() => remove(i)} className="text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red transition-all" aria-label={`Remove ${s.name}`}>
@@ -536,15 +536,15 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
         <p className="text-xs text-text-secondary">
           An employee is promotion-ready when they hit{' '}
           <span className="text-accent-green font-semibold">
-            $<Editable value={String(rules.profitPerWeek)} onCommit={(v) => setRules(r => ({ ...r, profitPerWeek: parseNum(v) }))} />
+            $<Editable label="Promotion rule: profit required per week" value={String(rules.profitPerWeek)} onCommit={(v) => setRules(r => ({ ...r, profitPerWeek: parseNum(v) }))} />
           </span>{' '}
           profit per week for{' '}
           <span className="text-accent-green font-semibold">
-            <Editable value={String(rules.weeks)} onCommit={(v) => setRules(r => ({ ...r, weeks: Math.max(1, parseNum(v)) }))} />
+            <Editable label="Promotion rule: consecutive weeks required" value={String(rules.weeks)} onCommit={(v) => setRules(r => ({ ...r, weeks: Math.max(1, parseNum(v)) }))} />
           </span>{' '}
           straight week(s) with at least{' '}
           <span className="text-accent-green font-semibold">
-            <Editable value={String(rules.minAttendance)} onCommit={(v) => setRules(r => ({ ...r, minAttendance: parseNum(v) }))} />%
+            <Editable label="Promotion rule: minimum attendance percent" value={String(rules.minAttendance)} onCommit={(v) => setRules(r => ({ ...r, minAttendance: parseNum(v) }))} />%
           </span>{' '}
           attendance. Attendance marked in the Daily Tracker counts automatically (Present 100% · Late 50% · Absent 0%).
         </p>
@@ -575,6 +575,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                   <td className="py-2 pr-2 font-medium">
                     {editingId === person.id ? (
                       <Editable
+                        label={`${person.name} name`}
                         value={person.name}
                         onCommit={(v) => { edit(person.id, { name: v.trim() || person.name }); setEditingId(null); }}
                       />
@@ -619,16 +620,16 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                     />
                   </td>
                   <td className="py-2 pr-2 text-text-secondary">
-                    <Editable value={person.team || '—'} onCommit={(v) => edit(person.id, { team: v.trim() === '—' ? '' : v.trim() })} />
+                    <Editable label={`${person.name} team`} value={person.team || '—'} onCommit={(v) => edit(person.id, { team: v.trim() === '—' ? '' : v.trim() })} />
                   </td>
                   <td className="py-2 pr-2 text-accent-cyan">
-                    $<Editable value={String(person.hourlyWeekly ?? 0)} onCommit={(v) => edit(person.id, { hourlyWeekly: Math.max(0, parseNum(v)) })} />
+                    $<Editable label={`${person.name} weekly hourly pay`} value={String(person.hourlyWeekly ?? 0)} onCommit={(v) => edit(person.id, { hourlyWeekly: Math.max(0, parseNum(v)) })} />
                   </td>
                   <td className="py-2 pr-2 text-accent-green">
-                    $<Editable value={String(person.weeklyProfit[0] ?? 0)} onCommit={(v) => editWeek(person.id, 0, v)} />
+                    $<Editable label={`${person.name} profit, week 1`} value={String(person.weeklyProfit[0] ?? 0)} onCommit={(v) => editWeek(person.id, 0, v)} />
                   </td>
                   <td className="py-2 pr-2 text-accent-green">
-                    $<Editable value={String(person.weeklyProfit[1] ?? 0)} onCommit={(v) => editWeek(person.id, 1, v)} />
+                    $<Editable label={`${person.name} profit, week 2`} value={String(person.weeklyProfit[1] ?? 0)} onCommit={(v) => editWeek(person.id, 1, v)} />
                   </td>
                   <td className="py-2 pr-2">
                     {status.attendance.tracked ? (
@@ -637,7 +638,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                       </span>
                     ) : (
                       <>
-                        <Editable value={String(person.attendance)} onCommit={(v) => edit(person.id, { attendance: Math.min(100, Math.max(0, parseNum(v))) })} />%
+                        <Editable label={`${person.name} attendance percent`} value={String(person.attendance)} onCommit={(v) => edit(person.id, { attendance: Math.min(100, Math.max(0, parseNum(v))) })} />%
                       </>
                     )}
                   </td>

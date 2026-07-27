@@ -74,6 +74,7 @@ export function PromoPanel() {
           <div key={p.id} className="group p-3 rounded-xl glass border border-border-subtle">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <Editable
+                label="Promotion title"
                 value={p.title}
                 onCommit={v => edit(p.id, 'title', v)}
                 className="font-semibold text-sm flex-1 min-w-0"
@@ -100,11 +101,13 @@ export function PromoPanel() {
               </div>
             </div>
             <Editable
+              label={`Talk track for ${p.title}`}
               value={p.note || 'Add the talk track…'}
               onCommit={v => edit(p.id, 'note', v)}
               className="block text-xs text-text-secondary mt-1"
             />
             <Editable
+              label={`Link for ${p.title}`}
               value={p.url || 'Paste a link…'}
               onCommit={v => edit(p.id, 'url', v.startsWith('http') || !v.trim() ? v : `https://${v}`)}
               className="block text-[10px] text-text-muted mt-1 font-mono"

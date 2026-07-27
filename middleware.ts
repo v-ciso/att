@@ -36,6 +36,12 @@ export default withAuth(
   },
   {
     pages: { signIn: '/login' },
+    // withAuth otherwise reads process.env.NEXTAUTH_SECRET itself. With that
+    // var unset it threw a Configuration error and redirected every gated
+    // request to /api/auth/error, making the dashboard unreachable even though
+    // NextAuth's own route handler was working off its dev fallback. Passing
+    // the shared resolver keeps the two in lockstep.
+    secret: authSecret(),
     callbacks: {
       // API routes report their own 401 above, so they must not be redirected
       // here. Pages still get the normal sign-in redirect.

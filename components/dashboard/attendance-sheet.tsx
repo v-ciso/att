@@ -1,10 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { CalendarCheck, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { loadAttendance, AttendanceStatus, todayStr } from '@/lib/sales';
+import { loadAttendance, AttendanceStatus, AttendanceBook, todayStr } from '@/lib/sales';
 import { Person } from './roster';
 
 // The attendance RECORD. Marking someone late in the Daily Tracker was writing

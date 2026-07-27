@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 import { cn, formatCurrency, getInitials } from '@/lib/utils';
 import { loadPeople, loadPromoRules, promotionStatus, effectiveAttendance, ROSTER_ROLE_LABELS, ROLE_LADDER } from './roster';
 import { Period, PERIOD_LABELS, aggregateSales, loadSales, loadCommission } from '@/lib/sales';
@@ -20,16 +21,55 @@ export function ProfileDrawer({ name, period, onClose }: { name: string; period:
   const agg = aggregateSales(loadSales(), loadCommission(), { period: span });
   const stats = agg.perPerson.find(p => p.person.trim().toLowerCase() === name.trim().toLowerCase());
 
+  // Modal focus management. Previously focus stayed on whatever opened the
+  // drawer, so keyboard and screen-reader users kept tabbing through the page
+  // behind the overlay. Move focus in on open, trap Tab inside, and hand focus
+  // back to the trigger on close.
+  const panelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const opener = document.activeElement as HTMLElement | null;
+    panelRef.current?.focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const focusables = panelRef.current?.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusables || focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // Page behind a modal shouldn't scroll under the overlay.
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+      opener?.focus?.();
+    };
   }, [onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label={`${name} profile`}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:max-w-lg glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 max-h-[90vh] overflow-y-auto">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className="relative w-full sm:max-w-lg glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 max-h-[90vh] overflow-y-auto focus:outline-none"
+      >
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent-blue to-accent-purple flex items-center justify-center font-bold">
@@ -44,15 +84,33 @@ export function ProfileDrawer({ name, period, onClose }: { name: string; period:
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-11 h-11 inline-flex items-center justify-center flex-none rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+            aria-label={`Close ${name} profile`}
+          >
+            <X className="w-5 h-5" aria-hidden="true" />
+          </button>
         </div>
 
         {/* Period production, derived from the Daily Tracker */}
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <p className="text-[10px] text-text-muted uppercase tracking-wider">{PERIOD_LABELS[span]} Production</p>
-          <div className="flex gap-1">
+          <div className="flex gap-1" role="radiogroup" aria-label="Production period">
             {(['daily', 'weekly', 'monthly', 'all'] as Period[]).map(p => (
-              <button key={p} onClick={() => setSpan(p)} className={cn('tab-btn', span === p ? 'active' : 'inactive')}>
+              <button
+                key={p}
+                type="button"
+                role="radio"
+                aria-checked={span === p}
+                onClick={() => setSpan(p)}
+                className={cn(
+                  'tab-btn min-h-11',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]',
+                  span === p ? 'active' : 'inactive'
+                )}
+              >
                 {PERIOD_LABELS[p]}
               </button>
             ))}
@@ -119,13 +177,20 @@ export function ProfileDrawer({ name, period, onClose }: { name: string; period:
             <div className="flex items-center gap-1 mb-4">
               {ROLE_LADDER.map((role, i) => (
                 <div key={role} className="flex-1 flex items-center gap-1">
-                  <div className={cn(
-                    'flex-1 text-center py-1.5 rounded-lg text-[10px] font-semibold border transition-all',
-                    i < roleIndex && 'bg-accent-green/10 text-accent-green border-accent-green/30',
-                    i === roleIndex && 'bg-accent-blue/20 text-accent-blue border-accent-blue/40 shadow-neon-blue',
-                    i > roleIndex && 'bg-white/5 text-text-muted border-border-subtle'
-                  )}>
+                  {/* Colour alone signalled which rung is current; aria-current
+                      and an sr-only suffix state it non-visually too. */}
+                  <div
+                    aria-current={i === roleIndex ? 'step' : undefined}
+                    className={cn(
+                      'flex-1 text-center py-1.5 rounded-lg text-[10px] font-semibold border transition-all',
+                      i < roleIndex && 'bg-accent-green/10 text-accent-green border-accent-green/30',
+                      i === roleIndex && 'bg-accent-blue/20 text-accent-blue border-accent-blue/40 shadow-neon-blue',
+                      i > roleIndex && 'bg-white/5 text-text-muted border-border-subtle'
+                    )}
+                  >
                     {ROSTER_ROLE_LABELS[role]}
+                    {i < roleIndex && <span className="sr-only"> (completed)</span>}
+                    {i === roleIndex && <span className="sr-only"> (current role)</span>}
                   </div>
                   {i < ROLE_LADDER.length - 1 && <span className="text-text-muted text-[10px]">→</span>}
                 </div>
@@ -139,7 +204,14 @@ export function ProfileDrawer({ name, period, onClose }: { name: string; period:
                   needs {formatCurrency(rules.profitPerWeek)}/wk × {rules.weeks} wks + {rules.minAttendance}% attendance
                 </span>
               </div>
-              <div className="w-full h-1.5 rounded-full bg-bg-tertiary">
+              <div
+                className="w-full h-1.5 rounded-full bg-bg-tertiary"
+                role="progressbar"
+                aria-valuenow={Math.round(status.progress)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label={`${name} progress toward promotion`}
+              >
                 <div className={cn('h-full rounded-full', status.ready ? 'bg-accent-green' : 'bg-gradient-to-r from-accent-blue to-accent-green')} style={{ width: `${status.progress}%` }} />
               </div>
             </div>

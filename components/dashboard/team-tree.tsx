@@ -179,6 +179,7 @@ export function TeamTree({ people, assignTeam }: TeamTreeProps) {
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
               <Editable
+                label={`${team.name} team name`}
                 value={team.name}
                 onCommit={v => {
                   const newName = v.trim();
