@@ -5,6 +5,24 @@ import { useEffect, useRef } from 'react';
 const FOCUSABLE =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+// Remember the last thing focused *outside* any dialog so a modal can hand focus
+// back on close. Reading document.activeElement inside the open effect is not
+// enough: React applies `autoFocus` during commit, before effects run, so a
+// dialog with an autoFocus field would capture its own input as the "opener" and
+// then restore focus to a detached node, dropping the user back on <body>.
+let lastExternalFocus: HTMLElement | null = null;
+
+if (typeof document !== 'undefined') {
+  document.addEventListener(
+    'focusin',
+    e => {
+      const el = e.target as HTMLElement | null;
+      if (el && !el.closest('[role="dialog"]')) lastExternalFocus = el;
+    },
+    true
+  );
+}
+
 /**
  * Standard modal behaviour, in one place: move focus into the dialog on open,
  * keep Tab cycling inside it, lock background scroll, and restore focus to
@@ -21,8 +39,20 @@ const FOCUSABLE =
 export function useModalA11y<T extends HTMLElement = HTMLDivElement>(onClose?: () => void) {
   const ref = useRef<T>(null);
 
+  // Callers pass inline arrows (`onClose={() => setOpen(null)}`), so depending on
+  // onClose directly re-ran this effect on every render — each pass tore down the
+  // trap and snapped focus back to the first control, making the dialog
+  // impossible to tab through. Keep the latest callback in a ref and set the
+  // trap up exactly once per mount.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
+    const active = document.activeElement as HTMLElement | null;
+    // Prefer the tracked external element; fall back to activeElement only when
+    // it is genuinely outside this dialog.
+    const opener =
+      lastExternalFocus ?? (active && !ref.current?.contains(active) ? active : null);
 
     // Focus the first real control so the user lands on something actionable,
     // falling back to the container itself when the dialog is text-only.
@@ -31,9 +61,9 @@ export function useModalA11y<T extends HTMLElement = HTMLDivElement>(onClose?: (
     (first ?? node)?.focus();
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && onClose) {
+      if (e.key === 'Escape' && onCloseRef.current) {
         e.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== 'Tab' || !ref.current) return;
@@ -62,10 +92,19 @@ export function useModalA11y<T extends HTMLElement = HTMLDivElement>(onClose?: (
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prevOverflow;
       // Returning focus to the trigger keeps keyboard users from being dumped
-      // back at the top of the document.
-      opener?.focus?.();
+      // back at the top of the document. Skip nodes React has since unmounted —
+      // focusing a detached element silently sends focus to <body>.
+      console.log('[v0] modal cleanup restore ->', {
+        opener: opener?.tagName + ':' + (opener?.textContent || '').trim().slice(0, 18),
+        connected: opener?.isConnected,
+        usedTracked: opener === lastExternalFocus,
+      });
+      if (opener && opener.isConnected) opener.focus();
+      setTimeout(() => console.log('[v0] active after restore ->', document.activeElement?.tagName), 0);
     };
-  }, [onClose]);
+    // Mount-only on purpose: see the onCloseRef note above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return ref;
 }

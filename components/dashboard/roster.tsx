@@ -334,11 +334,11 @@ function EditEmployeeModal({ person, storeOptions, teamOptions, onSave, onClose 
         <div className="space-y-3">
           <div>
             <label className="label-base">Name</label>
-            <input autoFocus value={name} onChange={e => setName(e.target.value)} className={selectClass} />
+            <input aria-label="Employee name" autoFocus value={name} onChange={e => setName(e.target.value)} className={selectClass} />
           </div>
           <div>
             <label className="label-base">Role</label>
-            <select value={role} onChange={e => setRole(e.target.value as RosterRole)} className={selectClass}>
+            <select aria-label="Role" value={role} onChange={e => setRole(e.target.value as RosterRole)} className={selectClass}>
               {ROLE_LADDER.map(r => <option key={r} value={r}>{ROSTER_ROLE_LABELS[r]}</option>)}
             </select>
           </div>
@@ -348,7 +348,7 @@ function EditEmployeeModal({ person, storeOptions, teamOptions, onSave, onClose 
           </div>
           <div>
             <label className="label-base">Team</label>
-            <select value={team} onChange={e => setTeam(e.target.value)} className={selectClass}>
+            <select aria-label="Team" value={team} onChange={e => setTeam(e.target.value)} className={selectClass}>
               <option value="">Unassigned</option>
               {teamOptions.map(t => <option key={t} value={t}>{t}</option>)}
               {team && !teamOptions.includes(team) && <option value={team}>{team}</option>}
@@ -357,11 +357,11 @@ function EditEmployeeModal({ person, storeOptions, teamOptions, onSave, onClose 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label-base">Hourly / week ($)</label>
-              <input type="number" min={0} value={hourly} onChange={e => setHourly(e.target.value)} className={selectClass} />
+              <input aria-label="Hourly pay per week in dollars" type="number" min={0} value={hourly} onChange={e => setHourly(e.target.value)} className={selectClass} />
             </div>
             <div>
               <label className="label-base">Attendance (%)</label>
-              <input type="number" min={0} max={100} value={attendance} onChange={e => setAttendance(e.target.value)} className={selectClass} />
+              <input aria-label="Attendance percent" type="number" min={0} max={100} value={attendance} onChange={e => setAttendance(e.target.value)} className={selectClass} />
             </div>
           </div>
           <p className="text-[10px] text-text-muted">Attendance here is the manual fallback — real Daily-Tracker marks override it.</p>
@@ -407,6 +407,7 @@ function AddEmployeeModal({ storeOptions, teamOptions, onAdd, onClose }: {
           <div>
             <label className="label-base">Name</label>
             <input
+              aria-label="Employee name"
               autoFocus
               value={name}
               onChange={e => setName(e.target.value)}
@@ -417,7 +418,7 @@ function AddEmployeeModal({ storeOptions, teamOptions, onAdd, onClose }: {
           </div>
           <div>
             <label className="label-base">Role</label>
-            <select value={role} onChange={e => setRole(e.target.value as RosterRole)} className={selectClass}>
+            <select aria-label="Role" value={role} onChange={e => setRole(e.target.value as RosterRole)} className={selectClass}>
               {ROLE_LADDER.map(r => <option key={r} value={r}>{ROSTER_ROLE_LABELS[r]}</option>)}
             </select>
           </div>
@@ -427,7 +428,7 @@ function AddEmployeeModal({ storeOptions, teamOptions, onAdd, onClose }: {
           </div>
           <div>
             <label className="label-base">Team</label>
-            <select value={team} onChange={e => setTeam(e.target.value)} className={selectClass}>
+            <select aria-label="Team" value={team} onChange={e => setTeam(e.target.value)} className={selectClass}>
               <option value="">Unassigned</option>
               {teamOptions.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
