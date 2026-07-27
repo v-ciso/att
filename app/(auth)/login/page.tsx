@@ -69,11 +69,16 @@ function LoginForm() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2">
-              {error}
-            </div>
-          )}
+          {/* role="alert" so a failed sign-in is announced. The node is always
+              mounted because assistive tech ignores content injected into a
+              live region at the same moment the region itself appears. */}
+          <div role="alert" aria-live="assertive" className={error ? 'block' : 'sr-only'}>
+            {error && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-2">
+                {error}
+              </div>
+            )}
+          </div>
 
           <div className="space-y-2">
             <label htmlFor="email" className="label-base">Email</label>
@@ -106,18 +111,32 @@ function LoginForm() {
                 autoComplete="current-password"
                 className="pl-10 pr-10"
               />
+              {/* Icon-only control: without an explicit name a screen reader
+                  announced only "button". aria-pressed exposes the current
+                  state instead of forcing users to guess. */}
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
               >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                {showPassword ? <EyeOff className="w-5 h-5" aria-hidden="true" /> : <Eye className="w-5 h-5" aria-hidden="true" />}
               </button>
             </div>
           </div>
 
+          {/* Keep a text label while submitting: swapping it for a bare spinner
+              left the button with no accessible name mid-request. */}
           <Button type="submit" className="w-full" size="lg" loading={isLoading}>
-            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sign In'}
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                <span>Signing in…</span>
+              </>
+            ) : (
+              'Sign In'
+            )}
           </Button>
         </form>
 

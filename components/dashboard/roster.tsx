@@ -11,6 +11,7 @@ import { notifyDataChanged, loadCommission } from '@/lib/sales';
 import { RETAILERS } from '@/lib/shifts';
 import { seedForWorkspace } from '@/lib/workspace';
 import { useConfirm } from '@/hooks/use-confirm';
+import { useModalA11y } from '@/hooks/use-modal-a11y';
 
 // ---------------------------------------------------------------------------
 // People — the single roster every view joins against. A person can work one

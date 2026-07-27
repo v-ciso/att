@@ -24,7 +24,13 @@ export function authSecret(): string {
   const secret = process.env.NEXTAUTH_SECRET;
   if (secret && secret.length >= 32 && !secret.startsWith('demo-')) return secret;
 
-  if (process.env.NODE_ENV === 'production') {
+  // Only a real request may fail. `next build` imports route modules to collect
+  // page data, and runtime secrets are not present in that phase — throwing
+  // there failed the build itself rather than the request, which would block
+  // deploys even when the secret is configured correctly on the server.
+  const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build';
+
+  if (process.env.NODE_ENV === 'production' && !isBuildPhase) {
     throw new Error(
       'NEXTAUTH_SECRET is missing or insecure. Generate one with: openssl rand -base64 32'
     );
