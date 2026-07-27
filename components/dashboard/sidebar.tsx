@@ -63,7 +63,7 @@ export function Sidebar() {
         })}
       </nav>
       <div className="pt-4 border-t border-border-subtle space-y-3">
-        {isSuperAdminEmail(session?.user?.email) && (
+        {(session?.user?.isSuperAdmin ?? isSuperAdminEmail(session?.user?.email)) && (
           <Link
             href="/admin"
             className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"

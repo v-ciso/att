@@ -4,6 +4,7 @@ import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { verifySupabasePassword } from '@/lib/supabase-admin';
+import { isSuperAdminEmail } from '@/lib/super-admins';
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -58,9 +59,14 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        token.email = user.email; // carry explicitly — the client relies on it
         token.role = user.role;
         token.marketOwnerId = user.marketOwnerId;
         token.employeeId = user.employeeId;
+        // Compute super-admin HERE (server-side, where SUPER_ADMIN_EMAILS is
+        // readable) and stamp it on the token, so the browser never has to
+        // re-derive it from an email that may not survive the session round-trip.
+        token.isSuperAdmin = isSuperAdminEmail(user.email);
       }
       return token;
     },
@@ -69,9 +75,11 @@ export const authOptions: NextAuthOptions = {
         session.user = {
           ...session.user,
           id: token.id,
+          email: token.email as string,
           role: token.role,
           marketOwnerId: token.marketOwnerId,
           employeeId: token.employeeId,
+          isSuperAdmin: token.isSuperAdmin,
         };
       }
       return session;

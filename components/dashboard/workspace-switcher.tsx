@@ -21,7 +21,7 @@ export function WorkspaceSwitcher() {
   const [ws, setWs] = useState<Workspace>(DEFAULT_WORKSPACE);
   const [confirmReset, setConfirmReset] = useState(false);
 
-  const superAdmin = isSuperAdminEmail(session?.user?.email);
+  const superAdmin = session?.user?.isSuperAdmin ?? isSuperAdminEmail(session?.user?.email);
   const isOwner = session?.user?.role === 'OWNER';
   const tenant = session?.user?.marketOwnerId ?? 'default';
 

@@ -28,7 +28,7 @@ export default function SettingsPage() {
   // Branding + domain are the VENDOR's white-label controls. A customer sets
   // those at purchase (the admin console); in their own Settings they only get
   // to change their password.
-  const canBrand = isSuperAdminEmail(session?.user?.email);
+  const canBrand = session?.user?.isSuperAdmin ?? isSuperAdminEmail(session?.user?.email);
   const [draft, setDraft] = useState({
     companyName: theme.companyName,
     logoUrl: theme.logoUrl ?? '',

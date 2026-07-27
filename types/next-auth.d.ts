@@ -8,6 +8,7 @@ declare module 'next-auth' {
       role: string;
       marketOwnerId?: string;
       employeeId?: string;
+      isSuperAdmin?: boolean;
     } & DefaultSession['user'];
   }
 
@@ -24,5 +25,6 @@ declare module 'next-auth/jwt' {
     role: string;
     marketOwnerId?: string;
     employeeId?: string;
+    isSuperAdmin?: boolean;
   }
 }
