@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { CalendarCheck, Download } from 'lucide-react';
+import { CalendarCheck, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { loadAttendance, AttendanceStatus, todayStr } from '@/lib/sales';
 import { Person } from './roster';
@@ -34,15 +34,24 @@ export interface RepAttendance {
   lastAbsent: string | null;
 }
 
-export function summarise(people: Person[], span: Span, book: Record<string, Record<string, AttendanceStatus>>): RepAttendance[] {
-  const cutoff = todayStr(-(SPAN_DAYS[span] - 1));
+// Shift a YYYY-MM-DD string by N days.
+function shiftDate(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+export function summarise(
+  people: Person[], span: Span, book: Record<string, Record<string, AttendanceStatus>>, endDate: string,
+): RepAttendance[] {
+  const cutoff = shiftDate(endDate, -(SPAN_DAYS[span] - 1));
   return people.map(p => {
     let present = 0, late = 0, absent = 0;
     let lastLate: string | null = null;
     let lastAbsent: string | null = null;
 
     for (const [date, marks] of Object.entries(book)) {
-      if (date < cutoff || date > todayStr()) continue;
+      if (date < cutoff || date > endDate) continue;
       const status = marks[p.name];
       if (!status) continue;
       if (status === 'P') present++;
@@ -62,13 +71,15 @@ export function summarise(people: Person[], span: Span, book: Record<string, Rec
 
 export function AttendanceSheet({ people }: { people: Person[] }) {
   const [span, setSpan] = useState<Span>('week');
+  const [end, setEnd] = useState(() => todayStr()); // window ends on this date
   const book = useMemo(loadAttendance, []);
 
-  const rows = useMemo(() => summarise(people, span, book), [people, span, book]);
+  const rows = useMemo(() => summarise(people, span, book, end), [people, span, book, end]);
   const days = useMemo(
-    () => Array.from({ length: Math.min(SPAN_DAYS[span], 30) }, (_, i) => todayStr(-i)).reverse(),
-    [span]
+    () => Array.from({ length: Math.min(SPAN_DAYS[span], 30) }, (_, i) => shiftDate(end, -i)).reverse(),
+    [span, end]
   );
+  const shiftWindow = (dir: number) => setEnd(e => shiftDate(e, dir * SPAN_DAYS[span]));
 
   const totals = rows.reduce(
     (a, r) => ({ present: a.present + r.present, late: a.late + r.late, absent: a.absent + r.absent }),
@@ -102,11 +113,21 @@ export function AttendanceSheet({ people }: { people: Person[] }) {
               </button>
             ))}
           </div>
+          {/* Move the window: back/forward one period, or jump to a specific end date. */}
+          <div className="flex items-center gap-1 rounded-lg bg-white/5 border border-border-subtle p-0.5">
+            <button onClick={() => shiftWindow(-1)} className="p-1.5 rounded hover:bg-white/10" aria-label="Previous period"><ChevronLeft className="w-4 h-4" /></button>
+            <input type="date" value={end} max={todayStr()} onChange={e => e.target.value && setEnd(e.target.value)} className="bg-transparent text-sm px-1 focus:outline-none" aria-label="Period end date" />
+            <button onClick={() => shiftWindow(1)} disabled={end >= todayStr()} className="p-1.5 rounded hover:bg-white/10 disabled:opacity-30" aria-label="Next period"><ChevronRight className="w-4 h-4" /></button>
+          </div>
+          <button onClick={() => setEnd(todayStr())} className="tab-btn inactive">Today</button>
           <Button variant="secondary" size="sm" onClick={exportCsv}>
             <Download className="w-3.5 h-3.5" /> CSV
           </Button>
         </div>
       </div>
+      <p className="text-xs text-text-secondary -mt-2 mb-3">
+        {span === 'week' ? '7 days' : span === 'month' ? '30 days' : '12 months'} ending {end}
+      </p>
 
       {totalMarked === 0 ? (
         <p className="text-xs text-text-muted p-3 rounded-xl bg-white/5">

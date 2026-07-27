@@ -319,7 +319,7 @@ function CompanyUsers({ company, onChange, onBanner }: {
   company: Company; onChange: () => void; onBanner: (b: { title: string; lines: string[] }) => void;
 }) {
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ email: '', name: '', role: 'VIEWER', password: '' });
+  const [form, setForm] = useState({ email: '', name: '', role: 'MANAGER', password: '' });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const atCapacity = company.users.length >= company.seats;
@@ -344,7 +344,7 @@ function CompanyUsers({ company, onChange, onBanner }: {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       onBanner({ title: `${data.email} added to ${company.name}`, lines: [`Email: ${data.email}`, `Temp password: ${data.tempPassword}`, `Access: ${data.role}`] });
-      setForm({ email: '', name: '', role: 'VIEWER', password: '' });
+      setForm({ email: '', name: '', role: 'MANAGER', password: '' });
       setAdding(false);
       onChange();
     } catch (e) {
@@ -361,6 +361,16 @@ function CompanyUsers({ company, onChange, onBanner }: {
     });
     if (!res.ok) alert((await res.json()).error);
     onChange();
+  };
+
+  const resetPw = async (u: AdminUser) => {
+    if (!confirm(`Issue a new temporary password for ${u.email}? Their old one stops working.`)) return;
+    const res = await fetch('/api/admin/users', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: u.id }),
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error); return; }
+    onBanner({ title: `New password for ${data.email}`, lines: [`Email: ${data.email}`, `Temp password: ${data.tempPassword}`] });
   };
 
   return (
@@ -390,11 +400,16 @@ function CompanyUsers({ company, onChange, onBanner }: {
                 </span>
               )}
             </span>
-            {u.role !== 'OWNER' && (
-              <button onClick={() => removeUser(u)} className="p-1 rounded text-text-muted hover:text-accent-red hover:bg-accent-red/10" aria-label={`Remove ${u.email}`}>
-                <Trash2 className="w-3.5 h-3.5" />
+            <span className="flex items-center gap-1 flex-none">
+              <button onClick={() => resetPw(u)} className="px-1.5 py-0.5 rounded text-[10px] text-text-muted hover:text-white hover:bg-white/10" title="Issue a new temporary password">
+                Reset pw
               </button>
-            )}
+              {u.role !== 'OWNER' && (
+                <button onClick={() => removeUser(u)} className="p-1 rounded text-text-muted hover:text-accent-red hover:bg-accent-red/10" aria-label={`Remove ${u.email}`}>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </span>
           </div>
         ))}
       </div>

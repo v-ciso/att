@@ -89,8 +89,9 @@ export async function provisionCompany(input: CompanyInput) {
       data: { name: input.companyName, slug, subscriptionTier: seats > 1 ? 'WHITE_LABEL' : 'STANDARD', theme },
     });
     // Seed this tenant's operational data so a brand-new live account starts
-    // clean (empty roster, no demo furniture) in the DB itself.
-    await seedTenantData(owner.id, campaign);
+    // clean (empty roster, no demo furniture) in the DB itself, and carries the
+    // branding (name + logo + colours) so their dashboard shows THEIR company.
+    await seedTenantData(owner.id, campaign, theme);
     await prisma.user.create({
       data: {
         email,
@@ -202,7 +203,7 @@ export async function setCompanySeats(marketOwnerId: string, seats: number) {
 // staff or money appears; the client fills the commission plan payouts from its
 // own liveDefault. Kept as JSON blobs matching the app's localStorage shapes.
 // No 'use client' import here — this runs server-side.
-async function seedTenantData(marketOwnerId: string, campaign: string) {
+async function seedTenantData(marketOwnerId: string, campaign: string, theme?: object) {
   const seed: Record<string, unknown> = {
     'se-people-v1': [],
     'se-teams-v2': [],
@@ -211,6 +212,9 @@ async function seedTenantData(marketOwnerId: string, campaign: string) {
     'se-schedule-v1': {},
     'se-attendance-v1': {},
     'se-campaign-v1': campaign,
+    // The client's ThemeProvider reads se-theme-v1; seeding it means the owner's
+    // company name, logo, and colours show the moment they sign in.
+    ...(theme ? { 'se-theme-v1': theme } : {}),
   };
   await prisma.$transaction(
     Object.entries(seed).map(([key, value]) =>
@@ -221,6 +225,21 @@ async function seedTenantData(marketOwnerId: string, campaign: string) {
       })
     )
   );
+}
+
+// Issue a new temporary password for any user (owner or manager). Updates both
+// backends: Supabase Auth if the account lives there, always the bcrypt hash as
+// the fallback. Returns the new password once.
+export async function resetUserPassword(userId: string, password?: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error('User not found');
+  const pw = password?.trim() || generatePassword();
+  if (pw.length < 8) throw new Error('Password must be at least 8 characters.');
+  if (Buffer.byteLength(pw) > 72) throw new Error('Password must be 72 bytes or fewer.');
+
+  if (user.authId) await setAuthPassword(user.authId, pw);
+  await prisma.user.update({ where: { id: userId }, data: { passwordHash: await bcrypt.hash(pw, 12) } });
+  return { email: user.email, tempPassword: pw };
 }
 
 export async function removeCompanyUser(userId: string) {

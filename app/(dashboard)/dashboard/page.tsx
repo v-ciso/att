@@ -462,7 +462,11 @@ function DashboardContent() {
   // ---- Derived data core: sales entries → everything -----------------------
   const [dataVersion, setDataVersion] = useState(0);
   const { theme } = useTheme();
-  const companyName = theme.companyName;
+  const { data: session } = useSession();
+  // The real tenant name comes from the session; the theme's companyName is the
+  // white-label brand which defaults to "Sales Engine" until set.
+  const companyName = session?.user?.companyName
+    || (theme.companyName !== 'Sales Engine' ? theme.companyName : '');
   const bump = useCallback(() => setDataVersion(v => v + 1), []);
 
   // Re-read on tab return too (edits on other tabs change commission/roster)
@@ -608,7 +612,6 @@ function DashboardContent() {
 
   const [drillCat, setDrillCat] = useState<MixCategory | null>(null);
   const [kpiDrawer, setKpiDrawer] = useState<KpiMetric | null>(null);
-  const { data: session } = useSession();
   const isOwner = session?.user?.role === 'OWNER';
   // Sample-data generators must never appear on a live book.
   const [isDemoWorkspace, setIsDemoWorkspace] = useState(false);
@@ -775,7 +778,7 @@ function DashboardContent() {
       <div className="slide-in relative z-40 mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl lg:text-4xl font-bold neon-brand">
-            {companyName && companyName !== 'Sales Engine' ? `Welcome, ${companyName}` : 'Dashboard'}
+            {companyName ? `Welcome, ${companyName}` : 'Dashboard'}
           </h1>
           {/* The campaign decides how reps get paid, so it is not a view toggle
               anyone can flip mid-month. Owners set it; everyone else reads it. */}

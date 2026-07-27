@@ -51,6 +51,7 @@ export const authOptions: NextAuthOptions = {
           role: user.role,
           marketOwnerId: user.marketOwnerId ?? undefined,
           employeeId: user.employeeId ?? undefined,
+          companyName: user.marketOwner?.name ?? undefined,
         };
       },
     }),
@@ -63,6 +64,7 @@ export const authOptions: NextAuthOptions = {
         token.role = user.role;
         token.marketOwnerId = user.marketOwnerId;
         token.employeeId = user.employeeId;
+        token.companyName = user.companyName;
         // Compute super-admin HERE (server-side, where SUPER_ADMIN_EMAILS is
         // readable) and stamp it on the token, so the browser never has to
         // re-derive it from an email that may not survive the session round-trip.
@@ -80,6 +82,7 @@ export const authOptions: NextAuthOptions = {
           marketOwnerId: token.marketOwnerId,
           employeeId: token.employeeId,
           isSuperAdmin: token.isSuperAdmin,
+          companyName: token.companyName,
         };
       }
       return session;
