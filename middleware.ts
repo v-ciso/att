@@ -1,5 +1,6 @@
 import { withAuth } from 'next-auth/middleware';
 import { NextResponse } from 'next/server';
+import { authSecret } from '@/lib/auth-secret';
 
 // Auth gate for pages AND the data API.
 //
