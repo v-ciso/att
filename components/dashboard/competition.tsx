@@ -6,6 +6,7 @@ import { Editable, useLocalState, CommissionState } from './editable-sections';
 import { SaleEntry, aggregateSales } from '@/lib/sales';
 import { Button } from '@/components/ui/button';
 import { Trophy, Gift, Plus, Trash2 } from 'lucide-react';
+import { useConfirm } from '@/hooks/use-confirm';
 
 // Competitions to keep the floor engaged. Have as many as you want — one for
 // all stores, or one per store. Each ranks its scope by an editable metric
@@ -178,6 +179,7 @@ export function Competition({ sales, commission, storeOptions, compact = false }
   const { state: comps, setState: setComps } = useLocalState<Comp[]>('se-competitions-v1', DEFAULT_COMPS, []);
   const { state: archive, setState: setArchive } = useLocalState<ArchivedComp[]>('se-competitions-archive-v1', []);
   const [showPast, setShowPast] = useState(false);
+  const { confirm, confirmDialog } = useConfirm();
 
   const edit = (id: string, patch: Partial<Comp>) =>
     setComps(prev => prev.map(c => (c.id === id ? { ...c, ...patch } : c)));
@@ -247,8 +249,26 @@ export function Competition({ sales, commission, storeOptions, compact = false }
             {archive.map(a => (
               <div key={a.id} className="p-3 rounded-xl bg-white/[0.03] border border-border-subtle">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-sm font-semibold">{a.title} <span className="text-[10px] text-text-muted font-normal">· {a.store} · {a.metricLabel} · ended {a.endedOn}</span></span>
-                  <button onClick={() => setArchive(prev => prev.filter(x => x.id !== a.id))} className="text-text-muted hover:text-accent-red text-[11px]" title="Delete this record">✕</button>
+                  <span className="text-sm font-semibold">{a.title} <span className="text-xs text-text-muted font-normal">· {a.store} · {a.metricLabel} · ended {a.endedOn}</span></span>
+                  {/* This is the permanent removal of a historical record that
+                      a prize was paid against — it must be confirmed, and it
+                      needs a real label rather than a title-only tooltip. */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!(await confirm({
+                        title: `Delete the saved record for "${a.title}"?`,
+                        description: `This permanently removes the archived standings from ${a.endedOn} (winner: ${a.standings[0]?.person ?? 'none recorded'}). Past competition records are your proof of what was paid out.`,
+                        confirmLabel: 'Delete record',
+                        destructive: true,
+                      }))) return;
+                      setArchive(prev => prev.filter(x => x.id !== a.id));
+                    }}
+                    className="flex-none inline-flex items-center justify-center w-9 h-9 -m-1 rounded-lg text-text-muted hover:text-accent-red hover:bg-accent-red/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-red"
+                    aria-label={`Delete saved record for ${a.title}, ended ${a.endedOn}`}
+                  >
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
+                  </button>
                 </div>
                 {a.standings.length > 0 && (
                   <p className="text-xs text-text-secondary mt-1">
@@ -269,6 +289,8 @@ export function Competition({ sales, commission, storeOptions, compact = false }
           &quot;End &amp; save&quot; archives the final standings so you can look up past winners; delete removes without saving.
         </p>
       )}
+
+      {confirmDialog}
     </div>
   );
 }

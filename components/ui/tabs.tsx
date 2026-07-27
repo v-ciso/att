@@ -155,6 +155,132 @@ export const Tab = forwardRef<HTMLButtonElement, TabProps>(
 );
 Tab.displayName = 'Tab';
 
+/**
+ * TabBar — a CONTROLLED tablist for the many places that already keep their own
+ * `activeTab` state and were rendering bare <button className="tab-btn"> tabs.
+ *
+ * Those hand-rolled tabs announced as plain buttons ("button" instead of
+ * "tab, 1 of 3, selected"), had no arrow-key support and no panel association,
+ * so screen-reader and keyboard users could not tell a tab strip from a row of
+ * unrelated buttons. This gives them the correct semantics without forcing a
+ * refactor onto the uncontrolled <Tabs> component.
+ *
+ * Pair each bar with `tabPanelProps(value, activeValue)` on the panel it shows.
+ */
+export interface TabBarItem {
+  value: string;
+  label: React.ReactNode;
+  /** Announced instead of `label` when the visible label is an icon or terse. */
+  ariaLabel?: string;
+  disabled?: boolean;
+}
+
+export function TabBar({
+  items,
+  value,
+  onChange,
+  label,
+  variant = 'pill',
+  className,
+  idPrefix,
+}: {
+  items: TabBarItem[];
+  value: string;
+  onChange: (value: string) => void;
+  /** Accessible name for the tab strip, e.g. "Settings sections". */
+  label: string;
+  variant?: 'line' | 'pill' | 'underline';
+  className?: string;
+  /** Set when two tab strips on one page share tab values, to keep ids unique. */
+  idPrefix?: string;
+}) {
+  const prefix = idPrefix ? `${idPrefix}-` : '';
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const keys = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
+    if (!keys.includes(e.key)) return;
+    const tabs = Array.from(
+      e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]:not([disabled])')
+    );
+    if (!tabs.length) return;
+    const current = tabs.indexOf(document.activeElement as HTMLButtonElement);
+    let next = current;
+    if (e.key === 'ArrowRight') next = current < 0 ? 0 : (current + 1) % tabs.length;
+    else if (e.key === 'ArrowLeft') next = current <= 0 ? tabs.length - 1 : current - 1;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = tabs.length - 1;
+    e.preventDefault();
+    tabs[next].focus();
+    tabs[next].click();
+  };
+
+  return (
+    <div
+      role="tablist"
+      aria-label={label}
+      onKeyDown={onKeyDown}
+      className={twMerge(clsx(
+        'flex gap-1.5 overflow-x-auto pb-1.5 scrollbar-hide',
+        variant === 'pill' && 'bg-white/5 rounded-xl p-1',
+        className
+      ))}
+    >
+      {items.map(item => {
+        const isActive = item.value === value;
+        const styles = {
+          line: isActive
+            ? 'bg-transparent text-white border-b-2 border-accent-blue'
+            : 'text-text-secondary hover:text-white',
+          pill: isActive
+            ? 'bg-accent-blue text-white shadow-sm'
+            : 'text-text-secondary hover:text-white hover:bg-white/5',
+          underline: isActive
+            ? 'text-white border-b-2 border-accent-blue'
+            : 'text-text-secondary hover:text-white',
+        }[variant];
+
+        return (
+          <button
+            key={item.value}
+            type="button"
+            role="tab"
+            id={`${prefix}tab-${item.value}`}
+            aria-selected={isActive}
+            aria-controls={`${prefix}panel-${item.value}`}
+            aria-label={item.ariaLabel}
+            tabIndex={isActive ? 0 : -1}
+            disabled={item.disabled}
+            onClick={() => !item.disabled && onChange(item.value)}
+            className={twMerge(clsx(
+              'px-4 py-2 min-h-11 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]',
+              styles,
+              item.disabled && 'opacity-50 cursor-not-allowed'
+            ))}
+          >
+            {item.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Spread onto the element a TabBar controls, so the panel is correctly
+ * associated with its tab and hidden from assistive tech when inactive.
+ */
+export function tabPanelProps(value: string, activeValue: string, idPrefix?: string) {
+  const prefix = idPrefix ? `${idPrefix}-` : '';
+  return {
+    role: 'tabpanel' as const,
+    id: `${prefix}panel-${value}`,
+    'aria-labelledby': `${prefix}tab-${value}`,
+    tabIndex: 0,
+    hidden: value !== activeValue,
+  };
+}
+
 export const TabPanel = forwardRef<HTMLDivElement, TabPanelProps>(
   ({ className, value, children, ...props }, ref) => {
     const { value: currentValue } = useTabs();

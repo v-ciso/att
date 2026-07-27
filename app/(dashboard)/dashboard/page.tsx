@@ -8,6 +8,7 @@ import { DashboardLayout } from '@/components/dashboard/layout';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { TabBar } from '@/components/ui/tabs';
 import { LineChart } from '@/components/charts/chart-wrapper';
 import { PieChart3D } from '@/components/charts/chart-3d';
 import { formatCurrency, formatNumber, cn } from '@/lib/utils';
@@ -123,20 +124,31 @@ function StatCard({ label, value, sub, icon: Icon, color, onClick, className }: 
   );
 }
 
-function TabButton({ children, isActive, onClick }: { children: React.ReactNode; isActive: boolean; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className={`tab-btn ${isActive ? 'active' : 'inactive'}`}>
-      {children}
-    </button>
-  );
-}
-
-function PeriodChips({ period, onChange, options }: { period: Period; onChange: (p: Period) => void; options?: Period[] }) {
+/**
+ * Period chips are a FILTER, not a tab strip — they change the numbers inside
+ * the current view rather than swapping views. radiogroup/radio is the correct
+ * mapping, so a screen reader announces "Daily, selected, 1 of 4" instead of
+ * four unrelated buttons with no indication of which one is active.
+ */
+function PeriodChips({ period, onChange, options, label = 'Time period' }: {
+  period: Period; onChange: (p: Period) => void; options?: Period[]; label?: string;
+}) {
   const list = options ?? (['daily', 'weekly', 'monthly', 'all'] as Period[]);
   return (
-    <div className="flex gap-1.5">
+    <div className="flex gap-1.5" role="radiogroup" aria-label={label}>
       {list.map(p => (
-        <button key={p} onClick={() => onChange(p)} className={cn('tab-btn', period === p ? 'active' : 'inactive')}>
+        <button
+          key={p}
+          type="button"
+          role="radio"
+          aria-checked={period === p}
+          onClick={() => onChange(p)}
+          className={cn(
+            'tab-btn min-h-11',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]',
+            period === p ? 'active' : 'inactive'
+          )}
+        >
           {PERIOD_LABELS[p]}
         </button>
       ))}
@@ -848,23 +860,33 @@ function DashboardContent() {
         </Badge>
       </div>
 
-      {/* Tabs — moved above content so switching changes the view immediately */}
-      <div className="slide-in mb-4 flex gap-1.5 overflow-x-auto pb-1.5 scrollbar-hide">
-        <TabButton isActive={activeTab === 'dashboard'} onClick={() => switchTab('dashboard')}>Dashboard</TabButton>
-        <TabButton isActive={activeTab === 'tracker'} onClick={() => switchTab('tracker')}>Daily Tracker</TabButton>
-        <TabButton isActive={activeTab === 'roster'} onClick={() => switchTab('roster')}>Roster</TabButton>
-        <TabButton isActive={activeTab === 'leaderboard'} onClick={() => switchTab('leaderboard')}>Leaderboard</TabButton>
-        <TabButton isActive={activeTab === 'meeting'} onClick={() => switchTab('meeting')}>Meeting Mode</TabButton>
-        <TabButton isActive={activeTab === 'schedule'} onClick={() => switchTab('schedule')}>Schedule</TabButton>
-        <TabButton isActive={activeTab === 'attendance'} onClick={() => switchTab('attendance')}>Attendance</TabButton>
-        <TabButton isActive={activeTab === 'competition'} onClick={() => switchTab('competition')}>Competition</TabButton>
-        <TabButton isActive={activeTab === 'pnl'} onClick={() => switchTab('pnl')}>P&L</TabButton>
-        <TabButton isActive={activeTab === 'commission'} onClick={() => switchTab('commission')}>Commission</TabButton>
-        <TabButton isActive={activeTab === 'import'} onClick={() => switchTab('import')}>Import</TabButton>
-      </div>
+      {/* Tabs — moved above content so switching changes the view immediately.
+          TabBar gives the strip real tablist semantics (arrow keys, roving
+          tabindex, panel association); the old bare buttons announced as 11
+          unrelated buttons with no indication of which view was showing. */}
+      <TabBar
+        label="Dashboard views"
+        value={activeTab}
+        onChange={switchTab}
+        idPrefix="view"
+        className="slide-in mb-4"
+        items={[
+          { value: 'dashboard', label: 'Dashboard' },
+          { value: 'tracker', label: 'Daily Tracker' },
+          { value: 'roster', label: 'Roster' },
+          { value: 'leaderboard', label: 'Leaderboard' },
+          { value: 'meeting', label: 'Meeting Mode' },
+          { value: 'schedule', label: 'Schedule' },
+          { value: 'attendance', label: 'Attendance' },
+          { value: 'competition', label: 'Competition' },
+          { value: 'pnl', label: 'P&L', ariaLabel: 'Profit and loss' },
+          { value: 'commission', label: 'Commission' },
+          { value: 'import', label: 'Import' },
+        ]}
+      />
 
       {activeTab === 'dashboard' && (
-        <div id="tab-dashboard" className="tab-panel">
+        <div id="tab-dashboard" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-dashboard" tabIndex={0}>
           {!hasData && (
             <Card className="mb-4 p-5 border-accent-blue/30">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -922,11 +944,25 @@ function DashboardContent() {
                     <TrendingUp className="w-4 h-4 text-accent-blue" /> Revenue Trend
                   </span>
                   <span className="flex items-center gap-1">
-                    {([['days', '7D'], ['weeks', '8W'], ['months', '12M']] as const).map(([r, label]) => (
-                      <button key={r} onClick={() => setTrendRange(r)} className={cn('tab-btn !px-2 !py-0.5 text-[10px]', trendRange === r ? 'active' : 'inactive')}>
-                        {label}
-                      </button>
-                    ))}
+                    <span role="radiogroup" aria-label="Revenue trend range" className="flex items-center gap-1">
+                      {([['days', '7D', 'Last 7 days'], ['weeks', '8W', 'Last 8 weeks'], ['months', '12M', 'Last 12 months']] as const).map(([r, label, full]) => (
+                        <button
+                          key={r}
+                          type="button"
+                          role="radio"
+                          aria-checked={trendRange === r}
+                          aria-label={full}
+                          onClick={() => setTrendRange(r)}
+                          className={cn(
+                            'tab-btn !px-2 !py-1 text-xs',
+                            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]',
+                            trendRange === r ? 'active' : 'inactive'
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </span>
                     <button onClick={() => setExpandChart('trend')} className="p-1 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Expand revenue trend" title="Enlarge">
                       <Maximize2 className="w-3.5 h-3.5" />
                     </button>
@@ -1058,7 +1094,7 @@ function DashboardContent() {
       )}
 
       {activeTab === 'tracker' && (
-        <div id="tab-tracker" className="tab-panel">
+        <div id="tab-tracker" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-tracker" tabIndex={0}>
           <Card className="p-5">
             <DailyTracker onDataChange={bump} />
           </Card>
@@ -1066,7 +1102,7 @@ function DashboardContent() {
       )}
 
       {activeTab === 'roster' && (
-        <div id="tab-roster" className="tab-panel">
+        <div id="tab-roster" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-roster" tabIndex={0}>
           <Card className="p-5">
             <RosterManager onOpenProfile={(name) => setProfileName(name)} />
           </Card>
@@ -1074,7 +1110,7 @@ function DashboardContent() {
       )}
 
       {activeTab === 'leaderboard' && (
-        <div id="tab-leaderboard" className="tab-panel">
+        <div id="tab-leaderboard" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-leaderboard" tabIndex={0}>
           <Card className="p-5">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h2 className="text-xl font-bold neon-brand">
@@ -1132,7 +1168,14 @@ function DashboardContent() {
       )}
 
       {activeTab === 'meeting' && (
-        <div id="tab-meeting" ref={meetingRef} className="tab-panel">
+        <div
+          id="tab-meeting"
+          ref={meetingRef}
+          className="tab-panel"
+          role="tabpanel"
+          aria-labelledby="view-tab-meeting"
+          tabIndex={0}
+        >
           <Card className="p-5">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h2 className="text-xl font-bold neon-brand">Meeting Mode</h2>
@@ -1303,7 +1346,7 @@ function DashboardContent() {
       )}
 
       {activeTab === 'schedule' && (
-        <div id="tab-schedule" className="tab-panel">
+        <div id="tab-schedule" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-schedule" tabIndex={0}>
           <Card className="p-5">
             <ScheduleBoard people={people} storeOptions={storeOptions} />
           </Card>
@@ -1311,7 +1354,7 @@ function DashboardContent() {
       )}
 
       {activeTab === 'attendance' && (
-        <div id="tab-attendance" className="tab-panel">
+        <div id="tab-attendance" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-attendance" tabIndex={0}>
           <Card className="p-5">
             <AttendanceSheet people={people} />
           </Card>
@@ -1319,7 +1362,7 @@ function DashboardContent() {
       )}
 
       {activeTab === 'competition' && (
-        <div id="tab-competition" className="tab-panel">
+        <div id="tab-competition" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-competition" tabIndex={0}>
           <Card className="p-5">
             <Competition sales={sales} commission={commission} storeOptions={storeOptions} />
           </Card>
@@ -1327,7 +1370,7 @@ function DashboardContent() {
       )}
 
       {activeTab === 'pnl' && (
-        <div id="tab-pnl" className="tab-panel">
+        <div id="tab-pnl" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-pnl" tabIndex={0}>
           <Card className="p-5">
             <PnlEditor derived={pnlDerived} />
           </Card>
@@ -1335,13 +1378,13 @@ function DashboardContent() {
       )}
 
       {activeTab === 'commission' && (
-        <div id="tab-commission" className="tab-panel">
+        <div id="tab-commission" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-commission" tabIndex={0}>
           <Card className="p-5"><CommissionEngine /></Card>
         </div>
       )}
 
       {activeTab === 'import' && (
-        <div id="tab-import" className="tab-panel">
+        <div id="tab-import" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-import" tabIndex={0}>
           <Card className="p-5"><ImportReport sales={sales} commission={commission} /></Card>
         </div>
       )}
@@ -1412,9 +1455,20 @@ function DashboardContent() {
                 {expandChart === 'trend'
                   ? <>
                       <TrendingUp className="w-5 h-5 text-accent-blue" /> Revenue Trend
-                      <span className="flex items-center gap-1 ml-2">
+                      <span role="radiogroup" aria-label="Revenue trend range" className="flex items-center gap-1 ml-2">
                         {([['days', '7 Days'], ['weeks', '8 Weeks'], ['months', '12 Months']] as const).map(([r, label]) => (
-                          <button key={r} onClick={() => setTrendRange(r)} className={cn('tab-btn', trendRange === r ? 'active' : 'inactive')}>
+                          <button
+                            key={r}
+                            type="button"
+                            role="radio"
+                            aria-checked={trendRange === r}
+                            onClick={() => setTrendRange(r)}
+                            className={cn(
+                              'tab-btn min-h-11',
+                              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]',
+                              trendRange === r ? 'active' : 'inactive'
+                            )}
+                          >
                             {label}
                           </button>
                         ))}

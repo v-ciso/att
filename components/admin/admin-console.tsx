@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import {
   Building2, Plus, Users, Power, Trash2, Copy, Check, ShieldCheck, ChevronDown, ChevronRight, KeyRound, Upload,
 } from 'lucide-react';
+import { useConfirm } from '@/hooks/use-confirm';
 
 interface AdminUser {
   id: string; email: string; name: string; role: string; disabled: boolean; authBackend: string;
@@ -323,6 +324,7 @@ function CompanyUsers({ company, onChange, onBanner }: {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const atCapacity = company.users.length >= company.seats;
+  const { confirm, confirmDialog } = useConfirm();
 
   const addUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -355,7 +357,15 @@ function CompanyUsers({ company, onChange, onBanner }: {
   };
 
   const removeUser = async (u: AdminUser) => {
-    if (!confirm(`Remove ${u.email}? Their login is deleted; the company keeps their production history.`)) return;
+    // Deleting a login is irreversible and locks a real person out of the tool.
+    // Require the email to be typed so it cannot happen on a misclick.
+    if (!(await confirm({
+      title: `Remove ${u.email}?`,
+      description: 'Their login is deleted immediately and they lose access to the tool. The company keeps their production history, roster entry and attendance record.',
+      confirmLabel: 'Remove login',
+      destructive: true,
+      requireTypedConfirmation: u.email,
+    }))) return;
     const res = await fetch('/api/admin/users', {
       method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: u.id }),
     });
@@ -364,7 +374,11 @@ function CompanyUsers({ company, onChange, onBanner }: {
   };
 
   const resetPw = async (u: AdminUser) => {
-    if (!confirm(`Issue a new temporary password for ${u.email}? Their old one stops working.`)) return;
+    if (!(await confirm({
+      title: `Issue a new temporary password for ${u.email}?`,
+      description: 'Their current password stops working immediately. You will be shown the new temporary password once — make sure you can pass it to them.',
+      confirmLabel: 'Reset password',
+    }))) return;
     const res = await fetch('/api/admin/users', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: u.id }),
     });
@@ -421,10 +435,12 @@ function CompanyUsers({ company, onChange, onBanner }: {
           <Input value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="temp pw (optional)" />
           <div className="sm:col-span-4 flex items-center gap-2">
             <Button type="submit" size="sm" loading={busy} disabled={busy}>Add</Button>
-            {err && <span className="text-xs text-accent-red">{err}</span>}
+            {err && <span role="alert" className="text-xs text-accent-red">{err}</span>}
           </div>
         </form>
       )}
+
+      {confirmDialog}
     </div>
   );
 }
