@@ -1,4 +1,6 @@
-import { readWorkspace, storagePrefix } from '@/lib/workspace';
+import {
+  readWorkspace, storagePrefix, bucketBelongsTo, stampBucketOwner,
+} from '@/lib/workspace';
 
 // Bridges the app's localStorage-backed state to the per-tenant Postgres store.
 //
@@ -7,6 +9,13 @@ import { readWorkspace, storagePrefix } from '@/lib/workspace';
 // is the source of truth. On a fresh device we hydrate the cache from the
 // server, so the user's real book appears. On every edit we push the changed
 // keys back. DEMO mode never touches the server.
+//
+// UPLOAD SAFETY RULE: local data is only ever pushed to the server when the
+// cached bucket is *provably* the signed-in tenant's (ownership stamp matches).
+// An unstamped or foreign bucket is treated as untrusted and the tenant starts
+// from the server's state instead. Without this rule, a browser that had been
+// signed in as company A would seed company B's empty rows with A's book —
+// which is precisely the leak this replaces.
 
 const KEYS = [
   'se-sales-v1', 'se-people-v1', 'se-teams-v2', 'se-commission-v2', 'se-pnl-v1',
@@ -18,6 +27,8 @@ const KEYS = [
 let installed = false;
 let hydrating = false;
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
+/** Tenant this tab is allowed to sync. Set by hydrateTenant(). */
+let activeTenant: string | null = null;
 
 // Read/write the raw, workspace-prefixed keys directly, bypassing the shim, so
 // hydration writes never re-trigger our own push listener in a loop.
@@ -27,8 +38,16 @@ function rawGet(prefix: string, key: string): string | null {
 function rawSet(prefix: string, key: string, value: string) {
   try { window.localStorage.setItem(prefix + key, value); } catch { /* quota */ }
 }
+function rawRemove(prefix: string, key: string) {
+  try { window.localStorage.removeItem(prefix + key); } catch { /* ignore */ }
+}
 
-async function pushAll(prefix: string) {
+async function pushAll(prefix: string, tenant: string) {
+  // Belt and braces: never upload a bucket we can't attribute to this tenant.
+  if (!bucketBelongsTo(prefix, tenant)) {
+    console.log('[v0] refusing to push unattributed bucket', { prefix });
+    return;
+  }
   const items: Array<{ key: string; value: unknown }> = [];
   for (const key of KEYS) {
     const raw = rawGet(prefix, key);
@@ -38,42 +57,79 @@ async function pushAll(prefix: string) {
   if (!items.length) return;
   await fetch('/api/tenant-data', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Tenant-Id': tenant },
     body: JSON.stringify({ items }),
   }).catch(() => { /* offline — the next edit retries */ });
 }
 
+/** Drop every cached feature key in a bucket (not the ownership stamp). */
+function clearBucketKeys(prefix: string) {
+  for (const key of KEYS) rawRemove(prefix, key);
+}
+
 /**
  * Called once when a LIVE dashboard mounts. Pulls the tenant's data from the
- * server into the local cache. If the server is empty but the browser already
- * has data (an existing account being migrated), it seeds the server instead —
- * so nobody loses the book they built before the migration.
+ * server into the local cache.
+ *
+ * If the server is empty, we only seed it from local storage when the local
+ * bucket is stamped as belonging to this same tenant (a genuine pre-migration
+ * browser). Otherwise the cache is foreign or unverifiable, so we clear it and
+ * start clean — an empty new company is correct; inheriting another company's
+ * roster is not.
  */
-export async function hydrateTenant(): Promise<void> {
+export async function hydrateTenant(tenantId?: string): Promise<void> {
   if (typeof window === 'undefined') return;
   const ws = readWorkspace();
   if (ws.mode !== 'live') return; // demo stays local-only
+
+  // The session tenant is authoritative. If the caller passed one and it
+  // disagrees with the workspace pointer, abort — reconcileWorkspace() is
+  // about to reload the page with the correct prefix anyway.
+  if (tenantId && ws.scope !== tenantId) {
+    console.log('[v0] hydrate aborted, scope mismatch', { ws: ws.scope, session: tenantId });
+    return;
+  }
+
+  const tenant = tenantId ?? ws.scope;
   const prefix = storagePrefix(ws);
+  activeTenant = tenant;
 
   hydrating = true;
   try {
-    const res = await fetch('/api/tenant-data');
+    const res = await fetch('/api/tenant-data', { headers: { 'X-Tenant-Id': tenant } });
     if (!res.ok) return; // not signed in / no tenant — stay on local cache
     const { data } = (await res.json()) as { data: Record<string, unknown> };
     const serverKeys = Object.keys(data ?? {});
+    const trusted = bucketBelongsTo(prefix, tenant);
 
     if (serverKeys.length === 0) {
-      // First run for this tenant: seed the server from whatever is local.
-      await pushAll(prefix);
+      if (trusted) {
+        // First run for this tenant on the server: seed from this device's own
+        // verified book so a pre-migration account loses nothing.
+        await pushAll(prefix, tenant);
+      } else {
+        // Foreign or unstamped cache with an empty server: start clean, then
+        // claim the bucket for this tenant going forward.
+        clearBucketKeys(prefix);
+        stampBucketOwner(prefix, tenant);
+      }
     } else {
-      // Server wins per key it holds; local-only keys are pushed up so a
-      // half-synced browser doesn't lose anything.
+      if (!trusted) {
+        // Server has the truth and the cache is untrusted — discard the cache
+        // wholesale rather than merging unknown local keys into this tenant.
+        clearBucketKeys(prefix);
+        stampBucketOwner(prefix, tenant);
+      }
       for (const key of KEYS) {
         if (key in data) rawSet(prefix, key, JSON.stringify(data[key]));
       }
-      const localOnly = KEYS.filter(k => !(k in data) && rawGet(prefix, k) != null);
-      if (localOnly.length) await pushAll(prefix);
+      // Only a trusted bucket may contribute local-only keys upward.
+      if (trusted) {
+        const localOnly = KEYS.filter(k => !(k in data) && rawGet(prefix, k) != null);
+        if (localOnly.length) await pushAll(prefix, tenant);
+      }
     }
+    stampBucketOwner(prefix, tenant);
     // Tell every view to re-read from the freshly hydrated cache.
     window.dispatchEvent(new Event('se:data'));
   } finally {
@@ -90,11 +146,15 @@ export function installTenantSync(): void {
     if (hydrating) return; // our own hydration writes must not echo back
     const ws = readWorkspace();
     if (ws.mode !== 'live') return;
+    // Never push before hydrateTenant() has established which tenant owns this
+    // tab, and never push if the pointer has drifted from it since.
+    if (!activeTenant || ws.scope !== activeTenant) return;
     const prefix = storagePrefix(ws);
+    const tenant = activeTenant;
     if (pushTimer) clearTimeout(pushTimer);
     // ponytail: debounce, last-write-wins per key. No offline conflict merge —
     // acceptable while a company is one or few concurrent editors; revisit with
     // per-key version stamps if simultaneous editing becomes common.
-    pushTimer = setTimeout(() => { pushAll(prefix); }, 1500);
+    pushTimer = setTimeout(() => { pushAll(prefix, tenant); }, 1500);
   });
 }

@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { Database, FlaskConical, Lock, LogOut, RotateCcw, Wand2 } from 'lucide-react';
 import {
   DataMode, Workspace, DEFAULT_WORKSPACE, readWorkspace, setWorkspace, clearWorkspaceData,
+  reconcileWorkspace, purgeAllLiveBuckets,
 } from '@/lib/workspace';
 import { reopenSetup } from './setup-wizard';
 import { isSuperAdminEmail } from '@/lib/super-admins';
@@ -31,12 +32,35 @@ export function WorkspaceSwitcher() {
 
   // Customers are forced Live once (one reload) — the demo bucket is not theirs,
   // and staying in it would leave their real book unsynced.
+  //
+  // Critically this reconciles on EVERY session change, including when the mode
+  // is already 'live'. The old "only if mode !== live" check let a browser keep
+  // the previous user's tenant prefix after a new sign-in, which is how one
+  // company's roster ended up written into another's rows.
   useEffect(() => {
     if (!session || superAdmin) return;
-    if (readWorkspace().mode !== 'live') {
-      setWorkspace({ mode: 'live', scope: session.user?.marketOwnerId ?? 'default' });
+    const tenantId = session.user?.marketOwnerId;
+    if (!tenantId) return;
+    reconcileWorkspace(tenantId); // reloads if a correction was needed
+  }, [session, superAdmin]);
+
+  // Super-admins may sit in Demo deliberately, but their LIVE bucket must still
+  // be attributed to the right tenant before any sync can run.
+  useEffect(() => {
+    if (!session || !superAdmin) return;
+    const tenantId = session.user?.marketOwnerId;
+    if (!tenantId) return;
+    const current = readWorkspace();
+    if (current.mode === 'live' && current.scope !== tenantId) {
+      reconcileWorkspace(tenantId);
     }
   }, [session, superAdmin]);
+
+  // Sign-out must leave no company's cached book behind on this device.
+  const handleSignOut = () => {
+    purgeAllLiveBuckets();
+    signOut({ callbackUrl: '/login' });
+  };
 
   const switchTo = (mode: DataMode) => {
     if (mode === ws.mode) return;
@@ -68,7 +92,7 @@ export function WorkspaceSwitcher() {
           </button>
         )}
         <button
-          onClick={() => signOut({ callbackUrl: '/login' })}
+          onClick={handleSignOut}
           className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] text-text-muted hover:text-white hover:bg-white/5 transition-colors"
         >
           <LogOut className="w-3 h-3" /> Sign out
@@ -128,7 +152,7 @@ export function WorkspaceSwitcher() {
       )}
 
       <button
-        onClick={() => signOut({ callbackUrl: '/login' })}
+        onClick={handleSignOut}
         className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] text-text-muted hover:text-white hover:bg-white/5 transition-colors"
       >
         <LogOut className="w-3 h-3" /> Sign out

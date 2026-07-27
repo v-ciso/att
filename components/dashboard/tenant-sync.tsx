@@ -10,20 +10,28 @@ import { readWorkspace } from '@/lib/workspace';
 // a fresh device shows the real book instead of an empty one, then keeps it
 // synced. In DEMO mode it does nothing (local-only sandbox).
 export function TenantSync() {
-  const { status } = useSession();
+  const { status, data: session } = useSession();
   const [syncing, setSyncing] = useState(false);
+  const sessionTenant = session?.user?.marketOwnerId;
 
   useEffect(() => {
     if (status !== 'authenticated') return;
-    if (readWorkspace().mode !== 'live') return;
+    const ws = readWorkspace();
+    if (ws.mode !== 'live') return;
+    // Never hydrate against a stale prefix: if the local pointer disagrees with
+    // the session, WorkspaceSwitcher's reconcile is about to reload the page.
+    if (!sessionTenant || ws.scope !== sessionTenant) return;
     let cancelled = false;
     setSyncing(true);
-    hydrateTenant().finally(() => {
+    // Pass the session tenant explicitly so the sync layer can verify bucket
+    // ownership rather than trusting whatever prefix the browser happens to be
+    // holding.
+    hydrateTenant(sessionTenant).finally(() => {
       if (!cancelled) setSyncing(false);
       installTenantSync();
     });
     return () => { cancelled = true; };
-  }, [status]);
+  }, [status, sessionTenant]);
 
   if (!syncing) return null;
   return (

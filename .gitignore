@@ -42,3 +42,6 @@ _*.ts
 
 # Installed agent skills (dev tooling, not app code)
 .agents/skills/
+
+# Tenant data snapshots — real customer data, NEVER commit
+.backups/

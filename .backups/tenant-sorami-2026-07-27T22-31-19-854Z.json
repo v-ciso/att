@@ -1,0 +1,231 @@
+{
+  "snapshotAt": "2026-07-27T22-31-19-854Z",
+  "company": {
+    "id": "cmrwv7ev60000dyjwi6q3he7h",
+    "name": "Sorami",
+    "slug": "sorami",
+    "createdAt": "2026-07-23T02:01:04.770Z"
+  },
+  "users": [
+    {
+      "id": "cmrwv7f2h0002dyjw9g9ao0pz",
+      "email": "sameer@khatriinc.com",
+      "name": "Sameer",
+      "role": "OWNER",
+      "disabled": false,
+      "createdAt": "2026-07-23T02:01:05.033Z"
+    }
+  ],
+  "data": {
+    "se-attendance-v1": {
+      "2026-07-25": {
+        "Seth Lowers": "L",
+        "Christy Nguyen": "P",
+        "Varishah Mirza": "P",
+        "Benjamin Tinoco": "P"
+      },
+      "2026-07-26": {
+        "Seth Lowers": "A",
+        "Talid Addasi": "P",
+        "Aaron Dhanani": "P",
+        "Christy Nguyen": "P",
+        "Varishah Mirza": "P",
+        "Syed Ansarullah": "P"
+      }
+    },
+    "se-schedule-v1": {
+      "2026-07-27": {
+        "Aaron Dhanani": "Costco 1018|FULL",
+        "Christy Nguyen": "Costco 1018|AM",
+        "Varishah Mirza": "Costco 1018|PM",
+        "Syed Ansarullah": "Costco 1018|AM"
+      }
+    },
+    "se-competitions-v1": [],
+    "se-campaign-v1": "AT&T Retail EDM",
+    "se-theme-v1": {
+      "preset": "obsidian-gold",
+      "companyName": "Sales Engine",
+      "featureFlags": {
+        "hidePnL": false,
+        "hideTeamManagement": false,
+        "hideGoalsAttendance": false,
+        "hideCommissionEngine": false
+      },
+      "primaryColor": "#E7C24A",
+      "secondaryColor": "#B8860B"
+    },
+    "se-teams-v2": [],
+    "se-commission-v2": {
+      "tier": 3,
+      "stores": [
+        {
+          "name": "Costco 1018",
+          "multiplier": 1
+        }
+      ]
+    },
+    "se-mtg-v1": {
+      "2026-07-26": {
+        "Talid Addasi": true,
+        "Aaron Dhanani": true,
+        "Christy Nguyen": true,
+        "Varishah Mirza": true
+      }
+    },
+    "se-sales-v1": [
+      {
+        "id": "s-1785164316930",
+        "qty": 1,
+        "date": "2026-07-26",
+        "plan": "Premium 2.0",
+        "store": "Costco 1018",
+        "person": "Christy Nguyen",
+        "nextUps": 0,
+        "insurance": 0
+      }
+    ],
+    "se-people-v1": [
+      {
+        "id": "p1785157990695-100",
+        "name": "Christy Nguyen",
+        "role": "REP",
+        "team": "",
+        "stores": [
+          "Costco 1018"
+        ],
+        "attendance": 100,
+        "weeklyProfit": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "p1785158016404-102",
+        "name": "Varishah Mirza",
+        "role": "REP",
+        "team": "",
+        "stores": [
+          "Costco 1018"
+        ],
+        "attendance": 100,
+        "weeklyProfit": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "p1785158031205-103",
+        "name": "Talid Addasi",
+        "role": "REP",
+        "team": "",
+        "stores": [
+          "Costco 1018"
+        ],
+        "attendance": 100,
+        "weeklyProfit": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "p1785158044258-104",
+        "name": "Aaron Dhanani",
+        "role": "REP",
+        "team": "",
+        "stores": [
+          "Costco 1018"
+        ],
+        "attendance": 100,
+        "weeklyProfit": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "p1785158061251-105",
+        "name": "Seth Lowers",
+        "role": "REP",
+        "team": "",
+        "stores": [
+          "Costco 1018"
+        ],
+        "attendance": 100,
+        "weeklyProfit": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "p1785158074991-106",
+        "name": "Benjamin Tinoco",
+        "role": "REP",
+        "team": "",
+        "stores": [
+          "Costco 1018"
+        ],
+        "attendance": 100,
+        "weeklyProfit": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "p1785187806848-100",
+        "name": "Syed Ansarullah",
+        "role": "REP",
+        "team": "",
+        "stores": [
+          "Costco 1018"
+        ],
+        "attendance": 100,
+        "weeklyProfit": [
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  "keyMeta": [
+    {
+      "key": "se-attendance-v1",
+      "updatedAt": "2026-07-27T21:30:08.522Z"
+    },
+    {
+      "key": "se-schedule-v1",
+      "updatedAt": "2026-07-27T21:30:08.522Z"
+    },
+    {
+      "key": "se-competitions-v1",
+      "updatedAt": "2026-07-27T21:30:08.522Z"
+    },
+    {
+      "key": "se-campaign-v1",
+      "updatedAt": "2026-07-27T21:30:08.522Z"
+    },
+    {
+      "key": "se-theme-v1",
+      "updatedAt": "2026-07-27T21:30:08.522Z"
+    },
+    {
+      "key": "se-teams-v2",
+      "updatedAt": "2026-07-27T21:30:08.522Z"
+    },
+    {
+      "key": "se-commission-v2",
+      "updatedAt": "2026-07-27T21:30:08.522Z"
+    },
+    {
+      "key": "se-mtg-v1",
+      "updatedAt": "2026-07-27T21:30:08.522Z"
+    },
+    {
+      "key": "se-sales-v1",
+      "updatedAt": "2026-07-27T21:30:08.522Z"
+    },
+    {
+      "key": "se-people-v1",
+      "updatedAt": "2026-07-27T21:30:08.522Z"
+    }
+  ]
+}

@@ -1,0 +1,209 @@
+{
+  "snapshotAt": "2026-07-27T22-31-19-854Z",
+  "company": {
+    "id": "cms29c6hy0000l1laft065ckh",
+    "name": "Miraso Marketing",
+    "slug": "miraso-marketing",
+    "createdAt": "2026-07-26T20:35:32.711Z"
+  },
+  "users": [
+    {
+      "id": "cms29c77c000gl1la7l4ez49w",
+      "email": "wassikhatri@gmail.com",
+      "name": "Wassi Khatri",
+      "role": "OWNER",
+      "disabled": false,
+      "createdAt": "2026-07-26T20:35:33.624Z"
+    }
+  ],
+  "data": {
+    "se-attendance-v1": {
+      "2026-07-25": {
+        "Seth Lowers": "L",
+        "Christy Nguyen": "P",
+        "Varishah Mirza": "P",
+        "Benjamin Tinoco": "P"
+      },
+      "2026-07-26": {
+        "Seth Lowers": "L",
+        "Talid Addasi": "P",
+        "Aaron Dhanani": "P",
+        "Christy Nguyen": "P",
+        "Varishah Mirza": "P",
+        "Syed Ansarullah": "P"
+      }
+    },
+    "se-schedule-v1": {
+      "2026-07-27": {
+        "Seth Lowers": "Costco 1018|PM",
+        "Talid Addasi": "Costco 1018|PM",
+        "Aaron Dhanani": "Costco 1018|PM",
+        "Christy Nguyen": "Costco 1018|AM",
+        "Varishah Mirza": "Costco 1018|SWING",
+        "Syed Ansarullah": "Costco 1018|AM"
+      }
+    },
+    "se-competitions-v1": [],
+    "se-campaign-v1": "AT&T Retail EDM",
+    "se-theme-v1": {
+      "preset": "obsidian-gold",
+      "companyName": "Sales Engine",
+      "featureFlags": {
+        "hidePnL": false,
+        "hideTeamManagement": false,
+        "hideGoalsAttendance": false,
+        "hideCommissionEngine": false
+      },
+      "primaryColor": "#E7C24A",
+      "secondaryColor": "#B8860B"
+    },
+    "se-sales-v1": [],
+    "se-teams-v2": [],
+    "se-commission-v2": {
+      "stores": [
+        {
+          "name": "Costco 1018",
+          "multiplier": 1
+        }
+      ]
+    },
+    "se-people-v1": [
+      {
+        "id": "p1785157990695-100",
+        "name": "Christy Nguyen",
+        "role": "REP",
+        "team": "",
+        "stores": [
+          "Costco 1018"
+        ],
+        "attendance": 100,
+        "weeklyProfit": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "p1785158006345-101",
+        "name": "Syed Ansarullah",
+        "role": "REP",
+        "team": "",
+        "stores": [
+          "Costco 1018"
+        ],
+        "attendance": 100,
+        "weeklyProfit": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "p1785158016404-102",
+        "name": "Varishah Mirza",
+        "role": "REP",
+        "team": "",
+        "stores": [
+          "Costco 1018"
+        ],
+        "attendance": 100,
+        "weeklyProfit": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "p1785158031205-103",
+        "name": "Talid Addasi",
+        "role": "REP",
+        "team": "",
+        "stores": [
+          "Costco 1018"
+        ],
+        "attendance": 100,
+        "weeklyProfit": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "p1785158044258-104",
+        "name": "Aaron Dhanani",
+        "role": "REP",
+        "team": "",
+        "stores": [
+          "Costco 1018"
+        ],
+        "attendance": 100,
+        "weeklyProfit": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "p1785158061251-105",
+        "name": "Seth Lowers",
+        "role": "REP",
+        "team": "",
+        "stores": [
+          "Costco 1018"
+        ],
+        "attendance": 100,
+        "weeklyProfit": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "p1785158074991-106",
+        "name": "Benjamin Tinoco",
+        "role": "REP",
+        "team": "",
+        "stores": [
+          "Costco 1018"
+        ],
+        "attendance": 100,
+        "weeklyProfit": [
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  "keyMeta": [
+    {
+      "key": "se-attendance-v1",
+      "updatedAt": "2026-07-27T13:37:11.273Z"
+    },
+    {
+      "key": "se-schedule-v1",
+      "updatedAt": "2026-07-27T13:37:11.273Z"
+    },
+    {
+      "key": "se-competitions-v1",
+      "updatedAt": "2026-07-27T13:37:11.273Z"
+    },
+    {
+      "key": "se-campaign-v1",
+      "updatedAt": "2026-07-27T13:37:11.273Z"
+    },
+    {
+      "key": "se-theme-v1",
+      "updatedAt": "2026-07-27T13:37:11.273Z"
+    },
+    {
+      "key": "se-sales-v1",
+      "updatedAt": "2026-07-27T13:37:11.273Z"
+    },
+    {
+      "key": "se-teams-v2",
+      "updatedAt": "2026-07-27T13:37:11.273Z"
+    },
+    {
+      "key": "se-commission-v2",
+      "updatedAt": "2026-07-27T13:37:11.273Z"
+    },
+    {
+      "key": "se-people-v1",
+      "updatedAt": "2026-07-27T13:37:11.273Z"
+    }
+  ]
+}

@@ -26,9 +26,34 @@ const ALLOWED_KEYS = new Set([
   'se-theme-v1', 'se-store-closed-v1', 'se-mtg-v1', 'se-competitions-archive-v1',
 ]);
 
-export async function GET() {
+/**
+ * Defence in depth against client-side scope drift.
+ *
+ * The session still decides which rows are touched — this header can never
+ * widen access. But a client that *thinks* it is company A while holding a
+ * session for company B is a bug we want to fail loudly rather than let it
+ * silently overwrite B's book with A's cache (the original leak). 409 tells the
+ * client to re-reconcile and reload.
+ */
+function tenantMismatch(request: NextRequest, sessionTenant: string): boolean {
+  const claimed = request.headers.get('X-Tenant-Id');
+  return !!claimed && claimed !== sessionTenant;
+}
+
+// Authenticated payloads must never be cached by a proxy or the browser —
+// a shared machine could otherwise replay another company's data.
+const NO_STORE = { 'Cache-Control': 'no-store, private' } as const;
+
+export async function GET(request: NextRequest) {
   const t = await tenantId();
-  if (!t) return NextResponse.json({ error: 'No tenant' }, { status: 401 });
+  if (!t) return NextResponse.json({ error: 'No tenant' }, { status: 401, headers: NO_STORE });
+
+  if (tenantMismatch(request, t.id)) {
+    return NextResponse.json(
+      { error: 'Tenant scope mismatch', expected: t.id },
+      { status: 409, headers: NO_STORE }
+    );
+  }
 
   const rows = await prisma.tenantData.findMany({
     where: { marketOwnerId: t.id },
@@ -36,19 +61,32 @@ export async function GET() {
   });
   const data: Record<string, unknown> = {};
   for (const r of rows) data[r.key] = r.value;
-  return NextResponse.json({ data });
+  return NextResponse.json({ data }, { headers: NO_STORE });
 }
 
 export async function PUT(request: NextRequest) {
   const t = await tenantId();
-  if (!t) return NextResponse.json({ error: 'No tenant' }, { status: 401 });
+  if (!t) return NextResponse.json({ error: 'No tenant' }, { status: 401, headers: NO_STORE });
   // Read-only roles are already blocked at the edge for mutating methods, but
   // re-check here so this route is safe on its own.
-  if (t.role === 'VIEWER') return NextResponse.json({ error: 'Read-only' }, { status: 403 });
+  if (t.role === 'VIEWER') return NextResponse.json({ error: 'Read-only' }, { status: 403, headers: NO_STORE });
+
+  // A write from a client whose idea of "my company" disagrees with its session
+  // is rejected outright. This is the server half of the leak fix.
+  if (tenantMismatch(request, t.id)) {
+    console.log('[v0] rejected cross-tenant write attempt', {
+      claimed: request.headers.get('X-Tenant-Id'),
+      session: t.id,
+    });
+    return NextResponse.json(
+      { error: 'Tenant scope mismatch — reload required', expected: t.id },
+      { status: 409, headers: NO_STORE }
+    );
+  }
 
   const body = await request.json().catch(() => null);
   const items: Array<{ key: string; value: unknown }> = Array.isArray(body?.items) ? body.items : [];
-  if (!items.length) return NextResponse.json({ saved: 0 });
+  if (!items.length) return NextResponse.json({ saved: 0 }, { headers: NO_STORE });
 
   const valid = items.filter(i => typeof i.key === 'string' && ALLOWED_KEYS.has(i.key));
 
@@ -61,5 +99,5 @@ export async function PUT(request: NextRequest) {
       })
     )
   );
-  return NextResponse.json({ saved: valid.length });
+  return NextResponse.json({ saved: valid.length }, { headers: NO_STORE });
 }
