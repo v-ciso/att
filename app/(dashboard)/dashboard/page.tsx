@@ -17,7 +17,9 @@ import {
   Building2, MapPin, PieChart, Maximize2, Minimize2, ChevronDown, Sparkles, ClipboardList,
 } from 'lucide-react';
 import { MeetingTracker } from '@/components/dashboard/dashboard-components';
-import { CommissionEngine, PnlEditor, TeamData } from '@/components/dashboard/editable-sections';
+import { CommissionEngine, PnlEditor, TeamData, DEFAULT_COMMISSION } from '@/components/dashboard/editable-sections';
+import { useModalA11y } from '@/hooks/use-modal-a11y';
+import { ModalShell } from '@/components/ui/modal-shell';
 import { ReportTemplate, ReportSections, ALL_SECTIONS, SECTION_LABELS } from '@/components/dashboard/report-template';
 import { RosterManager, loadPeople, ROSTER_ROLE_LABELS } from '@/components/dashboard/roster';
 import { Competition } from '@/components/dashboard/competition';
@@ -255,11 +257,8 @@ function ProductionDrawer({
   onClose: () => void;
   onOpenProfile: (name: string) => void;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // Escape closes, focus is trapped inside, and returns to the trigger on close.
+  const panelRef = useModalA11y<HTMLDivElement>(onClose);
 
   const view = KPI_VIEWS[metric];
   const people = [...agg.perPerson].sort((a, b) => view.sort(b) - view.sort(a)).filter(p => view.sort(p) > 0);
@@ -272,8 +271,8 @@ function ProductionDrawer({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label={`${view.title} breakdown`}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:max-w-lg glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 animate-scale-in bg-bg-secondary/95 max-h-[85vh] overflow-y-auto">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div ref={panelRef} tabIndex={-1} className="relative w-full sm:max-w-lg glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 animate-scale-in bg-bg-secondary/95 max-h-[85vh] overflow-y-auto focus:outline-none">
         <div className="flex items-start justify-between gap-3 mb-1">
           <h3 className="text-lg font-bold">{PERIOD_LABELS[period]} · {view.title}</h3>
           <button onClick={onClose} className="p-2.5 sm:p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
@@ -373,11 +372,8 @@ function buildMixCategories(agg: Aggregate, commission: ReturnType<typeof loadCo
 }
 
 function SliceDrawer({ category, agg, onClose }: { category: MixCategory; agg: Aggregate; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // Escape closes, focus is trapped inside, and returns to the trigger on close.
+  const panelRef = useModalA11y<HTMLDivElement>(onClose);
 
   const planRows = category.plans
     .map(plan => ({ plan, stats: agg.perPlan.get(plan) }))
@@ -385,8 +381,8 @@ function SliceDrawer({ category, agg, onClose }: { category: MixCategory; agg: A
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label={`${category.label} details`}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:max-w-md glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 max-h-[85vh] overflow-y-auto">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div ref={panelRef} tabIndex={-1} className="relative w-full sm:max-w-md glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 max-h-[85vh] overflow-y-auto focus:outline-none">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold flex items-center gap-2">
             <span className="w-3 h-3 rounded-full" style={{ background: category.color }} />
@@ -508,9 +504,22 @@ function DashboardContent() {
   const { state: campaign, setState: setCampaign } = useLocalState('se-campaign-v1', 'AT&T Retail EDM');
   const b2b = isB2B(campaign);
 
-  const commission = useMemo(loadCommission, [dataVersion]);
-  const people = useMemo(loadPeople, [dataVersion]);
-  const sales = useMemo(loadSales, [dataVersion]);
+  // These loaders read localStorage, which does not exist during SSR: the
+  // server rendered DEFAULT_COMMISSION (4 stores) while the client rendered the
+  // real saved state (0 stores), tripping a hydration mismatch that React
+  // resolved by silently discarding the client tree. Gate on mount so the first
+  // client render matches the server, then swap in the stored data — the same
+  // pattern useLocalState already uses.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  // Before mount every loader must return exactly what the server returned.
+  const commission = useMemo(
+    () => (mounted ? loadCommission() : DEFAULT_COMMISSION),
+    [dataVersion, mounted]
+  );
+  const people = useMemo(() => (mounted ? loadPeople() : []), [dataVersion, mounted]);
+  const sales = useMemo(() => (mounted ? loadSales() : []), [dataVersion, mounted]);
 
   // First run on a real account: the roster is empty and there is nothing to
   // derive from, so ask the few questions that make the rest of the app work.
@@ -1402,9 +1411,11 @@ function DashboardContent() {
         const statsByName = new Map(meetingAgg.perPerson.map(p => [p.person.toLowerCase(), p]));
         return (
           <FsPortal>
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label={`${team.name} stats`}>
-            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setTeamDrawerName(null)} />
-            <div className="relative w-full sm:max-w-lg glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 max-h-[85vh] overflow-y-auto">
+          <ModalShell
+            label={`${team.name} stats`}
+            onClose={() => setTeamDrawerName(null)}
+            className="w-full sm:max-w-lg glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 max-h-[85vh] overflow-y-auto"
+          >
               <div className="flex items-center justify-between mb-1">
                 <h3 className="text-lg font-bold">{team.name}</h3>
                 <button onClick={() => setTeamDrawerName(null)} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
@@ -1443,16 +1454,19 @@ function DashboardContent() {
                   );
                 })}
               </div>
-            </div>
-          </div>
+          </ModalShell>
           </FsPortal>
         );
       })()}
 
       {expandChart && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Enlarged chart">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setExpandChart(null)} />
-          <div className="relative w-full max-w-4xl glass border border-border-strong rounded-2xl p-6 animate-scale-in bg-bg-secondary/95">
+        <ModalShell
+          label="Enlarged chart"
+          onClose={() => setExpandChart(null)}
+          containerClassName="items-center p-4"
+          overlayClassName="bg-black/80"
+          className="w-full max-w-4xl glass border border-border-strong rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 max-h-[90vh] overflow-y-auto"
+        >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center gap-2">
                 {expandChart === 'trend'
@@ -1498,8 +1512,7 @@ function DashboardContent() {
                 </div>
               </>
             )}
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       {drillCat && <FsPortal><SliceDrawer category={drillCat} agg={agg} onClose={() => setDrillCat(null)} /></FsPortal>}
@@ -1528,16 +1541,12 @@ function ExportDialog({ initial, onCancel, onExport }: {
   const [sel, setSel] = useState<ReportSections>(initial);
   const keys = Object.keys(SECTION_LABELS) as (keyof ReportSections)[];
   const any = keys.some(k => sel[k]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onCancel]);
+  const panelRef = useModalA11y<HTMLDivElement>(onCancel);
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label="Export PDF">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} />
-      <div className="relative w-full sm:max-w-sm glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} aria-hidden="true" />
+      <div ref={panelRef} tabIndex={-1} className="relative w-full sm:max-w-sm glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 focus:outline-none">
         <h3 className="text-lg font-bold mb-1">Export PDF</h3>
         <p className="text-xs text-text-secondary mb-4">Pick what to include. The tab you&apos;re on is pre-selected.</p>
         <div className="space-y-1.5 mb-5">

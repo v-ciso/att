@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { useTheme } from '@/components/white-label/theme-provider';
 import { Menu, X } from 'lucide-react';
 import { navigation, isNavItemActive } from './nav-items';
+import { useModalA11y } from '@/hooks/use-modal-a11y';
 
 function Logo() {
   const { theme } = useTheme();
@@ -27,19 +28,29 @@ export function MobileHeader({ onMenuClick }: { onMenuClick: () => void }) {
 }
 
 export function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  // Unmount rather than hide: a `display:none` element still carried
+  // role="dialog"/aria-modal, which told screen readers a modal was open on
+  // every page load, and the focus trap must only run while it is visible.
+  if (!isOpen) return null;
+  return <MobileMenuPanel onClose={onClose} />;
+}
+
+function MobileMenuPanel({ onClose }: { onClose: () => void }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentTab = searchParams.get('tab');
+  const panelRef = useModalA11y<HTMLDivElement>(onClose);
 
   return (
     <div
       id="mobileMenu"
+      ref={panelRef}
+      tabIndex={-1}
       className={cn(
         // Eleven nav items overflow a short viewport, and a fixed-position box
         // does not extend the document scroll region — so the last few links
         // were unreachable on an SE or in landscape.
-        'mobile-menu fixed inset-0 z-50 glass lg:hidden overflow-y-auto overscroll-contain',
-        isOpen ? 'block' : 'hidden'
+        'mobile-menu fixed inset-0 z-50 glass lg:hidden overflow-y-auto overscroll-contain focus:outline-none'
       )}
       role="dialog"
       aria-modal="true"
@@ -52,7 +63,7 @@ export function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () =
             <X className="w-6 h-6" />
           </button>
         </div>
-        <nav className="space-y-2" role="navigation" aria-label="Mobile navigation">
+        <nav className="space-y-2" aria-label="Main">
           {navigation.map((item) => {
             const isActive = isNavItemActive(item, pathname, currentTab);
             return (

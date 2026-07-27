@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { X } from 'lucide-react';
+import { useModalA11y } from '@/hooks/use-modal-a11y';
 import { cn, formatCurrency, getInitials } from '@/lib/utils';
 import { loadPeople, loadPromoRules, promotionStatus, effectiveAttendance, ROSTER_ROLE_LABELS, ROLE_LADDER } from './roster';
 import { Period, PERIOD_LABELS, aggregateSales, loadSales, loadCommission } from '@/lib/sales';
@@ -21,46 +22,9 @@ export function ProfileDrawer({ name, period, onClose }: { name: string; period:
   const agg = aggregateSales(loadSales(), loadCommission(), { period: span });
   const stats = agg.perPerson.find(p => p.person.trim().toLowerCase() === name.trim().toLowerCase());
 
-  // Modal focus management. Previously focus stayed on whatever opened the
-  // drawer, so keyboard and screen-reader users kept tabbing through the page
-  // behind the overlay. Move focus in on open, trap Tab inside, and hand focus
-  // back to the trigger on close.
-  const panelRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
-    panelRef.current?.focus();
-
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-        return;
-      }
-      if (e.key !== 'Tab') return;
-      const focusables = panelRef.current?.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      );
-      if (!focusables || focusables.length === 0) return;
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-
-    window.addEventListener('keydown', onKey);
-    // Page behind a modal shouldn't scroll under the overlay.
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prevOverflow;
-      opener?.focus?.();
-    };
-  }, [onClose]);
+  // Focus enters the drawer on open, Tab stays inside it, Escape closes, and
+  // focus returns to the trigger on close.
+  const panelRef = useModalA11y<HTMLDivElement>(onClose);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label={`${name} profile`}>

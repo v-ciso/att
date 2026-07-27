@@ -306,11 +306,8 @@ function EditEmployeeModal({ person, storeOptions, teamOptions, onSave, onClose 
   const [hourly, setHourly] = useState(String(person.hourlyWeekly ?? 0));
   const [attendance, setAttendance] = useState(String(person.attendance ?? 100));
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // Escape closes, focus is trapped inside, and returns to the trigger on close.
+  const panelRef = useModalA11y<HTMLDivElement>(onClose);
 
   const selectClass = 'w-full bg-bg-tertiary border border-border-subtle rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-blue/50';
 
@@ -327,8 +324,8 @@ function EditEmployeeModal({ person, storeOptions, teamOptions, onSave, onClose 
 
   return createPortal(
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-label={`Edit ${person.name}`}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:max-w-sm max-h-[90vh] overflow-y-auto glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div ref={panelRef} tabIndex={-1} className="relative w-full sm:max-w-sm max-h-[90vh] overflow-y-auto glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 focus:outline-none">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold flex items-center gap-2"><Pencil className="w-4 h-4" style={{ color: 'var(--brand)' }} /> Edit {person.name}</h3>
           <button onClick={onClose} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
@@ -386,11 +383,8 @@ function AddEmployeeModal({ storeOptions, teamOptions, onAdd, onClose }: {
   const [stores, setStores] = useState<string[]>(storeOptions.slice(0, 1));
   const [team, setTeam] = useState('');
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // Escape closes, focus is trapped inside, and returns to the trigger on close.
+  const panelRef = useModalA11y<HTMLDivElement>(onClose);
 
   const submit = () => {
     if (!name.trim()) return;
@@ -402,8 +396,8 @@ function AddEmployeeModal({ storeOptions, teamOptions, onAdd, onClose }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Add employee">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-sm glass border border-border-strong rounded-2xl p-6 animate-scale-in bg-bg-secondary/95">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div ref={panelRef} tabIndex={-1} className="relative w-full max-w-sm glass border border-border-strong rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 focus:outline-none">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold flex items-center gap-2"><UserPlus className="w-5 h-5 text-accent-green" /> Add Employee</h3>
           <button onClick={onClose} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
