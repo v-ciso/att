@@ -9,6 +9,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { TabBar } from '@/components/ui/tabs';
+import { useActor } from '@/lib/use-actor';
 import { LineChart } from '@/components/charts/chart-wrapper';
 import { PieChart3D } from '@/components/charts/chart-3d';
 import { formatCurrency, formatNumber, cn } from '@/lib/utils';
@@ -496,15 +497,11 @@ function DashboardContent() {
   // Stamped onto attendance corrections so history names who changed what.
   const markedBy = session?.user?.name || session?.user?.email || 'unknown';
 
-  // Same actor shape and same unauthenticated OWNER fallback as the sidebar, so
-  // the tab strip and the nav can never disagree about what this seat may see.
-  const actor = useMemo(
-    () =>
-      session?.user
-        ? { role: session.user.role as Role | undefined, isSuperAdmin: session.user.isSuperAdmin }
-        : { role: 'OWNER' as Role, isSuperAdmin: false },
-    [session?.user]
-  );
+  // Same actor as the sidebar — one shared hook, so the tab strip and the nav can
+  // never disagree about what this seat may see. It also defers the real session
+  // by a commit so the first client render matches the server's; see
+  // lib/use-actor.ts for why that matters.
+  const actor = useActor();
 
   const visibleTabItems = useMemo(
     () => ALL_TAB_ITEMS.filter((item) => canSeeTab(actor, item.value)),

@@ -7,8 +7,9 @@ import { useSession } from 'next-auth/react';
 import { cn, getInitials, ROLE_LABELS } from '@/lib/utils';
 import { useTheme } from '@/components/white-label/theme-provider';
 import { navigation, isNavItemActive } from './nav-items';
-import { can, type Role } from '@/lib/permissions';
+import { can } from '@/lib/permissions';
 import { isSuperAdminEmail } from '@/lib/super-admins';
+import { useActor } from '@/lib/use-actor';
 import { ShieldCheck } from 'lucide-react';
 import { WorkspaceSwitcher } from './workspace-switcher';
 
@@ -26,18 +27,14 @@ export function Sidebar() {
     : 'Market Owner';
 
   // The actor handed to the capability matrix. When there is no session at all
-  // we keep the existing "Demo Owner" fallback and treat the seat as OWNER —
+  // this keeps the existing "Demo Owner" fallback and treats the seat as OWNER —
   // otherwise the unauthenticated preview would silently lose P&L, Commission,
   // Import and Settings from the nav. This is presentation only: middleware and
   // the route handlers re-check the real session on every request, so a browser
   // with no cookie still cannot read or write anything.
-  const actor = useMemo(
-    () =>
-      session?.user
-        ? { role: session.user.role as Role | undefined, isSuperAdmin: session.user.isSuperAdmin }
-        : { role: 'OWNER' as Role, isSuperAdmin: false },
-    [session?.user]
-  );
+  // Shared with the dashboard tab strip via useActor so the two can't disagree,
+  // and hydration-safe — see the note in lib/use-actor.ts.
+  const actor = useActor();
 
   const visibleNavigation = useMemo(
     () => navigation.filter((item) => !item.capability || can(actor, item.capability)),
