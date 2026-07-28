@@ -744,6 +744,13 @@ function DashboardContent() {
 
   // Attendance card prefers marked records (yesterday, else today) from the tracker
   const attToday = useMemo(() => {
+    // Gated on `mounted` like people/sales/commission above. loadAttendance()
+    // reads localStorage, so on the server this was always null and the card
+    // rendered its "roster average" branch (a <p> first), while the client's very
+    // first render already had marked records and led with a <div> — the
+    // "Expected server HTML to contain a matching <div>" hydration error, which
+    // made React discard and re-render the whole card subtree.
+    if (!mounted) return null;
     const book = loadAttendance();
     const yesterday = attendanceForDate(book, todayStr(-1));
     if (yesterday.marked > 0) return { ...yesterday, date: 'yesterday' };
@@ -751,7 +758,7 @@ function DashboardContent() {
     if (today.marked > 0) return { ...today, date: 'today' };
     return null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataVersion]);
+  }, [dataVersion, mounted]);
 
   // Goals: set at the morning meeting — targets are editable and persist
   const { state: goalTargets, setState: setGoalTargets } = useLocalState(
