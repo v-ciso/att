@@ -19,12 +19,17 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       primary: 'btn-primary-brand focus:ring-white/20',
       secondary: 'bg-white/5 hover:bg-white/10 text-white border border-border-subtle focus:ring-white/20',
       ghost: 'hover:bg-white/5 text-text-secondary focus:ring-white/10',
-      danger: 'bg-accent-red hover:bg-red-600 text-white shadow-glow-red focus:ring-red-500',
+      // Solid accents are one to two steps darker than the raw accent-* tokens.
+      // Measured against white text, the originals all failed WCAG AA for normal
+      // text: blue 3.68:1, purple 3.96:1, red 3.76:1, cyan 2.43:1, green 2.54:1.
+      // These shades keep the same hue while clearing 4.5:1 (red 4.83, blue 5.17,
+      // cyan 5.36, purple 5.38, emerald 5.48).
+      danger: 'bg-red-600 hover:bg-red-700 text-white shadow-glow-red focus:ring-red-500',
       outline: 'border-2 border-accent-blue text-accent-blue hover:bg-blue-500/10 focus:ring-blue-500',
-      'accent-blue': 'bg-accent-blue hover:bg-blue-600 text-white shadow-glow-blue focus:ring-blue-500',
-      'accent-purple': 'bg-accent-purple hover:bg-purple-600 text-white shadow-glow-purple focus:ring-purple-500',
-      'accent-cyan': 'bg-accent-cyan hover:bg-cyan-600 text-white shadow-glow-cyan focus:ring-cyan-500',
-      'accent-green': 'bg-accent-green hover:bg-green-600 text-white focus:ring-green-500',
+      'accent-blue': 'bg-blue-600 hover:bg-blue-700 text-white shadow-glow-blue focus:ring-blue-500',
+      'accent-purple': 'bg-purple-600 hover:bg-purple-700 text-white shadow-glow-purple focus:ring-purple-500',
+      'accent-cyan': 'bg-cyan-700 hover:bg-cyan-800 text-white shadow-glow-cyan focus:ring-cyan-500',
+      'accent-green': 'bg-emerald-700 hover:bg-emerald-800 text-white focus:ring-green-500',
     };
 
     const sizes = {

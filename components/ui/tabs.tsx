@@ -118,8 +118,13 @@ export const Tab = forwardRef<HTMLButtonElement, TabProps>(
       line: isActive
         ? 'bg-transparent text-white border-b-2 border-accent-blue'
         : 'text-text-secondary hover:text-white',
+      // The active pill uses the themeable brand pair rather than a fixed blue.
+      // bg-accent-blue was a hardcoded #3B82F6, so it both failed AA behind white
+      // 14px text (3.68:1) and ignored the active theme — reading as a stray blue
+      // chip in the gold preset. --brand/--brand-ink track the theme and every
+      // preset clears AA (gold 10.68:1, emerald 7.45:1, default blue 5.17:1).
       pill: isActive
-        ? 'bg-accent-blue text-white shadow-sm'
+        ? 'bg-[var(--brand)] text-[var(--brand-ink)] shadow-sm'
         : 'text-text-secondary hover:text-white hover:bg-white/5',
       underline: isActive
         ? 'text-white border-b-2 border-accent-blue'
@@ -231,8 +236,9 @@ export function TabBar({
           line: isActive
             ? 'bg-transparent text-white border-b-2 border-accent-blue'
             : 'text-text-secondary hover:text-white',
+          // Themeable brand pair — see the contrast note on Tab above.
           pill: isActive
-            ? 'bg-accent-blue text-white shadow-sm'
+            ? 'bg-[var(--brand)] text-[var(--brand-ink)] shadow-sm'
             : 'text-text-secondary hover:text-white hover:bg-white/5',
           underline: isActive
             ? 'text-white border-b-2 border-accent-blue'

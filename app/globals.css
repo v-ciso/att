@@ -15,10 +15,15 @@
     /* Brand chrome tokens — switched by the admin theme preset.
        Data/semantic colors (green=profit, red=loss, blue=phone…) are NOT
        driven by these; they stay fixed for meaning. */
-    --brand: #3b82f6;
+    /* #2563eb, not #3b82f6: brand is the fill behind --brand-ink on
+       .btn-primary-brand, and #3b82f6 + white measures 3.68:1 — under the 4.5:1
+       AA floor for normal text. #2563eb is the same hue one step darker and
+       measures 5.17:1. The gold (10.68:1) and emerald (7.45:1) presets already
+       passed, so only this default needed changing. */
+    --brand: #2563eb;
     --brand-2: #60a5fa;
     --brand-3: #1d4ed8; /* dark end of the brand ramp */
-    --brand-rgb: 59, 130, 246;
+    --brand-rgb: 37, 99, 235;
     --grad-brand: linear-gradient(135deg, #60a5fa, #3b82f6, #2563eb);
     --brand-glow: rgba(59, 130, 246, 0.35); /* a SHADOW value */
     --brand-soft: rgba(59, 130, 246, 0.2); /* a FILL value — different job */
