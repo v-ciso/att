@@ -19,6 +19,8 @@ export interface DocumentDTO {
   createdAt: string;
   acks?: Array<{ personId: string; personName: string; ackedAt: string }>;
   ackCount: number;
+  /** Whether the requesting person already acknowledged. See lib/docs.ts. */
+  ackedByMe?: boolean;
 }
 
 async function readJson<T>(res: Response, key: string): Promise<T | null> {

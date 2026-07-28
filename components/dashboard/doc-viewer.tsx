@@ -43,7 +43,9 @@ export function DocViewer({
   const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [acking, setAcking] = useState(false);
-  const [acked, setAcked] = useState(false);
+  // Seeded from the server so someone who signed off previously is not asked
+  // again every time they reopen the document.
+  const [acked, setAcked] = useState(!!doc.ackedByMe);
 
   // Holds the loaded pdf.js document between page/zoom changes so paging does
   // not re-download (and re-sign) the file on every click.

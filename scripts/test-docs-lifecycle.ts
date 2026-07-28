@@ -138,6 +138,21 @@ async function main() {
     check('manager sees who acknowledged', afterAck?.acks?.[0]?.personName === 'Andre Collins');
     check('cross-tenant ack refused', !(await acknowledgeDocument(ownerB, companyWide.id, 'EMP-1', 'X')));
 
+    // ackedByMe drives whether the viewer re-prompts. It has to be scoped to the
+    // asking person: a shared flag would either nag someone who already signed
+    // off, or silently mark a document read for a rep who never opened it.
+    const mineAck = await getDocument(repA, companyWide.id, 'EMP-0007');
+    check('ackedByMe true for the person who acked', mineAck?.ackedByMe === true);
+    const notMineAck = await getDocument(repA, companyWide.id, 'EMP-0008');
+    check('ackedByMe false for a different person', notMineAck?.ackedByMe === false);
+    const listedForAcker = (await listDocuments(repA, { personId: 'EMP-0007' }))
+      .find(d => d.id === companyWide.id);
+    check('ackedByMe survives the list path', listedForAcker?.ackedByMe === true);
+
+    // A rep must never see the roster of who has and has not signed off.
+    check('rep cannot see the ack roster', mineAck?.acks === undefined);
+    check('rep still sees the ack count', typeof mineAck?.ackCount === 'number');
+
     // --- soft delete ----------------------------------------------------
     check('cross-tenant delete refused', !(await deleteDocument(ownerB, companyWide.id)));
     check('own delete succeeds', await deleteDocument(ownerA, companyWide.id));

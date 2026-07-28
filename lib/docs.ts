@@ -51,6 +51,13 @@ export interface DocumentDTO {
   /** Present only for docs.manage seats: who has confirmed reading it. */
   acks?: Array<{ personId: string; personName: string; ackedAt: string }>;
   ackCount: number;
+  /**
+   * Whether the person doing the asking has already acknowledged this. Without
+   * it the viewer would re-prompt someone who signed off weeks ago, since it
+   * cannot see other people's ack rows. Null when there is no roster person to
+   * scope to.
+   */
+  ackedByMe?: boolean;
 }
 
 type DocRow = {
@@ -62,7 +69,7 @@ type DocRow = {
   acks?: Array<{ personId: string; personName: string; ackedAt: Date }>;
 };
 
-function toDTO(row: DocRow, includeAcks: boolean): DocumentDTO {
+function toDTO(row: DocRow, includeAcks: boolean, viewerPersonId?: string | null): DocumentDTO {
   return {
     id: row.id,
     title: row.title,
@@ -88,6 +95,9 @@ function toDTO(row: DocRow, includeAcks: boolean): DocumentDTO {
         }
       : {}),
     ackCount: row.acks?.length ?? 0,
+    ...(viewerPersonId
+      ? { ackedByMe: (row.acks ?? []).some(a => a.personId === viewerPersonId) }
+      : {}),
   };
 }
 
@@ -177,7 +187,7 @@ export async function listDocuments(
       if (r.effectiveTo && r.effectiveTo.getTime() < now) return false;
       return true;
     })
-    .map(r => toDTO(r as DocRow, manage));
+    .map(r => toDTO(r as DocRow, manage, opts?.personId));
 }
 
 /** A single doc, tenant-checked and audience-checked. Null when not permitted. */
@@ -195,7 +205,7 @@ export async function getDocument(
   if (!row) return null;
   if (!visibleTo(row, actor, personId)) return null;
   return {
-    ...toDTO(row as DocRow, can(actor, 'docs.manage')),
+    ...toDTO(row as DocRow, can(actor, 'docs.manage'), personId),
     storagePath: row.storagePath,
   };
 }
