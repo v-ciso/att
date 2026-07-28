@@ -544,23 +544,85 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
   const assignTeam = (name: string, team: string) =>
     setPeople(prev => prev.map(p => (p.name.toLowerCase() === name.toLowerCase() ? { ...p, team } : p)));
 
-  const addPerson = (p: Omit<Person, 'id'>) => {
-    setPeople(prev => [...prev, { ...p, id: `p${Date.now()}-${personCounter++}` }]);
-    // The roster table grows by one row without moving focus, so announce it.
+  const addPerson = async (p: Omit<Person, 'id'>) => {
+    // A returning employee should reclaim their old identity (and history)
+    // rather than start over with a fresh code. If a retired person matches by
+    // name, offer to rehire instead of creating a duplicate.
+    const rehire = findRehireCandidate(people, p.name);
+    if (rehire) {
+      const ok = await confirm({
+        title: `Rehire ${rehire.name}?`,
+        description: `${rehire.name} (${rehire.employeeCode ?? 'no code'}) was retired${rehire.retiredAt ? ` on ${rehire.retiredAt}` : ''}. Rehiring keeps their employee code and full history. Choose Add as new to create a separate record instead.`,
+        confirmLabel: 'Rehire',
+        cancelLabel: 'Add as new',
+      });
+      if (ok) {
+        setPeople(prev => prev.map(x => x.id === rehire.id ? {
+          ...x, ...p, id: x.id, employeeCode: x.employeeCode,
+          status: 'active', retiredAt: undefined, retiredReason: undefined,
+          rehiredAt: [...(x.rehiredAt ?? []), new Date().toISOString().slice(0, 10)],
+        } : x));
+        announce(`${rehire.name} rehired.`);
+        return;
+      }
+    }
+    setPeople(prev => [...prev, {
+      ...p,
+      id: `p${Date.now()}-${personCounter++}`,
+      employeeCode: p.employeeCode || undefined, // backfill effect assigns if blank
+      status: 'active',
+      hiredAt: p.hiredAt || new Date().toISOString().slice(0, 10),
+    }]);
     announce(`${p.name} added to the roster.`);
   };
 
-  const removePerson = async (id: string) => {
+  // Retire: keep the person and all their history, but pull them out of
+  // scheduling / attendance / active leaderboards. Fully reversible.
+  const retirePerson = async (id: string) => {
     const p = people.find(x => x.id === id);
-    // A person carries sales/attendance history — confirm before erasing them.
-    if (p && !(await confirm({
-      title: `Remove ${p.name} from the roster?`,
-      description: `Their name stays on any sales already logged, but they will be gone from scheduling and attendance.`,
-      confirmLabel: 'Remove from roster',
+    if (!p) return;
+    const ok = await confirm({
+      title: `Retire ${p.name}?`,
+      description: 'They stay in reports and history but leave the active roster, schedules and attendance. You can reactivate or rehire them any time.',
+      confirmLabel: 'Retire',
+    });
+    if (!ok) return;
+    setPeople(prev => prev.map(x => x.id === id
+      ? { ...x, status: 'retired', retiredAt: new Date().toISOString().slice(0, 10) }
+      : x));
+    announce(`${p.name} retired.`);
+  };
+
+  const reactivatePerson = (id: string) => {
+    const p = people.find(x => x.id === id);
+    if (!p) return;
+    setPeople(prev => prev.map(x => x.id === id
+      ? { ...x, status: 'active', retiredAt: undefined, retiredReason: undefined,
+          rehiredAt: [...(x.rehiredAt ?? []), new Date().toISOString().slice(0, 10)] }
+      : x));
+    announce(`${p.name} reactivated.`);
+  };
+
+  // Archive: remove from the roster blob entirely, but record a durable,
+  // restorable snapshot in the company recycle bin (DataArchive) first. Nothing
+  // is ever hard-deleted from the UI.
+  const archivePerson = async (id: string) => {
+    const p = people.find(x => x.id === id);
+    if (!p) return;
+    const ok = await confirm({
+      title: `Archive ${p.name}?`,
+      description: 'They will be removed from the roster and moved to the recycle bin, where an owner can restore them. Sales already logged keep their name.',
+      confirmLabel: 'Archive',
       destructive: true,
-    }))) return;
-    setPeople(prev => prev.filter(x => x.id !== id));
-    announce(p ? `${p.name} removed from the roster.` : 'Person removed.');
+    });
+    if (!ok) return;
+    try {
+      await archiveEntity({ kind: 'PERSON', refId: p.id, label: `${p.name}${p.employeeCode ? ` (${p.employeeCode})` : ''}`, payload: p });
+      setPeople(prev => prev.filter(x => x.id !== id));
+      announce(`${p.name} archived to the recycle bin.`);
+    } catch {
+      announce(`Could not archive ${p.name}. Please try again.`);
+    }
   };
 
   const promote = (id: string) =>
@@ -575,12 +637,27 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
       ? { ...p, weeklyProfit: p.weeklyProfit.map((w, i) => (i === weekIndex ? parseNum(value) : w)) }
       : p));
 
+  // The roster shows active people by default; retired ones fold in behind a
+  // toggle so history stays reachable without cluttering the day-to-day view.
+  const retiredCount = people.filter(p => personStatus(p) === 'retired').length;
+  const visiblePeople = showRetired ? people : activePeople(people);
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h2 className="text-xl font-bold neon-brand">Roster &amp; Promotions</h2>
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={() => setShowAdd(true)}><UserPlus className="w-3.5 h-3.5" /> Add Employee</Button>
+          {retiredCount > 0 && (
+            <Button
+              variant={showRetired ? 'primary' : 'ghost'}
+              size="sm"
+              aria-pressed={showRetired}
+              onClick={() => setShowRetired(v => !v)}
+            >
+              {showRetired ? 'Hide' : 'Show'} retired ({retiredCount})
+            </Button>
+          )}
           {/* Reset wipes the entire roster — never a single unguarded click. */}
           <Button
             variant="ghost"
@@ -644,10 +721,11 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle">
-            {people.map(person => {
+            {visiblePeople.map(person => {
               const status = promotionStatus(person, rules);
+              const retired = personStatus(person) === 'retired';
               return (
-                <tr key={person.id} className="group hover:bg-white/5 transition-colors">
+                <tr key={person.id} className={cn('group hover:bg-white/5 transition-colors', retired && 'opacity-60')}>
                   <td className="py-2 pr-2 font-medium">
                     {editingId === person.id ? (
                       <Editable
@@ -664,6 +742,12 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                         >
                           {person.name}
                         </button>
+                        {person.employeeCode && (
+                          <span className="text-[9px] font-mono text-text-muted" title="Employee code">{person.employeeCode}</span>
+                        )}
+                        {retired && (
+                          <span className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-accent-amber/15 text-accent-amber border border-accent-amber/25">Retired</span>
+                        )}
                         <button
                           onClick={() => setEditModalId(person.id)}
                           className="p-0.5 rounded text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-white transition-all"
@@ -742,13 +826,35 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                     )}
                   </td>
                   <td className="py-2 text-right">
-                    <button
-                      onClick={() => removePerson(person.id)}
-                      className="p-1.5 rounded-lg text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red hover:bg-accent-red/10 transition-all"
-                      aria-label={`Remove ${person.name}`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="inline-flex items-center gap-0.5">
+                      {retired ? (
+                        <button
+                          onClick={() => reactivatePerson(person.id)}
+                          className="p-1.5 rounded-lg text-text-muted hover:text-accent-green hover:bg-accent-green/10 transition-all"
+                          aria-label={`Reactivate ${person.name}`}
+                          title="Reactivate — return to the active roster"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => retirePerson(person.id)}
+                          className="p-1.5 rounded-lg text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-amber hover:bg-accent-amber/10 transition-all"
+                          aria-label={`Retire ${person.name}`}
+                          title="Retire — keep history, remove from active roster"
+                        >
+                          <UserMinus className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => archivePerson(person.id)}
+                        className="p-1.5 rounded-lg text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red hover:bg-accent-red/10 transition-all"
+                        aria-label={`Archive ${person.name} to recycle bin`}
+                        title="Archive to recycle bin (restorable)"
+                      >
+                        <Archive className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );

@@ -46,6 +46,8 @@ export interface ArchiveItem {
   payload: unknown;
   deletedBy: string;
   deletedAt: string;
+  restoredAt: string | null;
+  purgedAt: string | null;
   reason: string | null;
   companyName?: string;
 }
@@ -53,6 +55,7 @@ export interface ArchiveItem {
 function toItem(row: {
   id: string; marketOwnerId: string; kind: string; refId: string; label: string;
   payload: unknown; deletedBy: string; deletedAt: Date; reason: string | null;
+  restoredAt?: Date | null; purgedAt?: Date | null;
   marketOwner?: { name: string } | null;
 }): ArchiveItem {
   return {
@@ -64,6 +67,8 @@ function toItem(row: {
     payload: row.payload,
     deletedBy: row.deletedBy,
     deletedAt: row.deletedAt.toISOString(),
+    restoredAt: row.restoredAt ? row.restoredAt.toISOString() : null,
+    purgedAt: row.purgedAt ? row.purgedAt.toISOString() : null,
     reason: row.reason,
     companyName: row.marketOwner?.name,
   };
@@ -125,15 +130,60 @@ export async function listArchives(
   return rows.map(toItem);
 }
 
+// The tenant-data key each restorable entity lives in as a top-level array.
+// Restore re-inserts the payload into the right key on the server, so the item
+// comes back even if the operator is not currently on that board.
+//
+// Only kinds whose collection is a plain top-level array belong here. STORE is
+// intentionally excluded: stores are nested inside se-commission-v2.stores, so
+// a generic array merge would corrupt the commission blob — store archiving is
+// handled in its own flow. COMPETITION is wired up in Phase 4b alongside the
+// competitions table.
+const RESTORE_TARGET: Partial<Record<string, { key: string }>> = {
+  PERSON: { key: 'se-people-v1' },
+  COMPETITION: { key: 'se-competitions-v1' },
+};
+
 /**
- * Mark an archived item restored and hand its payload back so the caller can
- * re-insert the entity. Scope-checked: a non-super actor can only restore items
- * belonging to their own company. Returns null if not found or out of scope.
+ * Merge a restored entity back into its tenant-data collection, de-duped by id
+ * (and refId as a fallback), so a double-restore or a since-recreated record
+ * never produces a duplicate. TENANT_SNAPSHOT is intentionally NOT auto-applied
+ * here — wholesale tenant rollback is a heavier, separately-gated operation.
+ */
+async function reinsertIntoTenant(marketOwnerId: string, kind: string, refId: string, payload: unknown) {
+  const target = RESTORE_TARGET[kind];
+  if (!target || payload == null || typeof payload !== 'object') return;
+
+  const existing = await prisma.tenantData.findUnique({
+    where: { marketOwnerId_key: { marketOwnerId, key: target.key } },
+  });
+  const list: Array<Record<string, unknown>> = Array.isArray(existing?.value) ? (existing!.value as Array<Record<string, unknown>>) : [];
+  const item = payload as Record<string, unknown>;
+  const itemId = item.id ?? refId;
+  const deduped = list.filter((x) => x && x.id !== itemId);
+  deduped.push(item);
+
+  await prisma.tenantData.upsert({
+    where: { marketOwnerId_key: { marketOwnerId, key: target.key } },
+    create: { marketOwnerId, key: target.key, value: deduped as object },
+    update: { value: deduped as object },
+  });
+}
+
+/**
+ * Mark an archived item restored AND re-insert it into the tenant's live data,
+ * so the entity actually reappears (not just flagged in the bin). Scope-checked:
+ * a non-super actor can only restore items belonging to their own company.
+ * Returns null if not found or out of scope.
  */
 export async function restoreArchive(actor: Actor, id: string): Promise<ArchiveItem | null> {
-  const row = await prisma.dataArchive.findUnique({ include: { marketOwner: { select: { name: true } } }, where: { id } });
+  const row = await prisma.dataArchive.findUnique({ where: { id } });
   if (!row || row.restoredAt || row.purgedAt) return null;
   if (!actor.isSuperAdmin && row.marketOwnerId !== actor.marketOwnerId) return null;
+
+  // Put the data back first; only flag the archive row restored if that
+  // succeeds, so a failed re-insert leaves the item recoverable in the bin.
+  await reinsertIntoTenant(row.marketOwnerId, row.kind, row.refId, row.payload);
 
   const updated = await prisma.dataArchive.update({
     where: { id },

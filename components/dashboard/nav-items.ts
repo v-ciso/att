@@ -11,6 +11,7 @@ import {
   Award,
   CalendarCheck,
   FileSpreadsheet,
+  Trash2,
 } from 'lucide-react';
 
 import type { Capability } from '@/lib/permissions';
@@ -42,6 +43,7 @@ export const navigation: NavItem[] = [
   { name: 'P&L', href: '/dashboard?tab=pnl', tab: 'pnl', icon: Receipt, capability: 'pnl.view' },
   { name: 'Commission', href: '/dashboard?tab=commission', tab: 'commission', icon: DollarSign, capability: 'commission.view' },
   { name: 'Import Report', href: '/dashboard?tab=import', tab: 'import', icon: FileSpreadsheet, capability: 'import.use' },
+  { name: 'Recycle Bin', href: '/dashboard?tab=recycle', tab: 'recycle', icon: Trash2, capability: 'company.recycleBin' },
   { name: 'Settings', href: '/settings', icon: Settings, capability: 'settings.view' },
 ];
 

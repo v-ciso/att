@@ -62,7 +62,6 @@ async function main() {
     // Best-effort in-database archive. Skipped silently if the table has not
     // been migrated yet, so this script is safe to run at any point.
     try {
-      // @ts-expect-error — model may not exist yet on first run
       await prisma.dataArchive.create({
         data: {
           marketOwnerId: company.id,

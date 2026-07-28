@@ -137,6 +137,7 @@ export const TAB_CAPABILITY: Partial<Record<string, Capability>> = {
   pnl: 'pnl.view',
   commission: 'commission.view',
   import: 'import.use',
+  recycle: 'company.recycleBin',
   settings: 'settings.view',
 };
 

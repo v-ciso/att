@@ -64,6 +64,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid body', issues: parsed.error.flatten() }, { status: 400, headers: NO_STORE });
   }
 
-  const item = await recordArchive(actor, parsed.data);
+  // z.unknown() types payload as optional; archives always carry one, so pin it
+  // to null when absent to satisfy the required column rather than silently drop.
+  const item = await recordArchive(actor, { ...parsed.data, payload: parsed.data.payload ?? null });
   return NextResponse.json({ item }, { status: 201, headers: NO_STORE });
 }

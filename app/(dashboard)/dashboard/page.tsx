@@ -26,6 +26,7 @@ import { RosterManager, loadPeople, ROSTER_ROLE_LABELS } from '@/components/dash
 import { Competition } from '@/components/dashboard/competition';
 import { ScheduleBoard } from '@/components/dashboard/schedule-board';
 import { ImportReport } from '@/components/dashboard/import-report';
+import { RecycleBin } from '@/components/dashboard/recycle-bin';
 import { ProfileDrawer } from '@/components/dashboard/profile-drawer';
 import { DailyTracker } from '@/components/dashboard/daily-tracker';
 import {
@@ -57,6 +58,7 @@ const ALL_TAB_ITEMS: { value: string; label: string; ariaLabel?: string }[] = [
   { value: 'pnl', label: 'P&L', ariaLabel: 'Profit and loss' },
   { value: 'commission', label: 'Commission' },
   { value: 'import', label: 'Import' },
+  { value: 'recycle', label: 'Recycle Bin' },
 ];
 
 const VALID_TABS = ALL_TAB_ITEMS.map((t) => t.value);
@@ -1447,6 +1449,12 @@ function DashboardContent() {
       {activeTab === 'import' && (
         <div id="view-panel-import" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-import" tabIndex={0}>
           <Card className="p-5"><ImportReport sales={sales} commission={commission} /></Card>
+        </div>
+      )}
+
+      {activeTab === 'recycle' && (
+        <div id="view-panel-recycle" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-recycle" tabIndex={0}>
+          <Card className="p-5"><RecycleBin /></Card>
         </div>
       )}
 

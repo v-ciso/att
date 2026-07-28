@@ -137,7 +137,6 @@ async function main() {
 
       // Archive before clearing so nothing is unrecoverable.
       try {
-        // @ts-expect-error — model may not be migrated on very old checkouts
         await prisma.dataArchive.create({
           data: {
             marketOwnerId: company.id,
