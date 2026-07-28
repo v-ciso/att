@@ -41,7 +41,7 @@ export function Sidebar() {
         className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 space-y-1"
         aria-label="Main navigation"
       >
-        {navigation.map((item) => {
+        {visibleNavigation.map((item) => {
           const isActive = isNavItemActive(item, pathname, currentTab);
           return (
             <Link
