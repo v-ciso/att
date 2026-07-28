@@ -42,6 +42,8 @@ import { computePay } from '@/lib/pay';
 import { readWorkspace } from '@/lib/workspace';
 import { can, canSeeTab, type Role } from '@/lib/permissions';
 import { AttendanceEditor } from '@/components/dashboard/attendance-editor';
+import { DocLibrary } from '@/components/dashboard/doc-library';
+import { normalizeName } from '@/lib/people';
 import { useTheme } from '@/components/white-label/theme-provider';
 
 // Single source for the tab strip. VALID_TABS is derived from it so the list of
@@ -55,6 +57,7 @@ const ALL_TAB_ITEMS: { value: string; label: string; ariaLabel?: string }[] = [
   { value: 'schedule', label: 'Schedule' },
   { value: 'attendance', label: 'Attendance' },
   { value: 'competition', label: 'Competition' },
+  { value: 'library', label: 'Library' },
   { value: 'pnl', label: 'P&L', ariaLabel: 'Profit and loss' },
   { value: 'commission', label: 'Commission' },
   { value: 'import', label: 'Import' },
@@ -566,6 +569,19 @@ function DashboardContent() {
   );
   const people = useMemo(() => (mounted ? loadPeople() : []), [dataVersion, mounted]);
   const sales = useMemo(() => (mounted ? loadSales() : []), [dataVersion, mounted]);
+
+  // Ties the signed-in seat to its roster row so the Library can filter
+  // individually-targeted documents and record acknowledgements. The session
+  // carries no employeeCode, so name is the only available join — matched
+  // through normalizeName so casing and double spaces don't break it. No match
+  // (an owner who isn't on the sales roster) leaves this null, which simply
+  // hides individually-targeted docs and disables acking rather than erroring.
+  const viewerPersonId = useMemo(() => {
+    const target = normalizeName(session?.user?.name ?? '');
+    if (!target) return null;
+    const hit = people.find(p => normalizeName(p.name) === target);
+    return hit?.employeeCode ?? null;
+  }, [people, session?.user?.name]);
 
   // First run on a real account: the roster is empty and there is nothing to
   // derive from, so ask the few questions that make the rest of the app work.
@@ -1428,6 +1444,19 @@ function DashboardContent() {
         <div id="view-panel-competition" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-competition" tabIndex={0}>
           <Card className="p-5">
             <Competition sales={sales} commission={commission} storeOptions={storeOptions} />
+          </Card>
+        </div>
+      )}
+
+      {activeTab === 'library' && (
+        <div id="view-panel-library" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-library" tabIndex={0}>
+          <Card className="p-5">
+            <DocLibrary
+              actor={actor}
+              personId={viewerPersonId}
+              personName={session?.user?.name ?? null}
+              people={people}
+            />
           </Card>
         </div>
       )}

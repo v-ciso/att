@@ -161,6 +161,7 @@ export function canWrite(actor: Actor | null | undefined): boolean {
 export const TAB_CAPABILITY: Partial<Record<string, Capability>> = {
   pnl: 'pnl.view',
   commission: 'commission.view',
+  library: 'docs.view',
   import: 'import.use',
   recycle: 'company.recycleBin',
   settings: 'settings.view',
