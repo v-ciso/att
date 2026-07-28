@@ -348,9 +348,49 @@ export function aggregateSales(
 // Attendance: marked per person per date in the Daily Tracker
 // ---------------------------------------------------------------------------
 
-export type AttendanceStatus = 'P' | 'L' | 'A'; // Present / Late / Absent
+/** Present / Late / Absent / Excused. */
+export type AttendanceStatus = 'P' | 'L' | 'A' | 'E';
 export const ATTENDANCE_KEY = 'se-attendance-v1';
-export type AttendanceBook = Record<string, Record<string, AttendanceStatus>>; // date -> person -> status
+
+export const ATTENDANCE_LABEL: Record<AttendanceStatus, string> = {
+  P: 'Present',
+  L: 'Late',
+  A: 'Absent',
+  E: 'Excused',
+};
+
+/**
+ * A mark with its audit trail. Corrections are additive: `editedFrom` keeps the
+ * value the cell held before, so "changed from Absent to Excused by Sameer" can
+ * be shown instead of silently overwriting history.
+ */
+export interface AttendanceMark {
+  status: AttendanceStatus;
+  markedBy?: string;
+  markedAt?: string;
+  editedFrom?: AttendanceStatus;
+}
+
+/**
+ * What actually sits in storage. Books written before the audit trail existed
+ * hold a bare `'P'`, so both shapes have to stay readable — a migration that
+ * dropped the old form would erase every previously marked day. Always read
+ * through `markStatus()` / `markOf()` rather than indexing the union directly.
+ */
+export type StoredMark = AttendanceStatus | AttendanceMark;
+export type AttendanceBook = Record<string, Record<string, StoredMark>>; // date -> person -> mark
+
+/** Narrow a stored value to its status, tolerating the legacy bare-string form. */
+export function markStatus(v: StoredMark | null | undefined): AttendanceStatus | undefined {
+  if (!v) return undefined;
+  return typeof v === 'string' ? v : v.status;
+}
+
+/** Normalise a stored value to the object form, for reading audit fields. */
+export function markOf(v: StoredMark | null | undefined): AttendanceMark | undefined {
+  if (!v) return undefined;
+  return typeof v === 'string' ? { status: v } : v;
+}
 
 export function loadAttendance(): AttendanceBook {
   if (typeof window === 'undefined') return {};
@@ -368,11 +408,12 @@ export function saveAttendance(book: AttendanceBook) {
 
 export function attendanceForDate(book: AttendanceBook, date: string) {
   const day = book[date] ?? {};
-  const statuses = Object.values(day);
+  const statuses = Object.values(day).map(markStatus).filter(Boolean) as AttendanceStatus[];
   return {
     present: statuses.filter(s => s === 'P').length,
     late: statuses.filter(s => s === 'L').length,
     absent: statuses.filter(s => s === 'A').length,
+    excused: statuses.filter(s => s === 'E').length,
     marked: statuses.length,
   };
 }

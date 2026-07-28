@@ -38,7 +38,8 @@ import { PromoPanel } from '@/components/dashboard/promo-panel';
 import { AttendanceSheet } from '@/components/dashboard/attendance-sheet';
 import { computePay } from '@/lib/pay';
 import { readWorkspace } from '@/lib/workspace';
-import { canSeeTab, type Role } from '@/lib/permissions';
+import { can, canSeeTab, type Role } from '@/lib/permissions';
+import { AttendanceEditor } from '@/components/dashboard/attendance-editor';
 import { useTheme } from '@/components/white-label/theme-provider';
 
 // Single source for the tab strip. VALID_TABS is derived from it so the list of
@@ -492,6 +493,8 @@ function DashboardContent() {
   // white-label brand which defaults to "Sales Engine" until set.
   const companyName = session?.user?.companyName
     || (theme.companyName !== 'Sales Engine' ? theme.companyName : '');
+  // Stamped onto attendance corrections so history names who changed what.
+  const markedBy = session?.user?.name || session?.user?.email || 'unknown';
 
   // Same actor shape and same unauthenticated OWNER fallback as the sidebar, so
   // the tab strip and the nav can never disagree about what this seat may see.
@@ -1401,6 +1404,14 @@ function DashboardContent() {
 
       {activeTab === 'attendance' && (
         <div id="view-panel-attendance" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-attendance" tabIndex={0}>
+          {/* Marking lives above the record: the grid answers "who was late", the
+              editor is how you fix it. Read-only seats get the record only — the
+              same capability the API re-checks on write. */}
+          {can(actor, 'data.write') && (
+            <Card className="p-5 mb-4">
+              <AttendanceEditor people={people} markedBy={markedBy} />
+            </Card>
+          )}
           <Card className="p-5">
             <AttendanceSheet people={people} />
           </Card>

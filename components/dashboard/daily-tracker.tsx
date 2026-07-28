@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Trash2, Sparkles, ClipboardList, ChevronDown, ChevronUp, Maximize2, Minimize2, CalendarCheck } from 'lucide-react';
 import {
   SaleEntry, loadSales, saveSales, loadCommission, entryRevenue, todayStr, generateDemoSales, generateDemoAttendance,
-  AttendanceBook, AttendanceStatus, loadAttendance, saveAttendance, attendanceForDate,
+  AttendanceBook, AttendanceStatus, loadAttendance, saveAttendance, attendanceForDate, markStatus,
   LateOutBook, loadLateOuts, saveLateOuts, isPhonePlan, scheduledStore, notifyDataChanged,
 } from '@/lib/sales';
 import { loadPeople } from './roster';
@@ -14,6 +14,7 @@ import { DEFAULT_COMMISSION } from './editable-sections';
 import { useAnnounce } from '@/components/a11y/announcer';
 import { useConfirm } from '@/hooks/use-confirm';
 import { readWorkspace } from '@/lib/workspace';
+import { useSession } from 'next-auth/react';
 
 interface DailyTrackerProps {
   onDataChange: () => void; // tells the dashboard to recompute derived stats
@@ -29,6 +30,9 @@ const selectClass =
 export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   const announce = useAnnounce();
   const { confirm, confirmDialog } = useConfirm();
+  // Stamped onto every attendance mark so a correction can name who made it.
+  const { data: session } = useSession();
+  const markedBy = session?.user?.name || session?.user?.email || 'unknown';
   const [sales, setSales] = useState<SaleEntry[]>([]);
   const [isDemo, setIsDemo] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -135,7 +139,17 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
     setAttendance(prev => {
       const day = { ...(prev[date] ?? {}) };
       if (status === null) delete day[name];
-      else day[name] = status;
+      else {
+        // Write the audited shape the Attendance grid also writes, so a mark made
+        // here carries the same history as one corrected there.
+        const before = markStatus(day[name]);
+        day[name] = {
+          status,
+          markedBy,
+          markedAt: new Date().toISOString(),
+          ...(before && before !== status ? { editedFrom: before } : {}),
+        };
+      }
       const next = { ...prev, [date]: day };
       saveAttendance(next);
       onDataChange();
@@ -354,7 +368,10 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
           {visiblePeople.map(p => {
-            const status = attendance[date]?.[p.name] ?? null;
+            // Must go through markStatus: marks are now stored as objects with an
+            // audit trail, and comparing an object to 'P' silently fails — the
+            // chip would stop highlighting even though the day was marked.
+            const status = markStatus(attendance[date]?.[p.name]) ?? null;
             const chip = (s: AttendanceStatus, label: string, active: string) => (
               <button
                 key={s}
@@ -390,6 +407,7 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
                     {chip('P', 'Present', 'bg-accent-green/20 text-accent-green border-accent-green/40')}
                     {chip('L', 'Late', 'bg-accent-yellow/20 text-accent-yellow border-accent-yellow/40')}
                     {chip('A', 'Absent', 'bg-accent-red/20 text-accent-red border-accent-red/40')}
+                    {chip('E', 'Excused', 'bg-accent-blue/20 text-accent-blue border-accent-blue/40')}
                     <button
                       onClick={() => toggleLateOut(p.name)}
                       className={cn(

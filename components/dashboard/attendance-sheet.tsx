@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { CalendarCheck, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { loadAttendance, AttendanceStatus, AttendanceBook, todayStr } from '@/lib/sales';
+import { loadAttendance, AttendanceStatus, AttendanceBook, markStatus, todayStr } from '@/lib/sales';
 import { Person } from './roster';
 
 // The attendance RECORD. Marking someone late in the Daily Tracker was writing
@@ -16,19 +16,24 @@ type Span = 'week' | 'month' | 'year';
 const SPAN_DAYS: Record<Span, number> = { week: 7, month: 30, year: 365 };
 const SPAN_LABEL: Record<Span, string> = { week: 'This week', month: 'Last 30 days', year: 'Last 12 months' };
 
-const MARK = {
+const MARK: Record<AttendanceStatus, { label: string; cls: string }> = {
   P: { label: 'Present', cls: 'bg-accent-green/20 text-accent-green border-accent-green/40' },
   L: { label: 'Late', cls: 'bg-accent-yellow/20 text-accent-yellow border-accent-yellow/40' },
   A: { label: 'Absent', cls: 'bg-accent-red/20 text-accent-red border-accent-red/40' },
-} as const;
+  E: { label: 'Excused', cls: 'bg-accent-blue/20 text-accent-blue border-accent-blue/40' },
+};
 
 export interface RepAttendance {
   person: string;
   present: number;
   late: number;
   absent: number;
+  excused: number;
   marked: number;
-  /** Present = 1, Late = 0.5, Absent = 0 — the same weighting the roster uses. */
+  /**
+   * Present = 1, Late = 0.5, Absent = 0. Excused days are excluded from the
+   * denominator entirely rather than scored as zero.
+   */
   score: number;
   lastLate: string | null;
   lastAbsent: string | null;
@@ -42,28 +47,33 @@ function shiftDate(dateStr: string, days: number): string {
 }
 
 export function summarise(
-  people: Person[], span: Span, book: Record<string, Record<string, AttendanceStatus>>, endDate: string,
+  people: Person[], span: Span, book: AttendanceBook, endDate: string,
 ): RepAttendance[] {
   const cutoff = shiftDate(endDate, -(SPAN_DAYS[span] - 1));
   return people.map(p => {
-    let present = 0, late = 0, absent = 0;
+    let present = 0, late = 0, absent = 0, excused = 0;
     let lastLate: string | null = null;
     let lastAbsent: string | null = null;
 
     for (const [date, marks] of Object.entries(book)) {
       if (date < cutoff || date > endDate) continue;
-      const status = marks[p.name];
+      // Read through markStatus: stored marks may be a bare 'P' (written before
+      // the audit trail existed) or a full mark object.
+      const status = markStatus(marks[p.name]);
       if (!status) continue;
       if (status === 'P') present++;
       else if (status === 'L') { late++; if (!lastLate || date > lastLate) lastLate = date; }
       else if (status === 'A') { absent++; if (!lastAbsent || date > lastAbsent) lastAbsent = date; }
+      else if (status === 'E') excused++;
     }
 
-    const marked = present + late + absent;
+    // Excused days are deliberately outside the score: an approved absence must
+    // not read as a reliability problem. They are still counted and displayed.
+    const scored = present + late + absent;
     return {
       person: p.name,
-      present, late, absent, marked,
-      score: marked === 0 ? 0 : Math.round(((present + late * 0.5) / marked) * 1000) / 10,
+      present, late, absent, excused, marked: scored + excused,
+      score: scored === 0 ? 0 : Math.round(((present + late * 0.5) / scored) * 1000) / 10,
       lastLate, lastAbsent,
     };
   });
@@ -266,7 +276,7 @@ export function AttendanceSheet({ people }: { people: Person[] }) {
                   <tr key={p.id}>
                     <th scope="row" className="pr-2 py-1 font-medium whitespace-nowrap text-left">{p.name}</th>
                     {days.map(d => {
-                      const status = book[d]?.[p.name];
+                      const status = markStatus(book[d]?.[p.name]);
                       return (
                         <td key={d} className="py-1 px-0.5 text-center">
                           {/* The letter + colour alone are not accessible: colour
