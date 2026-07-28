@@ -299,6 +299,35 @@ export async function signedUrlFor(
 }
 
 /**
+ * Reads the raw bytes server-side, after the same audience check as
+ * signedUrlFor.
+ *
+ * This backs the same-origin file route. Field reps open these documents on
+ * carrier and corporate-VPN networks that routinely block unknown third-party
+ * hosts, so having the browser pull bytes straight from the storage domain
+ * makes the viewer fail in exactly the conditions it is needed. Streaming
+ * through our own origin also keeps the storage token out of the browser and
+ * re-checks permission on every byte served, rather than once at mint time.
+ */
+export async function documentBytes(
+  actor: Actor,
+  id: string,
+  personId?: string | null
+): Promise<{ bytes: Buffer; mimeType: string; fileName: string } | null> {
+  const doc = await getDocument(actor, id, personId);
+  if (!doc) return null;
+
+  const { data, error } = await supabaseAdmin().storage.from(DOC_BUCKET).download(doc.storagePath);
+  if (error || !data) return null;
+
+  return {
+    bytes: Buffer.from(await data.arrayBuffer()),
+    mimeType: doc.mimeType,
+    fileName: safeFileName(doc.title) || 'document',
+  };
+}
+
+/**
  * Soft-deletes. The row and the stored object both survive, matching the
  * recycle-bin rule that nothing in this app is unrecoverable — a compliance
  * document especially should not vanish on one click.

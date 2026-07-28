@@ -80,16 +80,22 @@ export async function uploadDocument(input: {
 }
 
 /**
- * Mints a fresh signed URL. These expire in 60s, so always call this at open
- * time rather than caching the result anywhere.
+ * Same-origin URL for a document's bytes.
+ *
+ * Deliberately NOT a storage signed URL: the browser fetching a third-party
+ * host is the first thing to break on a corporate VPN or locked-down carrier
+ * network, which is where these documents actually get opened. The route
+ * re-checks audience on every read, so this is safe to build synchronously.
  */
-export async function documentUrl(id: string, personId?: string | null): Promise<string | null> {
-  const qs = personId ? `?personId=${encodeURIComponent(personId)}` : '';
-  const res = await fetch(`/api/docs/${encodeURIComponent(id)}/url${qs}`, {
-    credentials: 'same-origin',
-    cache: 'no-store',
-  });
-  return await readJson<string>(res, 'url');
+export function documentFileUrl(
+  id: string,
+  opts?: { personId?: string | null; download?: boolean }
+): string {
+  const qs = new URLSearchParams();
+  if (opts?.personId) qs.set('personId', opts.personId);
+  if (opts?.download) qs.set('download', '1');
+  const suffix = qs.toString() ? `?${qs}` : '';
+  return `/api/docs/${encodeURIComponent(id)}/file${suffix}`;
 }
 
 export async function deleteDocumentApi(id: string): Promise<boolean> {

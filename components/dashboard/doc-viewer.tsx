@@ -4,16 +4,18 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Download, FileWarning, Loader2, Check } from 'lucide-react';
 import { useModalA11y } from '@/hooks/use-modal-a11y';
-import { documentUrl, acknowledgeDocumentApi, type DocumentDTO } from '@/lib/docs-client';
+import { documentFileUrl, acknowledgeDocumentApi, type DocumentDTO } from '@/lib/docs-client';
 
 // In-app viewer, built for the biweekly promo sheet: open it on the floor,
 // page through it, zoom in on a price. Renders PDFs to canvas with pdf.js and
 // images with <img>; anything else (xlsx/docx) gets a download button, since
 // there is no honest way to render a spreadsheet here.
 //
-// The signed URL is fetched at OPEN time and never stored, because it expires in
-// 60 seconds. pdf.js is given the bytes, not the URL, so a slow read cannot fail
-// halfway through when the token dies.
+// Bytes come from our own /api/docs/[id]/file route rather than a storage
+// signed URL. Reps open these on carrier and corporate-VPN networks that block
+// unknown third-party hosts, so a direct-to-storage fetch fails exactly where
+// the viewer matters most; it also keeps the storage token out of the browser.
+// pdf.js is handed the bytes, not a URL, so paging never re-downloads.
 
 const RENDERABLE_IMAGE = /^image\/(png|jpe?g|webp)$/;
 
@@ -65,14 +67,10 @@ export function DocViewer({
       setStatus('loading');
       setMessage('');
 
-      const url = await documentUrl(doc.id, personId);
-      if (cancelled || !aliveRef.current) return;
-      if (!url) {
-        setStatus('error');
-        setMessage('This document could not be opened. It may have been removed, or you may not have access.');
-        return;
-      }
-      setDownloadUrl(url);
+      // Same-origin, so no third-party host has to be reachable and no token
+      // is exposed. Built synchronously; the route authorises each read.
+      const url = documentFileUrl(doc.id, { personId });
+      setDownloadUrl(documentFileUrl(doc.id, { personId, download: true }));
 
       if (isImage) {
         setImgSrc(url);
@@ -87,8 +85,10 @@ export function DocViewer({
       }
 
       try {
-        // Fetch the bytes now, while the token is fresh.
-        const res = await fetch(url);
+        const res = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+        if (res.status === 404 || res.status === 403) {
+          throw new Error('unauthorized');
+        }
         if (!res.ok) throw new Error(String(res.status));
         const buf = await res.arrayBuffer();
         if (cancelled || !aliveRef.current) return;
@@ -102,10 +102,16 @@ export function DocViewer({
         setPageCount(loaded.numPages);
         setPage(1);
         setStatus('ready');
-      } catch {
+      } catch (err) {
         if (cancelled || !aliveRef.current) return;
         setStatus('error');
-        setMessage('This PDF could not be displayed. Use Download to open it in your device viewer.');
+        // Separate "you can't see this" from "this didn't render", so a rep is
+        // not told to download a file they have no access to.
+        setMessage(
+          err instanceof Error && err.message === 'unauthorized'
+            ? 'This document could not be opened. It may have been removed, or you may not have access.'
+            : 'This PDF could not be displayed. Use Download to open it in your device viewer.'
+        );
       }
     })();
 
