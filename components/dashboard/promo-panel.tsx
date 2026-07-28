@@ -21,6 +21,9 @@ export interface PromoItem {
   added: string;
 }
 
+// Module-level so it survives re-renders and never repeats within a session.
+let promoCounter = 0;
+
 export function PromoPanel() {
   const { state: promos, setState: setPromos } = useLocalState<PromoItem[]>('se-promo-v1', []);
   const [file, setFile] = useState<{ name: string; src: string } | null>(null);
@@ -42,8 +45,13 @@ export function PromoPanel() {
     setFile(null);
   };
 
+  // Counter appended because two promos added in the same millisecond would
+  // otherwise share an id and collide as React keys.
   const add = () =>
-    setPromos(p => [...p, { id: `p${Date.now()}`, title: 'New promotion', note: '', url: '', added: isoToday() }]);
+    setPromos(p => [
+      ...p,
+      { id: `p${Date.now()}-${promoCounter++}`, title: 'New promotion', note: '', url: '', added: isoToday() },
+    ]);
 
   const edit = (id: string, field: 'title' | 'note' | 'url', value: string) =>
     setPromos(p => p.map(x => (x.id === id ? { ...x, [field]: value } : x)));

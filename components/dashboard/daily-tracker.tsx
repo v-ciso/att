@@ -11,17 +11,24 @@ import {
 } from '@/lib/sales';
 import { loadPeople } from './roster';
 import { DEFAULT_COMMISSION } from './editable-sections';
+import { useAnnounce } from '@/components/a11y/announcer';
+import { useConfirm } from '@/hooks/use-confirm';
 import { readWorkspace } from '@/lib/workspace';
 
 interface DailyTrackerProps {
   onDataChange: () => void; // tells the dashboard to recompute derived stats
 }
 
+// Module-level so it survives re-renders and never repeats within a session.
+let saleCounter = 0;
+
 const selectClass =
   'bg-bg-tertiary border border-border-subtle rounded-lg px-2.5 py-2 text-xs text-white ' +
   'focus:outline-none focus:border-accent-blue/50 focus:ring-1 focus:ring-accent-blue/30';
 
 export function DailyTracker({ onDataChange }: DailyTrackerProps) {
+  const announce = useAnnounce();
+  const { confirm, confirmDialog } = useConfirm();
   const [sales, setSales] = useState<SaleEntry[]>([]);
   const [isDemo, setIsDemo] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -187,7 +194,11 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
     const store = scheduledAt || (effectiveStores.includes(entryStore) ? entryStore : effectiveStores[0]);
     setSales(prev => [
       {
-        id: `s-${Date.now()}`,
+        // Date.now() alone collides: logging two sales in the same millisecond
+        // (fast clicking, or a rep entering a batch) produced duplicate ids and a
+        // React "two children with the same key" error, after which the rows
+        // stopped tracking their own state. Counter matches roster/competition.
+        id: `s-${Date.now()}-${saleCounter++}`,
         date,
         person: who,
         store,
@@ -199,18 +210,47 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
       ...prev,
     ]);
     setQty(1); setNextUps(0); setInsurance(0);
+    // The new row appears at the top of the table with no focus change, so this
+    // is the only feedback a screen-reader user gets that the sale was logged.
+    announce(`Logged ${qty} ${what} for ${who} at ${store}.`);
   };
 
-  const removeEntry = (id: string) => setSales(prev => prev.filter(e => e.id !== id));
+  const removeEntry = (id: string) => {
+    const gone = sales.find(e => e.id === id);
+    setSales(prev => prev.filter(e => e.id !== id));
+    announce(gone ? `Removed ${gone.plan} for ${gone.person}.` : 'Entry removed.');
+  };
 
-  const generateDemo = () => { setSales(generateDemoSales(people, commission)); const att = generateDemoAttendance(people); saveAttendance(att); setAttendance(att); };
-  const clearAll = () => {
+  const generateDemo = () => {
+    const demo = generateDemoSales(people, commission);
+    setSales(demo);
+    const att = generateDemoAttendance(people);
+    saveAttendance(att);
+    setAttendance(att);
+    announce(`Loaded ${demo.length} sample sales across ${people.length} reps.`);
+  };
+  const clearAll = async () => {
+    // This erases every logged sale plus the whole attendance and late-out book,
+    // and none of it is recoverable. Removing a single rep already confirms, so
+    // wiping the entire book silently was the more dangerous inconsistency.
+    // Typed confirmation because it sits in the same toolbar as benign controls.
+    if (!(await confirm({
+      title: 'Clear all sales and attendance?',
+      description:
+        `This permanently deletes all ${sales.length} logged sale${sales.length === 1 ? '' : 's'} ` +
+        'along with the attendance and late-out records. It cannot be undone.',
+      confirmLabel: 'Clear everything',
+      destructive: true,
+      requireTypedConfirmation: 'CLEAR',
+    }))) return;
     setSales([]);
     setAttendance({});
     setLateOuts({});
     saveAttendance({});
     saveLateOuts({});
     onDataChange();
+    // Destructive and irreversible, so this is assertive rather than polite.
+    announce('All sales and attendance cleared.', 'assertive');
   };
 
   const dayEntries = sales.filter(e =>
@@ -223,6 +263,7 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
 
   return (
     <div ref={panelRef} className="presentable">
+      {confirmDialog}
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <h2 className="text-xl font-bold neon-brand flex items-center gap-2">
           <ClipboardList className="w-5 h-5 text-accent-blue" /> Daily Tracker

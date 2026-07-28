@@ -11,6 +11,7 @@ import { notifyDataChanged, loadCommission } from '@/lib/sales';
 import { RETAILERS } from '@/lib/shifts';
 import { seedForWorkspace } from '@/lib/workspace';
 import { useConfirm } from '@/hooks/use-confirm';
+import { useAnnounce } from '@/components/a11y/announcer';
 import { useModalA11y } from '@/hooks/use-modal-a11y';
 
 // ---------------------------------------------------------------------------
@@ -447,6 +448,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
   const [editModalId, setEditModalId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const { confirm, confirmDialog } = useConfirm();
+  const announce = useAnnounce();
 
   // Store options come from the Commission Engine's store list
   const [storeOptions, setStoreOptions] = useState<string[]>(['Costco 1018', 'Costco 1020', 'Target 2450', "BJ's 610"]);
@@ -468,8 +470,11 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
   const assignTeam = (name: string, team: string) =>
     setPeople(prev => prev.map(p => (p.name.toLowerCase() === name.toLowerCase() ? { ...p, team } : p)));
 
-  const addPerson = (p: Omit<Person, 'id'>) =>
+  const addPerson = (p: Omit<Person, 'id'>) => {
     setPeople(prev => [...prev, { ...p, id: `p${Date.now()}-${personCounter++}` }]);
+    // The roster table grows by one row without moving focus, so announce it.
+    announce(`${p.name} added to the roster.`);
+  };
 
   const removePerson = async (id: string) => {
     const p = people.find(x => x.id === id);
@@ -481,6 +486,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
       destructive: true,
     }))) return;
     setPeople(prev => prev.filter(x => x.id !== id));
+    announce(p ? `${p.name} removed from the roster.` : 'Person removed.');
   };
 
   const promote = (id: string) =>
