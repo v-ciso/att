@@ -511,16 +511,17 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
   // until the manager asks to see them.
   const [showRetired, setShowRetired] = useState(false);
 
-  // One-time identity backfill: give every person a stable, company-prefixed
-  // employeeCode. Idempotent and guarded on "some code is missing" so it never
-  // loops (assignEmployeeCodes returns fresh objects each call). Runs only once
-  // the company name is known, so the prefix is correct (SOR-0001, not EMP-).
-  const codesBackfilled = useRef(false);
+  // Identity backfill: give every person a stable, company-prefixed employeeCode.
+  // Deliberately NOT a run-once ref — the roster is first populated with demo
+  // placeholder rows (companyName still undefined), and only a moment later
+  // swapped for the real workspace data once the session and tenant sync land. A
+  // one-shot guard latched on the placeholder and never coded the real people.
+  // Instead we simply assign whenever someone is missing a code; assignEmployee-
+  // Codes is idempotent, so once everyone has one this becomes a no-op and can't
+  // loop. Waiting for companyName keeps the prefix correct (DEM-0001, not EMP-).
   useEffect(() => {
-    if (codesBackfilled.current) return;
-    if (!people.length) return;
-    if (!people.some(p => !p.employeeCode)) { codesBackfilled.current = true; return; }
-    codesBackfilled.current = true;
+    if (!people.length || !companyName) return;
+    if (!people.some(p => !p.employeeCode)) return;
     setPeople(prev => assignEmployeeCodes(prev, companyName));
   }, [people, companyName, setPeople]);
 
@@ -616,13 +617,29 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
       destructive: true,
     });
     if (!ok) return;
-    try {
-      await archiveEntity({ kind: 'PERSON', refId: p.id, label: `${p.name}${p.employeeCode ? ` (${p.employeeCode})` : ''}`, payload: p });
-      setPeople(prev => prev.filter(x => x.id !== id));
-      announce(`${p.name} archived to the recycle bin.`);
-    } catch {
-      announce(`Could not archive ${p.name}. Please try again.`);
+    // Persist to the recycle bin FIRST and only remove from the roster if that
+    // succeeded. archiveEntity resolves to null (never throws) on any non-2xx,
+    // so a failed save must not orphan the person — otherwise they would vanish
+    // from the roster with no recoverable copy anywhere. Retire (reversible,
+    // local) remains the safe path when archiving is unavailable.
+    const saved = await archiveEntity({
+      kind: 'PERSON',
+      refId: p.id,
+      label: `${p.name}${p.employeeCode ? ` (${p.employeeCode})` : ''}`,
+      payload: p,
+    });
+    if (!saved) {
+      announce(`Could not archive ${p.name}. They are still on the roster.`);
+      await confirm({
+        title: 'Archive failed',
+        description: `${p.name} could not be moved to the recycle bin, so they are still on the roster. You may not have permission to archive, or the connection dropped. Try again, or retire them instead.`,
+        confirmLabel: 'OK',
+        hideCancel: true,
+      });
+      return;
     }
+    setPeople(prev => prev.filter(x => x.id !== id));
+    announce(`${p.name} archived to the recycle bin.`);
   };
 
   const promote = (id: string) =>
