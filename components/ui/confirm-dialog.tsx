@@ -22,6 +22,8 @@ interface ConfirmDialogProps {
    * Reserve it for irreversible, wide-blast-radius actions (deleting a company).
    */
   requireTypedConfirmation?: string;
+  /** Single-button acknowledgement (e.g. an error notice), no Cancel shown. */
+  hideCancel?: boolean;
 }
 
 /**
@@ -44,6 +46,7 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   destructive = false,
   requireTypedConfirmation,
+  hideCancel = false,
 }: ConfirmDialogProps) {
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
@@ -126,14 +129,16 @@ export function ConfirmDialog({
       )}
 
       <div className="mt-5 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
-        <Button
-          variant="secondary"
-          onClick={() => onOpenChange(false)}
-          disabled={busy}
-          className="min-h-11"
-        >
-          {cancelLabel}
-        </Button>
+        {!hideCancel && (
+          <Button
+            variant="secondary"
+            onClick={() => onOpenChange(false)}
+            disabled={busy}
+            className="min-h-11"
+          >
+            {cancelLabel}
+          </Button>
+        )}
         <Button
           ref={confirmRef}
           variant={destructive ? 'danger' : 'primary'}

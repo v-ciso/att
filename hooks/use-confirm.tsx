@@ -10,6 +10,7 @@ interface ConfirmOptions {
   cancelLabel?: string;
   destructive?: boolean;
   requireTypedConfirmation?: string;
+  hideCancel?: boolean;
 }
 
 /**
@@ -58,6 +59,7 @@ export function useConfirm() {
       cancelLabel={options.cancelLabel}
       destructive={options.destructive}
       requireTypedConfirmation={options.requireTypedConfirmation}
+      hideCancel={options.hideCancel}
     />
   ) : null;
 

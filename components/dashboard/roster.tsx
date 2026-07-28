@@ -18,6 +18,8 @@ import {
 } from '@/lib/people';
 import { archiveEntity } from '@/lib/archive-client';
 import { useModalA11y } from '@/hooks/use-modal-a11y';
+import { useActor } from '@/lib/use-actor';
+import { can } from '@/lib/permissions';
 
 // ---------------------------------------------------------------------------
 // People — the single roster every view joins against. A person can work one
@@ -507,6 +509,12 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
   const announce = useAnnounce();
   const { data: session } = useSession();
   const companyName = session?.user?.companyName;
+  // Retire/archive are manager+owner lifecycle actions per the role matrix; the
+  // server re-checks roster.manage on archive, this just hides controls a seat
+  // could not use. useActor is hydration-safe and falls back to a permissive
+  // actor pre-mount, so nothing flickers away from the server render.
+  const actor = useActor();
+  const canManage = can(actor, 'roster.manage');
   // Retired people are kept for history but hidden from the day-to-day roster
   // until the manager asks to see them.
   const [showRetired, setShowRetired] = useState(false);
@@ -844,7 +852,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                   </td>
                   <td className="py-2 text-right">
                     <div className="inline-flex items-center gap-0.5">
-                      {retired ? (
+                      {canManage && (retired ? (
                         <button
                           onClick={() => reactivatePerson(person.id)}
                           className="p-1.5 rounded-lg text-text-muted hover:text-accent-green hover:bg-accent-green/10 transition-all"
@@ -862,15 +870,17 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                         >
                           <UserMinus className="w-3.5 h-3.5" />
                         </button>
+                      ))}
+                      {canManage && (
+                        <button
+                          onClick={() => archivePerson(person.id)}
+                          className="p-1.5 rounded-lg text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red hover:bg-accent-red/10 transition-all"
+                          aria-label={`Archive ${person.name} to recycle bin`}
+                          title="Archive to recycle bin (restorable)"
+                        >
+                          <Archive className="w-3.5 h-3.5" />
+                        </button>
                       )}
-                      <button
-                        onClick={() => archivePerson(person.id)}
-                        className="p-1.5 rounded-lg text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red hover:bg-accent-red/10 transition-all"
-                        aria-label={`Archive ${person.name} to recycle bin`}
-                        title="Archive to recycle bin (restorable)"
-                      >
-                        <Archive className="w-3.5 h-3.5" />
-                      </button>
                     </div>
                   </td>
                 </tr>

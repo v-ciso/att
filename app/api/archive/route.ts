@@ -49,8 +49,12 @@ export async function POST(request: NextRequest) {
   const actor = await currentActor();
   if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: NO_STORE });
 
-  // Archiving is a roster/data mutation; a read-only seat cannot do it.
-  if (!can(actor, 'roster.manage') && !can(actor, 'data.write')) {
+  // Archiving moves an entity into the recycle bin, which only OWNER/super can
+  // then restore. Per the role matrix that is a MANAGER+OWNER action
+  // (roster.manage) — NOT the looser data.write, which ASM/LEAD also hold. If a
+  // seat that can write day-to-day data could archive but not recover, it could
+  // strand a rep in a bin it cannot open. Fail closed to roster.manage.
+  if (!can(actor, 'roster.manage')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403, headers: NO_STORE });
   }
   if (!actor.marketOwnerId) {

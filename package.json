@@ -24,7 +24,9 @@
     "test:workspace": "npx tsx lib/workspace.test.ts",
     "test:permissions": "npx tsx lib/permissions.test.ts",
     "test:attendance": "npx tsx lib/attendance.test.ts",
-    "test": "npm run test:roadtrips && npm run test:pay && npm run test:shifts && npm run test:workspace && npm run test:permissions && npm run test:attendance",
+    "test:people": "npx tsx lib/people.test.ts",
+    "test:archive": "npx tsx scripts/test-archive-lifecycle.ts",
+    "test": "npm run test:roadtrips && npm run test:pay && npm run test:shifts && npm run test:workspace && npm run test:permissions && npm run test:attendance && npm run test:people",
     "postinstall": "prisma generate"
   },
   "dependencies": {
