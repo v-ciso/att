@@ -26,6 +26,7 @@
     "test:attendance": "npx tsx lib/attendance.test.ts",
     "test:people": "npx tsx lib/people.test.ts",
     "test:archive": "npx tsx scripts/test-archive-lifecycle.ts",
+    "test:competitions": "npx tsx scripts/test-competition-lifecycle.ts",
     "test": "npm run test:roadtrips && npm run test:pay && npm run test:shifts && npm run test:workspace && npm run test:permissions && npm run test:attendance && npm run test:people",
     "postinstall": "prisma generate"
   },

@@ -134,6 +134,7 @@ model MarketOwner {
   goals                  Goal[]
   data                   TenantData[]
   archives               DataArchive[]
+  competitions           Competition[]
 }
 
 // The recycle bin. Nothing in this app is ever hard-deleted from the UI: every
@@ -160,6 +161,46 @@ model DataArchive {
 
   @@index([marketOwnerId, kind])
   @@index([marketOwnerId, restoredAt])
+}
+
+// A floor competition. Live comps are still configured client-side (a derived
+// view over live sales), but once ENDED the final standings are frozen into
+// these tables so the historical record survives a resync, a rename, or a
+// standings recompute. status flows active -> ended -> archived; a comp is
+// never hard-deleted. Values are numeric (not the old pre-formatted "$1,240"
+// strings) so history can be charted, summed, and fed into the rep profile.
+model Competition {
+  id            String                @id @default(cuid())
+  marketOwnerId String
+  marketOwner   MarketOwner           @relation(fields: [marketOwnerId], references: [id], onDelete: Cascade)
+  title         String
+  prize         String
+  metric        String                // lines | premium | internet | nextUps | revenue
+  store         String?               // null = all stores
+  periodStart   DateTime
+  periodEnd     DateTime?
+  status        String                @default("active") // active | ended | archived
+  createdBy     String
+  endedAt       DateTime?
+  endedBy       String?
+  createdAt     DateTime              @default(now())
+  standings     CompetitionStanding[]
+
+  @@index([marketOwnerId, status])
+}
+
+model CompetitionStanding {
+  id            String      @id @default(cuid())
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  personId      String      // stable, employeeCode-backed id - not a name
+  personName    String      // denormalised snapshot, so history survives a rename
+  store         String?
+  rank          Int
+  value         Float        // numeric, so it can be charted and compared
+  metric        String
+
+  @@unique([competitionId, personId])
 }
 
 // Per-company operational data (roster, sales, schedule, attendance, P&L, ...),

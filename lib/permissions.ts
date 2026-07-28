@@ -27,6 +27,8 @@ export type Capability =
   | 'data.write'
   | 'commission.manage'
   | 'commission.view'
+  | 'competition.view'
+  | 'competition.manage'
   | 'pnl.view'
   | 'settings.view'
   | 'import.use';
@@ -52,6 +54,8 @@ const ROLE_CAPS: Record<Role, Capability[]> = {
     'data.write',
     'commission.manage',
     'commission.view',
+    'competition.view',
+    'competition.manage',
     'pnl.view',
     'settings.view',
     'import.use',
@@ -63,15 +67,17 @@ const ROLE_CAPS: Record<Role, Capability[]> = {
     'roster.manageOwnTeam',
     'data.write',
     'commission.view',
+    'competition.view',
+    'competition.manage',
     'pnl.view',
     'import.use',
   ],
-  ASM: ['roster.manageOwnTeam', 'data.write', 'commission.view', 'pnl.view'],
+  ASM: ['roster.manageOwnTeam', 'data.write', 'commission.view', 'competition.view', 'pnl.view'],
   // "Leads can only add team members for themselves if given access" — the
   // roster capability is gated behind allowAddTeamMembers in `can()` below.
-  LEAD: ['roster.manageOwnTeam', 'data.write'],
+  LEAD: ['roster.manageOwnTeam', 'data.write', 'competition.view'],
   // Read-only by contract: can see every screen, can change nothing.
-  VIEWER: ['commission.view', 'pnl.view'],
+  VIEWER: ['commission.view', 'competition.view', 'pnl.view'],
   REP: [],
   INTERN: [],
 };
