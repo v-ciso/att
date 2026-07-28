@@ -895,7 +895,7 @@ function DashboardContent() {
       />
 
       {activeTab === 'dashboard' && (
-        <div id="tab-dashboard" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-dashboard" tabIndex={0}>
+        <div id="view-panel-dashboard" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-dashboard" tabIndex={0}>
           {!hasData && (
             <Card className="mb-4 p-5 border-accent-blue/30">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1104,7 +1104,7 @@ function DashboardContent() {
       )}
 
       {activeTab === 'tracker' && (
-        <div id="tab-tracker" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-tracker" tabIndex={0}>
+        <div id="view-panel-tracker" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-tracker" tabIndex={0}>
           <Card className="p-5">
             <DailyTracker onDataChange={bump} />
           </Card>
@@ -1112,7 +1112,7 @@ function DashboardContent() {
       )}
 
       {activeTab === 'roster' && (
-        <div id="tab-roster" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-roster" tabIndex={0}>
+        <div id="view-panel-roster" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-roster" tabIndex={0}>
           <Card className="p-5">
             <RosterManager onOpenProfile={(name) => setProfileName(name)} />
           </Card>
@@ -1120,7 +1120,7 @@ function DashboardContent() {
       )}
 
       {activeTab === 'leaderboard' && (
-        <div id="tab-leaderboard" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-leaderboard" tabIndex={0}>
+        <div id="view-panel-leaderboard" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-leaderboard" tabIndex={0}>
           <Card className="p-5">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h2 className="text-xl font-bold neon-brand">
@@ -1179,9 +1179,11 @@ function DashboardContent() {
 
       {activeTab === 'meeting' && (
         <div
-          id="tab-meeting"
+          id="view-panel-meeting"
           ref={meetingRef}
-          className="tab-panel"
+          // `presentable` (not the element id) drives the fullscreen styling, so
+          // Present keeps working regardless of the ARIA id scheme.
+          className="tab-panel presentable"
           role="tabpanel"
           aria-labelledby="view-tab-meeting"
           tabIndex={0}
@@ -1358,7 +1360,7 @@ function DashboardContent() {
       )}
 
       {activeTab === 'schedule' && (
-        <div id="tab-schedule" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-schedule" tabIndex={0}>
+        <div id="view-panel-schedule" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-schedule" tabIndex={0}>
           <Card className="p-5">
             <ScheduleBoard people={people} storeOptions={storeOptions} />
           </Card>
@@ -1366,7 +1368,7 @@ function DashboardContent() {
       )}
 
       {activeTab === 'attendance' && (
-        <div id="tab-attendance" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-attendance" tabIndex={0}>
+        <div id="view-panel-attendance" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-attendance" tabIndex={0}>
           <Card className="p-5">
             <AttendanceSheet people={people} />
           </Card>
@@ -1374,7 +1376,7 @@ function DashboardContent() {
       )}
 
       {activeTab === 'competition' && (
-        <div id="tab-competition" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-competition" tabIndex={0}>
+        <div id="view-panel-competition" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-competition" tabIndex={0}>
           <Card className="p-5">
             <Competition sales={sales} commission={commission} storeOptions={storeOptions} />
           </Card>
@@ -1382,7 +1384,7 @@ function DashboardContent() {
       )}
 
       {activeTab === 'pnl' && (
-        <div id="tab-pnl" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-pnl" tabIndex={0}>
+        <div id="view-panel-pnl" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-pnl" tabIndex={0}>
           <Card className="p-5">
             <PnlEditor derived={pnlDerived} />
           </Card>
@@ -1390,13 +1392,13 @@ function DashboardContent() {
       )}
 
       {activeTab === 'commission' && (
-        <div id="tab-commission" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-commission" tabIndex={0}>
+        <div id="view-panel-commission" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-commission" tabIndex={0}>
           <Card className="p-5"><CommissionEngine /></Card>
         </div>
       )}
 
       {activeTab === 'import' && (
-        <div id="tab-import" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-import" tabIndex={0}>
+        <div id="view-panel-import" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-import" tabIndex={0}>
           <Card className="p-5"><ImportReport sales={sales} commission={commission} /></Card>
         </div>
       )}
