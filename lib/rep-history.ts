@@ -11,7 +11,7 @@
 // No React, no storage, no server imports — pure functions over plain data, so
 // the same code serves the drawer, a future export, and the unit tests.
 import type { Person } from '@/components/dashboard/roster';
-import { personStatus } from '@/lib/people';
+import { personStatus, normalizeName } from '@/lib/people';
 import {
   type AttendanceBook,
   type AttendanceStatus,
@@ -61,12 +61,12 @@ const EMPTY_COUNTS: Record<AttendanceStatus, number> = { P: 0, L: 0, A: 0, E: 0 
  * recorded before the audit trail still count.
  */
 export function attendanceHistory(book: AttendanceBook, name: string): AttendanceHistory {
-  const target = String(name ?? '').trim().toLowerCase();
+  const target = normalizeName(name);
   const days: AttendanceDay[] = [];
 
   for (const [date, byPerson] of Object.entries(book ?? {})) {
     for (const [person, stored] of Object.entries(byPerson ?? {})) {
-      if (person.trim().toLowerCase() !== target) continue;
+      if (normalizeName(person) !== target) continue;
       const status = markStatus(stored);
       if (!status) continue;
       const audit: AttendanceMark | undefined = markOf(stored);
@@ -162,22 +162,22 @@ export function tenureDays(
  * a store they were never assigned to. Both belong on a lifetime record.
  */
 export function storesWorked(sales: SaleEntry[], person: Pick<Person, 'name' | 'stores'>): string[] {
-  const target = String(person.name ?? '').trim().toLowerCase();
+  const target = normalizeName(person.name);
   const set = new Set<string>();
   for (const s of person.stores ?? []) {
     if (s) set.add(s);
   }
   for (const s of sales ?? []) {
-    if (s.store && s.person?.trim().toLowerCase() === target) set.add(s.store);
+    if (s.store && normalizeName(s.person) === target) set.add(s.store);
   }
   return Array.from(set).sort((a, b) => a.localeCompare(b));
 }
 
 /** Date of this rep's first and most recent recorded sale, or null. */
 export function salesSpan(sales: SaleEntry[], name: string): { first: string; last: string } | null {
-  const target = String(name ?? '').trim().toLowerCase();
+  const target = normalizeName(name);
   const dates = (sales ?? [])
-    .filter(s => s.person?.trim().toLowerCase() === target && s.date)
+    .filter(s => normalizeName(s.person) === target && s.date)
     .map(s => s.date)
     .sort();
   if (!dates.length) return null;

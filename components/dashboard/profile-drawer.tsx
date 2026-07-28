@@ -7,6 +7,7 @@ import { cn, formatCurrency, getInitials } from '@/lib/utils';
 import { loadPeople, loadPromoRules, promotionStatus, effectiveAttendance, ROSTER_ROLE_LABELS, ROLE_LADDER } from './roster';
 import { Period, PERIOD_LABELS, aggregateSales, loadSales, loadCommission } from '@/lib/sales';
 import { computePay } from '@/lib/pay';
+import { RepLifetime } from './rep-lifetime';
 
 export function ProfileDrawer({ name, period, onClose }: { name: string; period: Period; onClose: () => void }) {
   // The drawer used to be locked to whatever period the dashboard was on, so
@@ -215,6 +216,8 @@ export function ProfileDrawer({ name, period, onClose }: { name: string; period:
                 })()}
               </div>
             </div>
+
+            <RepLifetime person={person} />
           </>
         ) : (
           <p className="text-xs text-text-secondary p-3 rounded-xl bg-white/5">

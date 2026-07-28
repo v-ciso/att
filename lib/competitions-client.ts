@@ -27,6 +27,16 @@ export async function fetchCompetitions(status?: 'active' | 'ended' | 'archived'
   return items ?? [];
 }
 
+/**
+ * First-place finishes per personId across every ended comp. Returns {} on
+ * failure so a profile still renders without its trophy count.
+ */
+export async function fetchCompetitionWins(): Promise<Record<string, { personName: string; wins: number }>> {
+  const res = await fetch('/api/competitions/wins', { credentials: 'same-origin', cache: 'no-store' });
+  const wins = await readJson<Record<string, { personName: string; wins: number }>>(res, 'wins');
+  return wins ?? {};
+}
+
 export async function createCompetitionApi(input: {
   title: string; prize: string; metric: string; store?: string | null; periodStart?: string;
 }): Promise<CompetitionDTO | null> {
