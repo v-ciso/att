@@ -133,6 +133,33 @@ model MarketOwner {
   commissionRules        CommissionRule[]
   goals                  Goal[]
   data                   TenantData[]
+  archives               DataArchive[]
+}
+
+// The recycle bin. Nothing in this app is ever hard-deleted from the UI: every
+// rep/store/competition removal and every full-tenant snapshot lands here first
+// as a JSON payload, scoped to the company. An OWNER can restore their own
+// company's items; only a super-admin can permanently purge (typed confirm +
+// reason, logged). kind is a plain string rather than an enum so a new archived
+// entity type never needs a migration.
+model DataArchive {
+  id            String      @id @default(cuid())
+  marketOwnerId String
+  marketOwner   MarketOwner @relation(fields: [marketOwnerId], references: [id], onDelete: Cascade)
+  kind          String      // PERSON | STORE | COMPETITION | TENANT_SNAPSHOT
+  refId         String      // the archived entity's own id (person.id, etc.)
+  label         String      // human label shown in the recovery list
+  payload       Json        // the full entity, restorable as-is
+  deletedBy     String      // userId or system marker
+  deletedAt     DateTime    @default(now())
+  restoredAt    DateTime?
+  restoredBy    String?
+  purgedAt      DateTime?   // set when a super-admin permanently purges
+  purgedBy      String?
+  reason        String?     // required on purge, optional on archive
+
+  @@index([marketOwnerId, kind])
+  @@index([marketOwnerId, restoredAt])
 }
 
 // Per-company operational data (roster, sales, schedule, attendance, P&L, ...),

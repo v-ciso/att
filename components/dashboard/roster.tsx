@@ -5,13 +5,18 @@ import { createPortal } from 'react-dom';
 import { useLocalState, Editable, parseNum } from './editable-sections';
 import { cn, formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Trash2, TrendingUp, Award, UserPlus, Pencil, ChevronDown, Plus, Store as StoreIcon } from 'lucide-react';
+import { Trash2, TrendingUp, Award, UserPlus, Pencil, ChevronDown, Plus, Store as StoreIcon, Archive, UserMinus, RotateCcw } from 'lucide-react';
+import { useSession } from 'next-auth/react';
 import { TeamTree } from './team-tree';
 import { notifyDataChanged, loadCommission, markStatus, ATTENDANCE_KEY, type AttendanceBook } from '@/lib/sales';
 import { RETAILERS } from '@/lib/shifts';
 import { seedForWorkspace } from '@/lib/workspace';
 import { useConfirm } from '@/hooks/use-confirm';
 import { useAnnounce } from '@/components/a11y/announcer';
+import {
+  activePeople, isActive, personStatus, assignEmployeeCodes, findRehireCandidate,
+} from '@/lib/people';
+import { archiveEntity } from '@/lib/archive-client';
 import { useModalA11y } from '@/hooks/use-modal-a11y';
 
 // ---------------------------------------------------------------------------
@@ -36,6 +41,8 @@ const ROLE_BADGE: Record<RosterRole, string> = {
   ASM: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/20',
 };
 
+export type PersonStatus = 'active' | 'retired' | 'archived';
+
 export interface Person {
   id: string;
   name: string;
@@ -45,6 +52,20 @@ export interface Person {
   weeklyProfit: number[];
   attendance: number; // manual fallback % (tracked records win when present)
   hourlyWeekly?: number; // guaranteed weekly hourly pay; rep is paid MAX(commission, hourly). 0 = commission-only
+  // --- Identity + lifecycle (Phase 4) ---------------------------------------
+  // Stable, immutable, human-readable id (e.g. "SOR-0007"). Assigned once at
+  // migration/hire and never reused, so history (sales, attendance, comps) can
+  // key off it even after a rename. Optional on the type for back-compat with
+  // pre-migration blobs; migratePeople() backfills it.
+  employeeCode?: string;
+  // active = on the roster; retired = kept for history but out of scheduling /
+  // attendance / active leaderboards; archived = removed to the recycle bin.
+  // Absent means active (pre-migration rows).
+  status?: PersonStatus;
+  hiredAt?: string; // ISO date
+  retiredAt?: string; // ISO date, set when retired
+  retiredReason?: string;
+  rehiredAt?: string[]; // ISO dates, one per rehire, so tenure history survives
 }
 
 export interface PromotionRules {
@@ -100,6 +121,12 @@ export function migratePeople(raw: unknown): Person[] {
       weeklyProfit: Array.isArray(p.weeklyProfit) ? p.weeklyProfit : [],
       team: p.team ?? '',
       attendance: typeof p.attendance === 'number' ? p.attendance : 100,
+      // Phase 4 identity/lifecycle: a pre-migration row has no status, which
+      // means it is a current, active employee. employeeCode is left to be
+      // backfilled by RosterManager, which knows the company name for the
+      // prefix; the rehiredAt log defaults to empty.
+      status: (p.status as Person['status']) ?? 'active',
+      rehiredAt: Array.isArray(p.rehiredAt) ? p.rehiredAt : [],
     }));
 }
 
@@ -478,6 +505,24 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
   const [showAdd, setShowAdd] = useState(false);
   const { confirm, confirmDialog } = useConfirm();
   const announce = useAnnounce();
+  const { data: session } = useSession();
+  const companyName = session?.user?.companyName;
+  // Retired people are kept for history but hidden from the day-to-day roster
+  // until the manager asks to see them.
+  const [showRetired, setShowRetired] = useState(false);
+
+  // One-time identity backfill: give every person a stable, company-prefixed
+  // employeeCode. Idempotent and guarded on "some code is missing" so it never
+  // loops (assignEmployeeCodes returns fresh objects each call). Runs only once
+  // the company name is known, so the prefix is correct (SOR-0001, not EMP-).
+  const codesBackfilled = useRef(false);
+  useEffect(() => {
+    if (codesBackfilled.current) return;
+    if (!people.length) return;
+    if (!people.some(p => !p.employeeCode)) { codesBackfilled.current = true; return; }
+    codesBackfilled.current = true;
+    setPeople(prev => assignEmployeeCodes(prev, companyName));
+  }, [people, companyName, setPeople]);
 
   // Store options come from the Commission Engine's store list
   const [storeOptions, setStoreOptions] = useState<string[]>(['Costco 1018', 'Costco 1020', 'Target 2450', "BJ's 610"]);
