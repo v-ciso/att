@@ -252,7 +252,11 @@ export function TabBar({
             role="tab"
             id={`${prefix}tab-${item.value}`}
             aria-selected={isActive}
-            aria-controls={`${prefix}panel-${item.value}`}
+            // Consumers that mount only the active panel (the dashboard does)
+            // would otherwise leave every inactive tab pointing aria-controls at
+            // an element that isn't in the DOM — a dangling reference screen
+            // readers can't follow. Emit it only where the target really exists.
+            aria-controls={isActive ? `${prefix}panel-${item.value}` : undefined}
             aria-label={item.ariaLabel}
             tabIndex={isActive ? 0 : -1}
             disabled={item.disabled}

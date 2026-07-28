@@ -1177,12 +1177,12 @@ function DashboardContent() {
         </div>
       )}
 
+      {/* `presentable` (not the element id) drives the fullscreen styling, so
+          Present keeps working regardless of the ARIA id scheme. */}
       {activeTab === 'meeting' && (
         <div
           id="view-panel-meeting"
           ref={meetingRef}
-          // `presentable` (not the element id) drives the fullscreen styling, so
-          // Present keeps working regardless of the ARIA id scheme.
           className="tab-panel presentable"
           role="tabpanel"
           aria-labelledby="view-tab-meeting"
