@@ -11,6 +11,7 @@ import { useAnnounce } from '@/components/a11y/announcer';
 import { useActor } from '@/lib/use-actor';
 import { can } from '@/lib/permissions';
 import { normalizeName } from '@/lib/people';
+import { archiveEntity } from '@/lib/archive-client';
 import {
   fetchCompetitions, createCompetitionApi, updateCompetitionApi, endCompetitionApi,
   type CompetitionDTO,
@@ -140,7 +141,7 @@ function CompCard({
             </button>
           )}
           {canManage && (
-            <button onClick={onRemove} className="p-1.5 rounded-lg text-text-muted hover:text-accent-red hover:bg-accent-red/10 transition-all" aria-label={`Remove ${comp.title}`}>
+            <button onClick={onRemove} className="p-1.5 rounded-lg text-text-muted hover:text-accent-red hover:bg-accent-red/10 transition-all" aria-label={`Archive ${comp.title} to recycle bin`} title="Archive to recycle bin (restorable)">
               <Trash2 className="w-4 h-4" />
             </button>
           )}
@@ -321,15 +322,31 @@ export function Competition({ sales, commission, storeOptions, compact = false }
   const edit = (id: string, patch: Partial<Comp>) =>
     setComps(prev => prev.map(c => (c.id === id ? { ...c, ...patch } : c)));
 
+  // Removing a competition archives it to the company recycle bin rather than
+  // hard-deleting it: nothing in this app is unrecoverable. The live standings
+  // are derived from sales so they are not frozen here (that is what "End &
+  // save" is for) — but the comp's own setup is restorable if this was a
+  // mis-click. Local config is dropped only after the server confirms.
   const remove = async (id: string) => {
     const c = comps.find(x => x.id === id);
-    if (c && !(await confirm({
-      title: `Delete the "${c.title}" competition?`,
-      description: 'Its standings are NOT saved. Use "End & save" instead if you want to keep the results in history.',
-      confirmLabel: 'Delete without saving',
+    if (!c) return;
+    if (!(await confirm({
+      title: `Archive the "${c.title}" competition?`,
+      description: 'Its standings are NOT frozen into history — use "End & save" for that. The setup moves to the recycle bin, where an owner can restore it.',
+      confirmLabel: 'Archive competition',
       destructive: true,
     }))) return;
-    setComps(prev => (prev.length > 1 ? prev.filter(x => x.id !== id) : prev));
+    const saved = await archiveEntity({ kind: 'COMPETITION', refId: c.id, label: c.title, payload: c });
+    if (!saved) {
+      await confirm({
+        title: 'Archive failed',
+        description: `"${c.title}" could not be moved to the recycle bin, so it is still on the floor. You may not have permission, or the connection dropped.`,
+        confirmLabel: 'OK',
+        hideCancel: true,
+      });
+      return;
+    }
+    setComps(prev => prev.filter(x => x.id !== id));
   };
 
   // End & save: create the comp server-side if it only ever lived client-side,
@@ -397,6 +414,13 @@ export function Competition({ sales, commission, storeOptions, compact = false }
         </div>
       </div>
       <div className="space-y-3">
+        {comps.length === 0 && (
+          <p className="text-sm text-text-muted p-4 rounded-xl bg-white/[0.03] text-pretty">
+            {canManage
+              ? 'No competitions running. Start one to get the floor moving \u2014 standings fill in automatically from the Daily Tracker.'
+              : 'No competitions are running right now.'}
+          </p>
+        )}
         {comps.map(comp => (
           <CompCard
             key={comp.id}
