@@ -178,9 +178,9 @@ export function ImportReport({ sales, commission }: { sales: SaleEntry[]; commis
             <table className="w-full min-w-[640px] text-xs">
               <thead>
                 <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
-                  <th className="pb-2">Report Name</th><th className="pb-2">Matched</th>
-                  <th className="pb-2 text-right">Reported</th><th className="pb-2 text-right">Tool Computed</th>
-                  <th className="pb-2 text-right">Difference</th><th className="pb-2">Status</th>
+                  <th scope="col" className="pb-2">Report Name</th><th scope="col" className="pb-2">Matched</th>
+                  <th scope="col" className="pb-2 text-right">Reported</th><th scope="col" className="pb-2 text-right">Tool Computed</th>
+                  <th scope="col" className="pb-2 text-right">Difference</th><th scope="col" className="pb-2">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">

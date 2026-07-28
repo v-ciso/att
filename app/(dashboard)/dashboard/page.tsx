@@ -306,10 +306,10 @@ function ProductionDrawer({
               <table className="w-full min-w-[380px] text-xs">
                 <thead>
                   <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
-                    <th className="pb-2">Rep</th>
-                    <th className="pb-2 text-right">{view.column.head}</th>
-                    <th className="pb-2 text-right">Generated</th>
-                    <th className="pb-2 text-right">Commission</th>
+                    <th scope="col" className="pb-2">Rep</th>
+                    <th scope="col" className="pb-2 text-right">{view.column.head}</th>
+                    <th scope="col" className="pb-2 text-right">Generated</th>
+                    <th scope="col" className="pb-2 text-right">Commission</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
@@ -1136,11 +1136,11 @@ function DashboardContent() {
               <table className="w-full min-w-[860px] text-xs">
                 <thead>
                   <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
-                    <th className="pb-2">Rank</th><th className="pb-2">Rep</th><th className="pb-2">Store</th><th className="pb-2">Team</th>
-                    <th className="pb-2 text-right">Lines</th><th className="pb-2 text-right">Premium</th>
-                    <th className="pb-2 text-right">Internet</th><th className="pb-2 text-right">Next Up</th>
-                    <th className="pb-2 text-right" title="Total office payout this rep generated">Generated</th>
-                    <th className="pb-2 text-right" title="Their commission at your rates">Commission</th>
+                    <th scope="col" className="pb-2">Rank</th><th scope="col" className="pb-2">Rep</th><th scope="col" className="pb-2">Store</th><th scope="col" className="pb-2">Team</th>
+                    <th scope="col" className="pb-2 text-right">Lines</th><th scope="col" className="pb-2 text-right">Premium</th>
+                    <th scope="col" className="pb-2 text-right">Internet</th><th scope="col" className="pb-2 text-right">Next Up</th>
+                    <th scope="col" className="pb-2 text-right" title="Total office payout this rep generated">Generated</th>
+                    <th scope="col" className="pb-2 text-right" title="Their commission at your rates">Commission</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
@@ -1246,11 +1246,11 @@ function DashboardContent() {
                   <table className="w-full min-w-[520px] text-xs">
                     <thead>
                       <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
-                        <th className="pb-2">Name</th><th className="pb-2">Role</th>
-                        <th className="pb-2 text-right">Own sales</th>
-                        <th className="pb-2 text-right">Lead bump</th>
-                        <th className="pb-2 text-right">ASM override</th>
-                        <th className="pb-2 text-right">Total</th>
+                        <th scope="col" className="pb-2">Name</th><th scope="col" className="pb-2">Role</th>
+                        <th scope="col" className="pb-2 text-right">Own sales</th>
+                        <th scope="col" className="pb-2 text-right">Lead bump</th>
+                        <th scope="col" className="pb-2 text-right">ASM override</th>
+                        <th scope="col" className="pb-2 text-right">Total</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border-subtle">

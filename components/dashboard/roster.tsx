@@ -551,16 +551,16 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
         <table className="w-full min-w-[1000px] text-xs">
           <thead>
             <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
-              <th className="pb-2 pr-2">Employee</th>
-              <th className="pb-2 pr-2">Role</th>
-              <th className="pb-2 pr-2">Stores</th>
-              <th className="pb-2 pr-2">Team</th>
-              <th className="pb-2 pr-2" title="Guaranteed weekly hourly pay — rep gets MAX(commission, hourly). 0 = commission-only">Hourly/wk</th>
-              <th className="pb-2 pr-2">Wk-1 Profit</th>
-              <th className="pb-2 pr-2">Wk-2 Profit</th>
-              <th className="pb-2 pr-2">Attend.</th>
-              <th className="pb-2 pr-2">Roadmap</th>
-              <th className="pb-2"><span className="sr-only">Actions</span></th>
+              <th scope="col" className="pb-2 pr-2">Employee</th>
+              <th scope="col" className="pb-2 pr-2">Role</th>
+              <th scope="col" className="pb-2 pr-2">Stores</th>
+              <th scope="col" className="pb-2 pr-2">Team</th>
+              <th scope="col" className="pb-2 pr-2" title="Guaranteed weekly hourly pay — rep gets MAX(commission, hourly). 0 = commission-only">Hourly/wk</th>
+              <th scope="col" className="pb-2 pr-2">Wk-1 Profit</th>
+              <th scope="col" className="pb-2 pr-2">Wk-2 Profit</th>
+              <th scope="col" className="pb-2 pr-2">Attend.</th>
+              <th scope="col" className="pb-2 pr-2">Roadmap</th>
+              <th scope="col" className="pb-2"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle">

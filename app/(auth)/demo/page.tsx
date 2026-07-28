@@ -243,8 +243,8 @@ function DemoSchedule() {
         <table className="w-full min-w-[620px] text-xs">
           <thead>
             <tr className="text-text-muted border-b border-border-subtle">
-              <th className="text-left pb-2 font-medium">Rep</th>
-              {days.map(d => <th key={d} className="pb-2 font-medium">{d}</th>)}
+              <th scope="col" className="text-left pb-2 font-medium">Rep</th>
+              {days.map(d => <th scope="col" key={d} className="pb-2 font-medium">{d}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -397,13 +397,13 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
-                    <th className="pb-2">Rank</th>
-                    <th className="pb-2">Name</th>
-                    <th className="pb-2">Store</th>
-                    <th className="pb-2">Lines</th>
-                    <th className="pb-2">Premium</th>
-                    <th className="pb-2">Fiber</th>
-                    <th className="pb-2">Commission</th>
+                    <th scope="col" className="pb-2">Rank</th>
+                    <th scope="col" className="pb-2">Name</th>
+                    <th scope="col" className="pb-2">Store</th>
+                    <th scope="col" className="pb-2">Lines</th>
+                    <th scope="col" className="pb-2">Premium</th>
+                    <th scope="col" className="pb-2">Fiber</th>
+                    <th scope="col" className="pb-2">Commission</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">

@@ -144,11 +144,11 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
           </colgroup>
           <thead>
             <tr>
-              <th style={th}>#</th><th style={th}>Rep / Team</th><th style={th}>Store</th>
-              <th style={{ ...th, textAlign: 'right' }}>Lines</th>
-              <th style={{ ...th, textAlign: 'right' }}>Premium</th>
-              <th style={{ ...th, textAlign: 'right' }}>Fiber</th>
-              <th style={{ ...th, textAlign: 'right' }}>Commission</th>
+              <th scope="col" style={th}>#</th><th scope="col" style={th}>Rep / Team</th><th scope="col" style={th}>Store</th>
+              <th scope="col" style={{ ...th, textAlign: 'right' }}>Lines</th>
+              <th scope="col" style={{ ...th, textAlign: 'right' }}>Premium</th>
+              <th scope="col" style={{ ...th, textAlign: 'right' }}>Fiber</th>
+              <th scope="col" style={{ ...th, textAlign: 'right' }}>Commission</th>
             </tr>
           </thead>
           <tbody>
@@ -242,10 +242,10 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
           </colgroup>
           <thead>
             <tr>
-              <th style={th}>Employee</th><th style={th}>Role</th><th style={th}>Store</th><th style={th}>Team</th>
-              <th style={{ ...th, textAlign: 'right' }}>Wk Profit</th>
-              <th style={{ ...th, textAlign: 'right' }}>Attend.</th>
-              <th style={th}>Roadmap</th>
+              <th scope="col" style={th}>Employee</th><th scope="col" style={th}>Role</th><th scope="col" style={th}>Store</th><th scope="col" style={th}>Team</th>
+              <th scope="col" style={{ ...th, textAlign: 'right' }}>Wk Profit</th>
+              <th scope="col" style={{ ...th, textAlign: 'right' }}>Attend.</th>
+              <th scope="col" style={th}>Roadmap</th>
             </tr>
           </thead>
           <tbody>
