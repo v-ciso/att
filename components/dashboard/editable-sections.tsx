@@ -26,7 +26,16 @@ export function useLocalState<T>(key: string, defaultValue: T, liveDefault?: T) 
       ? liveDefault
       : defaultValue;
 
-  const [state, setStateRaw] = useState<T>(resolveDefault);
+  // The initial value must NOT branch on `window`. resolveDefault() calls
+  // readWorkspace(), which reads localStorage, so the server fell through to
+  // `defaultValue` (the demo roster) while the client's first render returned
+  // `liveDefault` (empty). The server therefore shipped <tr> rows that the
+  // client immediately disagreed with — the "server HTML contained a <tr> in
+  // <tbody>" hydration error on the roster, meeting, competition and commission
+  // tabs. Both sides now start from the same `defaultValue`, and the
+  // workspace-specific default is applied in the effect below where
+  // localStorage genuinely exists.
+  const [state, setStateRaw] = useState<T>(defaultValue);
   const [loaded, setLoaded] = useState(false);
   // True once this key is genuinely "owned" — either a saved value was loaded,
   // or the user edited. Until then we do NOT write, so opening a tab can never
@@ -36,7 +45,14 @@ export function useLocalState<T>(key: string, defaultValue: T, liveDefault?: T) 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(key);
-      if (saved) { setStateRaw(JSON.parse(saved)); ownedRef.current = true; }
+      if (saved) {
+        setStateRaw(JSON.parse(saved));
+        ownedRef.current = true;
+      } else {
+        // Nothing saved: now that we're on the client we can tell a live
+        // workspace from a demo one, so drop the demo furniture if this is live.
+        setStateRaw(resolveDefault());
+      }
     } catch {
       // corrupted storage — keep defaults
     }
