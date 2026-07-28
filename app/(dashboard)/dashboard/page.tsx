@@ -1148,7 +1148,7 @@ function DashboardContent() {
                     .filter(r => storeSel.length === 0 || storeSel.some(s => (r.person.stores ?? []).some(ps => ps.toLowerCase() === s.toLowerCase())))
                     .map((row, i) => (
                       <tr key={row.person.id} className="hover:bg-white/5 transition-colors">
-                        <td className="py-2"><span className={cn('font-bold', i === 0 && 'text-yellow-400', i === 1 && 'text-gray-400', i === 2 && 'text-orange-400', i > 2 && 'text-gray-500')}>#{i + 1}</span></td>
+                        <td className="py-2"><span className={cn('font-bold', i === 0 && 'text-yellow-400', i === 1 && 'text-gray-400', i === 2 && 'text-orange-400', i > 2 && 'text-text-secondary')}>#{i + 1}</span></td>
                         <td className="py-2">
                           <button onClick={() => setProfileName(row.person.name)} className="font-medium hover:text-accent-blue transition-colors">{row.person.name}</button>
                         </td>
