@@ -29,6 +29,11 @@ export type Capability =
   | 'commission.view'
   | 'competition.view'
   | 'competition.manage'
+  // Every signed-in seat may read the documents aimed at them; publishing and
+  // deleting is Owner/Manager only, so a lead cannot push a compliance doc
+  // company-wide or remove one that others still need to acknowledge.
+  | 'docs.view'
+  | 'docs.manage'
   | 'pnl.view'
   | 'settings.view'
   | 'import.use';
@@ -56,6 +61,8 @@ const ROLE_CAPS: Record<Role, Capability[]> = {
     'commission.view',
     'competition.view',
     'competition.manage',
+    'docs.view',
+    'docs.manage',
     'pnl.view',
     'settings.view',
     'import.use',
@@ -69,17 +76,29 @@ const ROLE_CAPS: Record<Role, Capability[]> = {
     'commission.view',
     'competition.view',
     'competition.manage',
+    'docs.view',
+    'docs.manage',
     'pnl.view',
     'import.use',
   ],
-  ASM: ['roster.manageOwnTeam', 'data.write', 'commission.view', 'competition.view', 'pnl.view'],
+  ASM: [
+    'roster.manageOwnTeam',
+    'data.write',
+    'commission.view',
+    'competition.view',
+    'docs.view',
+    'pnl.view',
+  ],
   // "Leads can only add team members for themselves if given access" — the
   // roster capability is gated behind allowAddTeamMembers in `can()` below.
-  LEAD: ['roster.manageOwnTeam', 'data.write', 'competition.view'],
+  LEAD: ['roster.manageOwnTeam', 'data.write', 'competition.view', 'docs.view'],
   // Read-only by contract: can see every screen, can change nothing.
-  VIEWER: ['commission.view', 'competition.view', 'pnl.view'],
-  REP: [],
-  INTERN: [],
+  VIEWER: ['commission.view', 'competition.view', 'docs.view', 'pnl.view'],
+  // Otherwise capability-less, but training and compliance material is exactly
+  // what these seats exist to receive — the per-doc audience filter decides
+  // which documents they actually see.
+  REP: ['docs.view'],
+  INTERN: ['docs.view'],
 };
 
 /** Capabilities that belong to the platform owner and can never be delegated. */
