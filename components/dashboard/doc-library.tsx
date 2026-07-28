@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useModalA11y } from '@/hooks/use-modal-a11y';
 import { can, type Actor, type Role } from '@/lib/permissions';
 import {
@@ -310,14 +311,23 @@ function UploadModal({
     onDone(`Uploaded "${finalTitle}".`);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+  // Portalled to document.body like every other modal here. The Library renders
+  // inside a `glass` Card whose backdrop-filter creates a containing block, so
+  // a fixed overlay left in place gets trapped in that stacking context and the
+  // dashboard toolbar paints over the form no matter how high its z-index is.
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      {/* The panel is fully opaque on purpose: `glass` plus an alpha background
+          let the dashboard toolbar behind bleed through, which made the form
+          labels hard to read. A data-entry dialog has to be solid. */}
       <div
         ref={ref}
         role="dialog"
         aria-modal="true"
         aria-label="Upload document"
-        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-surface border border-white/10 p-5 flex flex-col gap-3"
+        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-border-strong bg-bg-secondary p-5 flex flex-col gap-3 shadow-2xl"
       >
         <h3 className="text-base font-semibold text-text-primary">Upload document</h3>
 
@@ -476,6 +486,7 @@ function UploadModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

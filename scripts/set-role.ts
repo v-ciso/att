@@ -7,7 +7,10 @@
 import type { Role } from '@prisma/client';
 import { prisma } from '../lib/db';
 
-const ROLES: Role[] = ['OWNER', 'ASM', 'LEAD', 'REP', 'INTERN'];
+// Must stay in sync with enum Role in prisma/schema.prisma. MANAGER and VIEWER
+// were added to the enum later; without them listed here this script silently
+// refuses to assign two perfectly valid roles.
+const ROLES: Role[] = ['OWNER', 'MANAGER', 'ASM', 'LEAD', 'REP', 'INTERN', 'VIEWER'];
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
