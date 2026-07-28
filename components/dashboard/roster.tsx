@@ -365,6 +365,7 @@ function EditEmployeeModal({ person, storeOptions, teamOptions, onSave, onClose 
   const [team, setTeam] = useState(person.team ?? '');
   const [hourly, setHourly] = useState(String(person.hourlyWeekly ?? 0));
   const [attendance, setAttendance] = useState(String(person.attendance ?? 100));
+  const [hiredAt, setHiredAt] = useState(person.hiredAt ?? '');
 
   // Escape closes, focus is trapped inside, and returns to the trigger on close.
   const panelRef = useModalA11y<HTMLDivElement>(onClose);
@@ -379,6 +380,9 @@ function EditEmployeeModal({ person, storeOptions, teamOptions, onSave, onClose 
       team,
       hourlyWeekly: Math.max(0, parseNum(hourly)),
       attendance: Math.min(100, Math.max(0, parseNum(attendance))),
+      // Blank clears the date rather than writing an empty string, so the
+      // lifetime panel can tell "no hire date on file" from a real one.
+      hiredAt: hiredAt || undefined,
     });
   };
 
@@ -424,6 +428,18 @@ function EditEmployeeModal({ person, storeOptions, teamOptions, onSave, onClose 
             </div>
           </div>
           <p className="text-[10px] text-text-muted">Attendance here is the manual fallback — real Daily-Tracker marks override it.</p>
+          <div>
+            <label className="label-base">Hire date</label>
+            <input
+              aria-label="Hire date"
+              type="date"
+              value={hiredAt}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={e => setHiredAt(e.target.value)}
+              className={selectClass}
+            />
+            <p className="text-[10px] text-text-muted mt-1">Drives tenure on their profile. Leave blank if you don&apos;t know it.</p>
+          </div>
           <Button className="w-full" onClick={save}>Save changes</Button>
         </div>
       </div>

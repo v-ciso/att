@@ -103,7 +103,7 @@ export function RepLifetime({ person }: { person: Person }) {
 
       {days === null && (
         <p className="text-[10px] text-text-muted mb-3">
-          No hire date on file — set one on the Roster tab to track tenure.
+          No hire date on file — add one via Edit on the Roster tab to track tenure.
         </p>
       )}
 
@@ -129,7 +129,7 @@ export function RepLifetime({ person }: { person: Person }) {
       {/* Attendance breakdown */}
       <div className="mb-3">
         <p className="text-[9px] text-text-muted uppercase tracking-wider mb-1.5">
-          Attendance {att.tracked > 0 && <span className="normal-case tracking-normal">({att.tracked} days marked)</span>}
+          Attendance {att.tracked > 0 && <span className="normal-case tracking-normal">({att.tracked} {att.tracked === 1 ? 'day' : 'days'} marked)</span>}
         </p>
         {att.tracked === 0 ? (
           <p className="text-[11px] text-text-muted">No days marked yet — mark attendance in the Daily Tracker.</p>
