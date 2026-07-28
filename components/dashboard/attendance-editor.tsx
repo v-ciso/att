@@ -297,14 +297,24 @@ export function AttendanceEditor({
               <ChevronRight className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
-          <Button variant="secondary" size="sm" onClick={() => setDate(today)} disabled={isToday}>
+          {/* Shortcuts, not a disabled/enabled pair. Using `disabled` to mean "you
+              are already here" made the *other* button look like the selected one,
+              and a screen reader only heard "Today, unavailable" — it never learned
+              which day was open. aria-pressed states the selection outright and
+              both stay actionable. */}
+          <Button
+            variant={isToday ? 'primary' : 'secondary'}
+            size="sm"
+            aria-pressed={isToday}
+            onClick={() => setDate(today)}
+          >
             Today
           </Button>
           <Button
-            variant="secondary"
+            variant={offset === 1 ? 'primary' : 'secondary'}
             size="sm"
+            aria-pressed={offset === 1}
             onClick={() => setDate(shiftDate(today, -1))}
-            disabled={offset === 1}
           >
             Yesterday
           </Button>

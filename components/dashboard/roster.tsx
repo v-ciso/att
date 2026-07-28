@@ -72,8 +72,35 @@ export const DEFAULT_PEOPLE: Person[] = [
   { id: 'p7', name: 'Dana White', role: 'INTERN', stores: ['Target 2450'], team: '', weeklyProfit: [2100, 1900], attendance: 85 },
 ];
 
+// Roles arrive from localStorage, CSV imports, and older app versions, so the
+// stored value can be anything. Coerce it to a ladder role once, at the edge,
+// rather than letting a bad string travel into promotion math and badges.
+export function normalizeRole(role: unknown): RosterRole {
+  const up = String(role ?? '').trim().toUpperCase();
+  return (ROLE_LADDER as readonly string[]).includes(up) ? (up as RosterRole) : 'REP';
+}
+
 export function primaryStore(p: Person): string {
   return p.stores[0] ?? 'Costco';
+}
+
+// The single shape-fixer for stored roster data. Every reader — loadPeople and
+// the roster grid's own useLocalState — runs this, so no view can render a
+// half-migrated person (missing `stores[]`, legacy `store`, unknown role).
+export function migratePeople(raw: unknown): Person[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as Array<Person & { store?: string }>)
+    .filter(p => p && typeof p === 'object')
+    .map(p => ({
+      ...p,
+      role: normalizeRole(p.role),
+      // Migrate single `store` → `stores[]`
+      stores: p.stores?.length ? p.stores : [p.store ?? 'Costco'],
+      hourlyWeekly: p.hourlyWeekly ?? 0,
+      weeklyProfit: Array.isArray(p.weeklyProfit) ? p.weeklyProfit : [],
+      team: p.team ?? '',
+      attendance: typeof p.attendance === 'number' ? p.attendance : 100,
+    }));
 }
 
 export function loadPeople(): Person[] {
@@ -84,13 +111,7 @@ export function loadPeople(): Person[] {
   try {
     const saved = localStorage.getItem(PEOPLE_KEY);
     if (!saved) return seedForWorkspace(DEFAULT_PEOPLE, []);
-    const raw = JSON.parse(saved) as Array<Person & { store?: string }>;
-    // Migrate single `store` → `stores[]`
-    return raw.map(p => ({
-      ...p,
-      stores: p.stores?.length ? p.stores : [p.store ?? 'Costco'],
-      hourlyWeekly: p.hourlyWeekly ?? 0,
-    }));
+    return migratePeople(JSON.parse(saved));
   } catch {
     return seedForWorkspace(DEFAULT_PEOPLE, []);
   }
@@ -450,7 +471,7 @@ function AddEmployeeModal({ storeOptions, teamOptions, onAdd, onClose }: {
 }
 
 export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string) => void }) {
-  const { state: people, setState: setPeople, reset: resetPeople } = useLocalState<Person[]>(PEOPLE_KEY, DEFAULT_PEOPLE, []);
+  const { state: people, setState: setPeople, reset: resetPeople } = useLocalState<Person[]>(PEOPLE_KEY, DEFAULT_PEOPLE, [], migratePeople);
   const { state: rules, setState: setRules, reset: resetRules } = useLocalState<PromotionRules>(PROMO_RULES_KEY, DEFAULT_PROMO_RULES);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editModalId, setEditModalId] = useState<string | null>(null);
@@ -615,10 +636,13 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                         const i = ROLE_LADDER.indexOf(person.role);
                         edit(person.id, { role: ROLE_LADDER[(i + 1) % ROLE_LADDER.length] });
                       }}
-                      className={cn('px-2 py-0.5 rounded-full border text-[10px] uppercase tracking-wider transition-all hover:brightness-125', ROLE_BADGE[person.role])}
+                      className={cn('px-2 py-0.5 rounded-full border text-[10px] uppercase tracking-wider transition-all hover:brightness-125', ROLE_BADGE[person.role] ?? ROLE_BADGE.REP)}
                       title="Click to cycle role"
+                      aria-label={`Role: ${ROSTER_ROLE_LABELS[person.role] ?? person.role}. Click to cycle role for ${person.name}`}
                     >
-                      {ROSTER_ROLE_LABELS[person.role]}
+                      {/* Fallback keeps an imported/unknown role visible and the button named,
+                          instead of rendering an empty, unlabelled control. */}
+                      {ROSTER_ROLE_LABELS[person.role] ?? person.role ?? 'Unknown'}
                     </button>
                   </td>
                   <td className="py-2 pr-2">

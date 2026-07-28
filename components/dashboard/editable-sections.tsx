@@ -20,7 +20,12 @@ export { REIMBURSE_LAG_DAYS, roadtripTotals };
 // Demo defaults (sample reps, teams, competitions) must never appear on — or
 // leak into — a real account. Pass `[]` (or an empty config) for anything that
 // is demo furniture; omit it for legitimate defaults like plan payouts.
-export function useLocalState<T>(key: string, defaultValue: T, liveDefault?: T) {
+// `migrate` runs on whatever was parsed out of storage before it becomes state.
+// Without it, a view that reads a key directly renders raw stored JSON while
+// views going through a loader (e.g. loadPeople) render migrated data — so the
+// same person could have a `stores[]` array in one tab and an undefined one in
+// another, depending on which code path happened to read it.
+export function useLocalState<T>(key: string, defaultValue: T, liveDefault?: T, migrate?: (raw: unknown) => T) {
   const resolveDefault = (): T =>
     liveDefault !== undefined && typeof window !== 'undefined' && readWorkspace().mode === 'live'
       ? liveDefault
@@ -46,7 +51,8 @@ export function useLocalState<T>(key: string, defaultValue: T, liveDefault?: T) 
     try {
       const saved = localStorage.getItem(key);
       if (saved) {
-        setStateRaw(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        setStateRaw(migrate ? migrate(parsed) : parsed);
         ownedRef.current = true;
       } else {
         // Nothing saved: now that we're on the client we can tell a live
