@@ -107,14 +107,21 @@ export function AttendanceSheet({ people }: { people: Person[] }) {
   const shiftWindow = (dir: number) => setEnd(e => shiftDate(e, dir * SPAN_DAYS[span]));
 
   const totals = rows.reduce(
-    (a, r) => ({ present: a.present + r.present, late: a.late + r.late, absent: a.absent + r.absent }),
-    { present: 0, late: 0, absent: 0 }
+    (a, r) => ({
+      present: a.present + r.present, late: a.late + r.late,
+      absent: a.absent + r.absent, excused: a.excused + r.excused,
+    }),
+    { present: 0, late: 0, absent: 0, excused: 0 }
   );
-  const totalMarked = totals.present + totals.late + totals.absent;
+  // Denominator for the score: excused days are excluded, matching summarise().
+  const totalScored = totals.present + totals.late + totals.absent;
+  // Whether anything was recorded at all. This has to count excused days too, or
+  // a period where everyone was excused would claim "nothing marked".
+  const totalMarked = totalScored + totals.excused;
 
   const exportCsv = () => {
-    const header = ['Rep', 'Present', 'Late', 'Absent', 'Days marked', 'Score %', 'Last late', 'Last absent'];
-    const body = rows.map(r => [r.person, r.present, r.late, r.absent, r.marked, r.score, r.lastLate ?? '', r.lastAbsent ?? '']);
+    const header = ['Rep', 'Present', 'Late', 'Absent', 'Excused', 'Days marked', 'Score %', 'Last late', 'Last absent'];
+    const body = rows.map(r => [r.person, r.present, r.late, r.absent, r.excused, r.marked, r.score, r.lastLate ?? '', r.lastAbsent ?? '']);
     const csv = [header, ...body].map(line => line.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
     const a = document.createElement('a');
@@ -203,12 +210,14 @@ export function AttendanceSheet({ people }: { people: Person[] }) {
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
             {[
-              { label: SPAN_LABEL[span], value: `${Math.round(((totals.present + totals.late * 0.5) / totalMarked) * 100)}%`, cls: 'text-accent-green' },
+              // Guard the divide: a period of only excused days has totalScored 0.
+              { label: SPAN_LABEL[span], value: totalScored ? `${Math.round(((totals.present + totals.late * 0.5) / totalScored) * 100)}%` : '—', cls: 'text-accent-green' },
               { label: 'Present', value: String(totals.present), cls: 'text-accent-green' },
               { label: 'Late', value: String(totals.late), cls: 'text-accent-yellow' },
               { label: 'Absent', value: String(totals.absent), cls: 'text-accent-red' },
+              { label: 'Excused', value: String(totals.excused), cls: 'text-accent-blue' },
             ].map(s => (
               <div key={s.label} className="p-4 rounded-xl glass border border-border-subtle">
                 <p className="text-[11px] text-text-muted uppercase tracking-wider">{s.label}</p>
@@ -228,6 +237,7 @@ export function AttendanceSheet({ people }: { people: Person[] }) {
                   <th scope="col" className="pb-2 text-right">Present</th>
                   <th scope="col" className="pb-2 text-right">Late</th>
                   <th scope="col" className="pb-2 text-right">Absent</th>
+                  <th scope="col" className="pb-2 text-right">Excused</th>
                   <th scope="col" className="pb-2 text-right">Score</th>
                   <th scope="col" className="pb-2 text-right">Last late</th>
                   <th scope="col" className="pb-2 text-right">Last absent</th>
@@ -242,6 +252,7 @@ export function AttendanceSheet({ people }: { people: Person[] }) {
                     <td className="py-2 text-right text-accent-green">{r.present}</td>
                     <td className="py-2 text-right text-accent-yellow">{r.late || '—'}</td>
                     <td className="py-2 text-right text-accent-red">{r.absent || '—'}</td>
+                    <td className="py-2 text-right text-accent-blue">{r.excused || '—'}</td>
                     <td className={cn('py-2 text-right font-bold', r.score >= 90 ? 'text-accent-green' : r.score >= 75 ? 'text-accent-yellow' : 'text-accent-red')}>
                       {r.marked ? `${r.score}%` : '—'}
                     </td>

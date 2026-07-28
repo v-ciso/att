@@ -7,7 +7,7 @@ import { cn, formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Trash2, TrendingUp, Award, UserPlus, Pencil, ChevronDown, Plus, Store as StoreIcon } from 'lucide-react';
 import { TeamTree } from './team-tree';
-import { notifyDataChanged, loadCommission } from '@/lib/sales';
+import { notifyDataChanged, loadCommission, markStatus, ATTENDANCE_KEY, type AttendanceBook } from '@/lib/sales';
 import { RETAILERS } from '@/lib/shifts';
 import { seedForWorkspace } from '@/lib/workspace';
 import { useConfirm } from '@/hooks/use-confirm';
@@ -111,13 +111,21 @@ export function loadPromoRules(): PromotionRules {
 export function attendanceFromRecords(name: string): number | null {
   if (typeof window === 'undefined') return null;
   try {
-    const book = JSON.parse(localStorage.getItem('se-attendance-v1') || '{}') as Record<string, Record<string, 'P' | 'L' | 'A'>>;
+    const book = JSON.parse(localStorage.getItem(ATTENDANCE_KEY) || '{}') as AttendanceBook;
     const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
     let score = 0, days = 0;
     for (const [date, marks] of Object.entries(book)) {
       if (date < cutoff) continue;
-      const status = marks[name];
+      // Read through markStatus. This used to index the raw value behind a
+      // hardcoded 'P'|'L'|'A' cast, so once marks gained an audit trail an object
+      // mark counted as a day but scored zero — quietly dragging every rep's
+      // attendance percentage down. A cast is not a check; TypeScript could not
+      // catch this one.
+      const status = markStatus(marks[name]);
       if (!status) continue;
+      // Excused days are outside the score, matching the Attendance grid rather
+      // than penalising an approved absence.
+      if (status === 'E') continue;
       days++;
       if (status === 'P') score += 1;
       else if (status === 'L') score += 0.5;

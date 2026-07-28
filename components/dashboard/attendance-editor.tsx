@@ -363,6 +363,10 @@ export function AttendanceEditor({
                     key={s}
                     type="button"
                     aria-pressed={status === s}
+                    // Explicit label: with only the glyph plus sr-only text the
+                    // accessible name computed as "PPresent". The group already
+                    // names the rep and date, so the button just needs the status.
+                    aria-label={ATTENDANCE_LABEL[s]}
                     onClick={() => setMark(p.name, s)}
                     className={cn(
                       'min-w-11 min-h-11 px-2 rounded-lg border text-[11px] font-bold transition-colors',
@@ -371,7 +375,6 @@ export function AttendanceEditor({
                     )}
                   >
                     <span aria-hidden="true">{s}</span>
-                    <span className="sr-only">{ATTENDANCE_LABEL[s]}</span>
                   </button>
                 ))}
               </span>
