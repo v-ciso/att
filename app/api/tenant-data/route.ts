@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { canWrite } from '@/lib/permissions';
 
 // The tenant's data container. Every read and write is scoped to the caller's
 // OWN marketOwnerId, taken from the SESSION and never from the request body.
@@ -69,7 +70,13 @@ export async function PUT(request: NextRequest) {
   if (!t) return NextResponse.json({ error: 'No tenant' }, { status: 401, headers: NO_STORE });
   // Read-only roles are already blocked at the edge for mutating methods, but
   // re-check here so this route is safe on its own.
-  if (t.role === 'VIEWER') return NextResponse.json({ error: 'Read-only' }, { status: 403, headers: NO_STORE });
+  //
+  // Was `role === 'VIEWER'`, which only named one of the read-only roles: REP and
+  // INTERN are equally read-only in the matrix and could still PUT. canWrite()
+  // covers every seat that lacks data.write, now and as roles are added.
+  if (!canWrite({ role: t.role })) {
+    return NextResponse.json({ error: 'Read-only' }, { status: 403, headers: NO_STORE });
+  }
 
   // A write from a client whose idea of "my company" disagrees with its session
   // is rejected outright. This is the server half of the leak fix.

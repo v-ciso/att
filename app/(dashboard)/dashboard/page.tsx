@@ -38,9 +38,26 @@ import { PromoPanel } from '@/components/dashboard/promo-panel';
 import { AttendanceSheet } from '@/components/dashboard/attendance-sheet';
 import { computePay } from '@/lib/pay';
 import { readWorkspace } from '@/lib/workspace';
+import { canSeeTab, type Role } from '@/lib/permissions';
 import { useTheme } from '@/components/white-label/theme-provider';
 
-const VALID_TABS = ['dashboard', 'tracker', 'roster', 'leaderboard', 'meeting', 'schedule', 'attendance', 'competition', 'pnl', 'commission', 'import'];
+// Single source for the tab strip. VALID_TABS is derived from it so the list of
+// routable tabs and the list of rendered tabs can't drift apart.
+const ALL_TAB_ITEMS: { value: string; label: string; ariaLabel?: string }[] = [
+  { value: 'dashboard', label: 'Dashboard' },
+  { value: 'tracker', label: 'Daily Tracker' },
+  { value: 'roster', label: 'Roster' },
+  { value: 'leaderboard', label: 'Leaderboard' },
+  { value: 'meeting', label: 'Meeting Mode' },
+  { value: 'schedule', label: 'Schedule' },
+  { value: 'attendance', label: 'Attendance' },
+  { value: 'competition', label: 'Competition' },
+  { value: 'pnl', label: 'P&L', ariaLabel: 'Profit and loss' },
+  { value: 'commission', label: 'Commission' },
+  { value: 'import', label: 'Import' },
+];
+
+const VALID_TABS = ALL_TAB_ITEMS.map((t) => t.value);
 
 // Renders overlays inside the fullscreened element when presentation mode is
 // active — otherwise drawers opened during Present would be invisible until
@@ -475,6 +492,33 @@ function DashboardContent() {
   // white-label brand which defaults to "Sales Engine" until set.
   const companyName = session?.user?.companyName
     || (theme.companyName !== 'Sales Engine' ? theme.companyName : '');
+
+  // Same actor shape and same unauthenticated OWNER fallback as the sidebar, so
+  // the tab strip and the nav can never disagree about what this seat may see.
+  const actor = useMemo(
+    () =>
+      session?.user
+        ? { role: session.user.role as Role | undefined, isSuperAdmin: session.user.isSuperAdmin }
+        : { role: 'OWNER' as Role, isSuperAdmin: false },
+    [session?.user]
+  );
+
+  const visibleTabItems = useMemo(
+    () => ALL_TAB_ITEMS.filter((item) => canSeeTab(actor, item.value)),
+    [actor]
+  );
+
+  // A hidden tab must not stay reachable by URL. Filtering the strip only removes
+  // the button, so `?tab=commission` would still render the panel for a seat that
+  // can't see it. Fall back to Dashboard instead. The server re-checks anyway —
+  // this keeps the client from displaying figures it shouldn't.
+  useEffect(() => {
+    if (!canSeeTab(actor, activeTab)) {
+      setActiveTab('dashboard');
+      router.replace('/dashboard', { scroll: false });
+    }
+  }, [actor, activeTab, router]);
+
   const bump = useCallback(() => setDataVersion(v => v + 1), []);
 
   // Re-read on tab return too (edits on other tabs change commission/roster)
@@ -879,19 +923,7 @@ function DashboardContent() {
         onChange={switchTab}
         idPrefix="view"
         className="slide-in mb-4"
-        items={[
-          { value: 'dashboard', label: 'Dashboard' },
-          { value: 'tracker', label: 'Daily Tracker' },
-          { value: 'roster', label: 'Roster' },
-          { value: 'leaderboard', label: 'Leaderboard' },
-          { value: 'meeting', label: 'Meeting Mode' },
-          { value: 'schedule', label: 'Schedule' },
-          { value: 'attendance', label: 'Attendance' },
-          { value: 'competition', label: 'Competition' },
-          { value: 'pnl', label: 'P&L', ariaLabel: 'Profit and loss' },
-          { value: 'commission', label: 'Commission' },
-          { value: 'import', label: 'Import' },
-        ]}
+        items={visibleTabItems}
       />
 
       {activeTab === 'dashboard' && (

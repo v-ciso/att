@@ -9,6 +9,7 @@ import {
   reconcileWorkspace, purgeAllLiveBuckets,
 } from '@/lib/workspace';
 import { reopenSetup } from './setup-wizard';
+import { can } from '@/lib/permissions';
 import { isSuperAdminEmail } from '@/lib/super-admins';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
@@ -30,7 +31,16 @@ export function WorkspaceSwitcher() {
   const [ws, setWs] = useState<Workspace>(DEFAULT_WORKSPACE);
   const [resetOpen, setResetOpen] = useState(false);
 
-  const superAdmin = session?.user?.isSuperAdmin ?? isSuperAdminEmail(session?.user?.email);
+  // Routed through the capability matrix so "who gets the Demo sandbox" has one
+  // definition shared with the sidebar and middleware. The email fallback covers
+  // sessions minted before isSuperAdmin was stamped into the JWT.
+  const superAdmin = can(
+    {
+      role: session?.user?.role,
+      isSuperAdmin: session?.user?.isSuperAdmin ?? isSuperAdminEmail(session?.user?.email),
+    },
+    'workspace.demo'
+  );
   const isOwner = session?.user?.role === 'OWNER';
   const tenant = session?.user?.marketOwnerId ?? 'default';
 

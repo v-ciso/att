@@ -22,7 +22,8 @@
     "test:pay": "npx tsx lib/pay.test.ts",
     "test:shifts": "npx tsx lib/shifts.test.ts",
     "test:workspace": "npx tsx lib/workspace.test.ts",
-    "test": "npm run test:roadtrips && npm run test:pay && npm run test:shifts && npm run test:workspace",
+    "test:permissions": "npx tsx lib/permissions.test.ts",
+    "test": "npm run test:roadtrips && npm run test:pay && npm run test:shifts && npm run test:workspace && npm run test:permissions",
     "postinstall": "prisma generate"
   },
   "dependencies": {

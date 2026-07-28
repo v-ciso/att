@@ -1,11 +1,13 @@
 'use client';
 
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { cn, getInitials, ROLE_LABELS } from '@/lib/utils';
 import { useTheme } from '@/components/white-label/theme-provider';
 import { navigation, isNavItemActive } from './nav-items';
+import { can, type Role } from '@/lib/permissions';
 import { isSuperAdminEmail } from '@/lib/super-admins';
 import { ShieldCheck } from 'lucide-react';
 import { WorkspaceSwitcher } from './workspace-switcher';
@@ -22,6 +24,25 @@ export function Sidebar() {
   const userRole = session?.user?.role
     ? (ROLE_LABELS[session.user.role as keyof typeof ROLE_LABELS] ?? session.user.role)
     : 'Market Owner';
+
+  // The actor handed to the capability matrix. When there is no session at all
+  // we keep the existing "Demo Owner" fallback and treat the seat as OWNER —
+  // otherwise the unauthenticated preview would silently lose P&L, Commission,
+  // Import and Settings from the nav. This is presentation only: middleware and
+  // the route handlers re-check the real session on every request, so a browser
+  // with no cookie still cannot read or write anything.
+  const actor = useMemo(
+    () =>
+      session?.user
+        ? { role: session.user.role as Role | undefined, isSuperAdmin: session.user.isSuperAdmin }
+        : { role: 'OWNER' as Role, isSuperAdmin: false },
+    [session?.user]
+  );
+
+  const visibleNavigation = useMemo(
+    () => navigation.filter((item) => !item.capability || can(actor, item.capability)),
+    [actor]
+  );
 
   return (
     <aside className="fixed left-0 top-0 bottom-0 w-64 glass border-r border-border-subtle hidden lg:flex flex-col z-30">
@@ -72,7 +93,15 @@ export function Sidebar() {
       </nav>
       {/* flex-none: this block must never be squeezed or scrolled away. */}
       <div className="flex-none px-6 pt-4 pb-6 border-t border-border-subtle space-y-3">
-        {(session?.user?.isSuperAdmin ?? isSuperAdminEmail(session?.user?.email)) && (
+        {/* Same matrix as every other gate. The email fallback is kept for
+            sessions minted before isSuperAdmin was stamped into the JWT. */}
+        {can(
+          {
+            role: actor.role,
+            isSuperAdmin: session?.user?.isSuperAdmin ?? isSuperAdminEmail(session?.user?.email),
+          },
+          'admin.console'
+        ) && (
           <Link
             href="/admin"
             className="flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-xl text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"

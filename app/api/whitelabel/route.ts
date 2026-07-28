@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
+import { can } from '@/lib/permissions';
+import { isSuperAdminEmail } from '@/lib/super-admins';
 
 interface SessionUser {
   id: string;
@@ -10,6 +12,8 @@ interface SessionUser {
   marketOwnerId: string;
   employeeId?: string;
   email?: string;
+  /** Stamped into the JWT at sign-in; required for the branding capability. */
+  isSuperAdmin?: boolean;
   subscriptionTier?: 'STANDARD' | 'WHITE_LABEL';
 }
 
@@ -62,8 +66,16 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (user.role !== 'OWNER') {
-      return NextResponse.json({ error: 'Forbidden: Only market owners can modify white-label settings' }, { status: 403 });
+    // Branding/domain/seats are vendor-only per the Phase 2 matrix. This used to
+    // be `role !== 'OWNER'`, which let any buyer who owns their company restyle
+    // the product — the one surface that must stay ours.
+    const actor = {
+      role: user.role,
+      // Email fallback covers sessions minted before isSuperAdmin was added.
+      isSuperAdmin: user.isSuperAdmin ?? isSuperAdminEmail(user.email),
+    };
+    if (!can(actor, 'branding.manage')) {
+      return NextResponse.json({ error: 'Forbidden: white-label settings are managed by the vendor' }, { status: 403 });
     }
 
     const body = await request.json();
