@@ -79,6 +79,14 @@ enum SubscriptionTier {
   WHITE_LABEL
 }
 
+enum DocumentKind {
+  TRAINING
+  COMPLIANCE
+  PROMO
+  ADASM
+  OTHER
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
@@ -135,6 +143,7 @@ model MarketOwner {
   data                   TenantData[]
   archives               DataArchive[]
   competitions           Competition[]
+  documents              Document[]
 }
 
 // The recycle bin. Nothing in this app is ever hard-deleted from the UI: every
@@ -201,6 +210,63 @@ model CompetitionStanding {
   metric        String
 
   @@unique([competitionId, personId])
+}
+
+// A company document: training deck, compliance form, promo sheet, AD/ASM
+// course book. The FILE itself lives in the private Supabase Storage bucket
+// `tenant-docs` at <marketOwnerId>/<docId>/<filename>; this row is only the
+// metadata + pointer. There is no public URL anywhere: reads go through
+// /api/docs/[id]/url which mints a short-lived signed URL after re-checking the
+// caller's company and role, so a leaked link dies in seconds instead of
+// exposing a compliance PDF forever.
+//
+// audienceRoles is empty = visible to the whole company. audiencePersonIds
+// targets named individuals (onboarding a specific new hire) and is stored as
+// employeeCode-backed person ids, matching CompetitionStanding, so it survives
+// a rename. supersedesId chains promo versions: the biweekly promo sheet
+// replaces the last one without deleting it, so "what was the offer on the 12th"
+// stays answerable.
+model Document {
+  id               String         @id @default(cuid())
+  marketOwnerId    String
+  marketOwner      MarketOwner    @relation(fields: [marketOwnerId], references: [id], onDelete: Cascade)
+  title            String
+  kind             DocumentKind   @default(OTHER)
+  audienceRoles    Role[]
+  audiencePersonIds String[]
+  storagePath      String         // path inside the private bucket, never a URL
+  mimeType         String
+  sizeBytes        Int
+  version          Int            @default(1)
+  supersedesId     String?        // previous version of this doc, if any
+  effectiveFrom    DateTime?      // promos: when this sheet takes over
+  effectiveTo      DateTime?      // promos: when it expires
+  requiresAck      Boolean        @default(false)
+  uploadedBy       String
+  createdAt        DateTime       @default(now())
+  // Soft delete, consistent with the recycle-bin rule: the row and the object
+  // survive so a mis-click cannot destroy a compliance record.
+  deletedAt        DateTime?
+  deletedBy        String?
+  acks             DocumentAck[]
+
+  @@index([marketOwnerId, kind, deletedAt])
+  @@index([marketOwnerId, createdAt])
+}
+
+// One acknowledgement per (document, person). Written when a rep confirms they
+// have read a doc; the unique constraint makes a double-click idempotent rather
+// than logging two reads.
+model DocumentAck {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  personId   String   // employeeCode-backed, matches CompetitionStanding
+  personName String   // denormalised so the audit trail survives a rename
+  ackedAt    DateTime @default(now())
+
+  @@unique([documentId, personId])
+  @@index([documentId])
 }
 
 // Per-company operational data (roster, sales, schedule, attendance, P&L, ...),
