@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Download, FileWarning, Loader2, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Download, FileWarning, Loader2, Check, X } from 'lucide-react';
 import { useModalA11y } from '@/hooks/use-modal-a11y';
 import { documentFileUrl, acknowledgeDocumentApi, type DocumentDTO } from '@/lib/docs-client';
 
@@ -189,7 +189,7 @@ export function DocViewer({
             className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all shrink-0"
             aria-label="Close document"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 

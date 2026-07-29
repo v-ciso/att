@@ -31,7 +31,6 @@ export function MeetingDocs({
   const [open, setOpen] = useState<DocumentDTO | null>(null);
 
   const load = useCallback(async () => {
-    console.log('[v0] MeetingDocs load start, personId=', personId);
     setLoading(true);
     setFailed(false);
     try {
@@ -44,13 +43,10 @@ export function MeetingDocs({
       const merged = lists
         .flat()
         .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-      console.log('[v0] MeetingDocs got', merged.length, 'docs');
       setDocs(merged);
-    } catch (err) {
-      console.log('[v0] MeetingDocs failed:', err);
+    } catch {
       setFailed(true);
     } finally {
-      console.log('[v0] MeetingDocs load done');
       setLoading(false);
     }
   }, [personId]);
