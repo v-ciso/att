@@ -43,6 +43,7 @@ import { readWorkspace } from '@/lib/workspace';
 import { can, canSeeTab, type Role } from '@/lib/permissions';
 import { AttendanceEditor } from '@/components/dashboard/attendance-editor';
 import { DocLibrary } from '@/components/dashboard/doc-library';
+import { MeetingDocs } from '@/components/dashboard/meeting-docs';
 import { normalizeName } from '@/lib/people';
 import { useTheme } from '@/components/white-label/theme-provider';
 
@@ -1270,6 +1271,10 @@ function DashboardContent() {
               />
               <MeetingTracker label={`${PERIOD_LABELS[meetingPeriod]} Generated`} value={formatCurrency(meetingAgg.revenue)} color="yellow" size="2xl" />
             </div>
+
+            {/* Pull up the promo sheet or a training deck mid-meeting, rather
+                than leaving for the Library and losing the room. */}
+            <MeetingDocs personId={viewerPersonId} personName={session?.user?.name ?? null} />
 
             {/* Weekly goals — set the targets right here in the meeting */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
