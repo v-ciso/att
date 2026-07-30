@@ -87,6 +87,56 @@ enum DocumentKind {
   OTHER
 }
 
+/// An append-only record of security- and money-relevant actions: who did what,
+/// to which tenant, from where. Written by lib/audit.ts.
+///
+/// The actor is deliberately NOT a foreign key to User. An audit trail whose
+/// rows vanish when you delete the account is worthless precisely when it
+/// matters most (a disgruntled admin removing a user to erase what they did),
+/// so actorId/actorEmail are denormalised snapshots taken at write time.
+model AuditLog {
+  id            String   @id @default(cuid())
+  // Snapshot of who acted; survives deletion of the underlying user.
+  actorId       String?
+  actorEmail    String
+  actorRole     String
+  // Tenant the action affected. Null for platform-level acts by a super-admin.
+  marketOwnerId String?
+  // Dotted verb, e.g. 'auth.login', 'user.role_changed', 'doc.deleted'.
+  action        String
+  // What was acted on: 'Document', 'User', etc. plus its id, when applicable.
+  targetType    String?
+  targetId      String?
+  // Free-form detail (old/new values, reason). Never put secrets in here.
+  meta          Json?
+  ip            String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  // Reading the trail is always "this tenant, newest first" or "this actor,
+  // newest first", so both are composite indexes rather than plain ones.
+  @@index([marketOwnerId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+}
+
+/// One row per authentication attempt, used to throttle credential stuffing.
+///
+/// Keyed by email AND ip separately so a single attacker cycling passwords
+/// against one account and one spraying many accounts from one address are both
+/// caught. Rows are pruned by lib/rate-limit.ts rather than kept forever.
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  // Lowercased at write time so casing cannot be used to dodge the counter.
+  email     String
+  ip        String
+  success   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([ip, createdAt])
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
