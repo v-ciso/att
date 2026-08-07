@@ -2,7 +2,7 @@
 
 Single source of truth for how this app works, its architecture, and its current
 state. Written so a fresh engineer (or another AI tool / new chat) can pick it up
-with zero prior context. Current at commit `acf4993` (branch `master`).
+with zero prior context. Current on `v0/sales-engine-9e518872` as of 2026-08-07.
 
 ---
 
@@ -29,16 +29,17 @@ plans add logins).
 
 ## 2. Tech stack
 
-- **Next.js 14** (App Router) + React 18 + TypeScript, at the **repo root**.
-- **Tailwind** for styling; obsidian-black base with a per-preset brand accent
+- **Next.js 16.3** (App Router/Turbopack) + React 19.2 + TypeScript, at the **repo root**.
+- **Tailwind 3** for styling; obsidian-black base with a per-preset brand accent
   (obsidian-gold default; command-blue, emerald).
-- **Prisma** ORM → **Supabase Postgres** (project `izcxirupnvliiymwcedz`,
+- **Prisma 5** ORM → **Supabase Postgres** (project `izcxirupnvliiymwcedz`,
   ca-central-1). Prisma reads `POSTGRES_PRISMA_URL` / `POSTGRES_URL_NON_POOLING`
   (injected by the Vercel↔Supabase integration).
-- **NextAuth** (JWT strategy, Credentials provider) for sessions, with a
+- **NextAuth 4** (JWT strategy, Credentials provider) for sessions, with a
   **dual password backend** (Supabase Auth or bcrypt — see §4).
-- **three.js** (3D product-mix pie), **chart.js** (trend line), **xlsx** +
-  **pdfjs** (import), print-based PDF export.
+- **three.js** (3D product-mix pie), **chart.js** (trend line), **read-excel-file** +
+  **pdfjs** (bounded XLSX/CSV/PDF import), and print-based PDF export. The old
+  unmaintained `xlsx` and `html2pdf.js` dependencies were removed.
 - Deployed on **Vercel** (auto-deploys from `master`).
 
 ---
@@ -98,14 +99,18 @@ demo furniture into a live account.
   client never has to re-derive it from an email. `companyName` (the tenant name)
   is also carried on the session → drives the **"Welcome, {Company}"** greeting.
   **Changing this requires a fresh sign-in** to mint a new token.
-- **`middleware.ts`** gates `/dashboard`, `/settings`, `/admin`, and `/api/*`
-  (except `/api/auth/*`). API routes return **401 JSON** (not an HTML redirect)
-  when unauthenticated; mutating methods from a VIEWER get 403.
+- **`proxy.ts`** gates `/dashboard`, `/settings`, `/admin`, and `/api/*`
+  (except auth/webhooks). API routes return **401 JSON** (not an HTML redirect)
+  when unauthenticated; mutating methods require a same-origin `Origin` header and
+  a write-capable role. VIEWER is read-only.
+- Sessions are JWTs with a **two-hour maximum lifetime** and 15-minute refresh
+  cadence. Sign-out purges all live tenant caches from that browser.
+- Login is throttled per normalized email and IP through `LoginAttempt`; failed,
+  successful, and locked-out attempts are appended to `AuditLog`.
 - Super-admin list: `lib/super-admins.ts` (client-safe) — founder hardcoded, plus
   `SUPER_ADMIN_EMAILS` (server env, comma-separated).
-- **RLS**: on for all 10 relational tables with **zero policies = default-deny**,
-  so the public anon key reads nothing (verified via `npm run admin:audit`). Do
-  not weaken this. (App-level scoping in `/api/tenant-data` is the live control.)
+- **RLS** remains default-deny for direct public access. Server reads are also
+  tenant-scoped from the session; do not weaken either layer.
 
 ---
 
@@ -117,9 +122,10 @@ All under `app/(dashboard)/dashboard/page.tsx`, tab state in `?tab=`:
   top performers, weekly goals, attendance snapshot.
 - **Daily Tracker** — log a sale; mark attendance (Present/Late/Absent, Late-out
   GPS chargeback, Morning-Meeting checkbox); shows each rep's scheduled shift.
-- **Roster** — people (single source of truth), inline + **modal edit**
-  (name/role/stores/team/hourly/attendance), promotion ladder, Stores manager,
-  drag-drop Team Builder. Delete confirms.
+- **Roster** — people are the identity source of truth. Each receives a stable
+  employee code; lifecycle is active → retired/archived → rehire without losing
+  history. The profile drawer derives lifetime production, attendance, tenure,
+  stores, timeline, and document completion from existing source data.
 - **Leaderboard** — ranked reps, PDF/print.
 - **Meeting Mode** — fullscreen present surface; leadership earnings table,
   teams, competition, schedule, and a **Promo/attachments** panel (links persist;
@@ -130,16 +136,24 @@ All under `app/(dashboard)/dashboard/page.tsx`, tab state in `?tab=`:
 - **Attendance** — Weekly/Monthly/Yearly + **date navigation** (arrows, picker,
   Today); per-rep present/late/absent, weighted score, last-late/last-absent,
   day-by-day grid, CSV export. Fed by Daily-Tracker marks.
-- **Competition** — live standings from sales; **"End & save"** archives final
-  standings (viewable under "Past"); plain delete warns.
+- **Competition** — relational `Competition`/`CompetitionStanding` lifecycle.
+  Live standings derive from sales; **End & save** freezes numeric standings so
+  back-dated entries cannot rewrite history. Ended competitions can be archived.
+- **Library** — private Supabase Storage documents under tenant-prefixed paths;
+  audience by role/person, effective dates, version chains, acknowledgement
+  tracking, same-origin byte streaming, and Meeting Mode preview.
+- **Recycle Bin** — `DataArchive` recovery portal for archived tenant entities.
+  Owners restore their own company data; only super-admin can permanently purge,
+  with company confirmation, reason, and audit row.
 - **P&L** — Daily/Weekly/Monthly/Yearly (cadence conversion via `toView`);
   revenue/expenses/roadtrips; **roadtrip "Mark received"** button; live sales
   commission + chargebacks folded in.
 - **Commission** — the payout engine (tiers, per-store multipliers, plan payouts,
   role rules, late-penalty). `normalizeCommission` guards against partial data.
 - **Import** — reconcile uploaded .xlsx/.csv/.pdf vs computed pay (flags diffs).
-- **Settings** — customers see **only** the password-change tab; the vendor also
-  sees Branding + Domain.
+  Tabular imports are capped at 10 MB, 10,000 rows, and 200 columns.
+- **Settings** — customers see password change and their tenant audit trail;
+  the vendor also sees Branding, Domain, and platform-wide audit activity.
 - **Export PDF** — a checkbox dialog picks sections (KPIs/Leaderboard/P&L/
   Payout/Roster), pre-selecting the current tab.
 
@@ -178,6 +192,8 @@ Staffing coverage in `lib/shifts.ts` (`test:shifts`). B2B campaign = straight
   **MANAGER**; seat cap auto-raises), **Reset pw** on any user (owners included),
   edit seats inline, **Suspend/Reinstate** the whole company.
 - Users created here carry the **"Supabase"** badge; CLI/bcrypt accounts don't.
+- **Audit** activity is available to super-admin across companies; company owners
+  see only their own tenant slice.
 
 CLI equivalents (in `scripts/`, run with `npm run …`): `admin:create`,
 `admin:adduser`, `admin:removeuser`, `admin:audit`, plus `set-role`,
@@ -213,11 +229,12 @@ note some predate the gold theme and current auth).
 
 - **Full Supabase-Auth migration** for existing bcrypt accounts (dual path works
   now; MIGRATION.md has the plan).
-- **Data recovery/undo** beyond competition archive (e.g., restore a removed
-  store/user) — deletes confirm but there's no soft-delete recycle bin yet.
 - **Offline conflict merge** for simultaneous multi-editor companies.
 - **Editable per-store shift hours UI** (`lib/shifts.ts` hours are hardcoded).
-- **2FA** enrolment UI (Supabase MFA is available once on Supabase Auth).
+- **2FA is intentionally deferred**. The schema fields exist but default false;
+  there is no enrolment/challenge UI and middleware does not enforce MFA.
+- Recovery currently covers app-level archived entities. Admin removal of a
+  Supabase Auth user/store still follows its existing confirmed workflow.
 - `components/charts/charts-3d.tsx` is **dead code** (only `chart-3d.tsx` is used).
 - Stripe code is env-gated and intentionally NOT wired (owner decision).
 
@@ -226,9 +243,9 @@ note some predate the gold theme and current auth).
 ## 10. Gotchas
 
 - Non-ASCII in `prisma/schema.prisma` → Prisma CLI dies with a bare "Error:".
-- Never `npm run build` while `next dev` runs (both write `.next/`).
-- Browser-pane screenshots time out (heavy blur/orbs) — verify via page text /
-  JS eval and a fresh load.
+- After `npm ci --ignore-scripts`, run `npx prisma generate` before typecheck/build;
+  otherwise TypeScript reports missing Prisma exports and cascades into implicit-any errors.
+- Browser verification of the 3D dashboard should launch with WebGL support.
 - After any auth/session-shape change, **sign out and back in** to mint a new JWT.
 - Demo defaults must never seed a live account — always route sample data through
   `seedForWorkspace` / `useLocalState`'s `liveDefault`.
@@ -237,12 +254,12 @@ note some predate the gold theme and current auth).
 
 ## 11. To continue in a new chat (seed prompt)
 
-> I'm working on **Sales Engine**, a Next.js 14 + Prisma + Supabase white-label
-> AT&T retail sales dashboard (repo at root, branch `master`, deploys to
-> `att.soramimarketing.com` via Vercel). Read **PROJECT_OVERVIEW.md** first — it
-> has the full architecture. Key points: derived-data engine (owner logs sales in
-> the Daily Tracker, everything else derives); per-tenant Postgres sync via the
-> `TenantData` table + `lib/tenant-sync.ts` with localStorage as a device cache;
-> NextAuth dual-path login (Supabase Auth or bcrypt) with server-computed
-> `isSuperAdmin`; vendor Admin Console at `/admin`. Run `npm test` before/after
-> changes. Then help me with: <your task>.
+> I'm working on **Sales Engine**, a Next.js 16 + Prisma + Supabase white-label
+> AT&T retail sales dashboard (repo root, deploys to `att.soramimarketing.com`
+> via Vercel). Read **PROJECT_OVERVIEW.md** first. Key points: derived-data engine;
+> per-tenant Postgres sync with localStorage as a device cache; NextAuth dual-path
+> login; stable employee identities and derived lifetime profiles; relational
+> competitions; private document library; recycle bin; audit trail and login
+> throttling. Vendor Admin Console is `/admin`. Run `npm test`, `npx prisma
+> generate`, `npx tsc --noEmit`, and `npm run build` before/after changes. Then
+> help me with: <your task>.

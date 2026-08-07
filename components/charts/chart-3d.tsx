@@ -32,11 +32,11 @@ interface PieChart3DProps {
 
 export function PieChart3D({ data, labels, colors, className, height = 300, innerRadius = 0.5, animate = true, onSliceClick }: PieChart3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<THREE.Scene>();
-  const rendererRef = useRef<THREE.WebGLRenderer>();
-  const cameraRef = useRef<THREE.PerspectiveCamera>();
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const meshesRef = useRef<THREE.Mesh[]>([]);
-  const animationIdRef = useRef<number>();
+  const animationIdRef = useRef<number | null>(null);
   // Ref so a new inline callback each render doesn't rebuild the scene
   const onSliceClickRef = useRef(onSliceClick);
   onSliceClickRef.current = onSliceClick;
@@ -250,11 +250,11 @@ interface BarChart3DProps {
 
 export function BarChart3D({ data, labels, colors, className, height = 300, maxValue, animate = true }: BarChart3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<THREE.Scene>();
-  const rendererRef = useRef<THREE.WebGLRenderer>();
-  const cameraRef = useRef<THREE.PerspectiveCamera>();
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const meshesRef = useRef<THREE.Mesh[]>([]);
-  const animationIdRef = useRef<number>();
+  const animationIdRef = useRef<number | null>(null);
 
   const max = useMemo(() => maxValue || (data?.length ? Math.max(...data) * 1.2 : 100), [data, maxValue]);
 
@@ -369,11 +369,11 @@ interface FunnelChart3DProps {
 
 export function FunnelChart3D({ stages, className, height = 300, animate = true }: FunnelChart3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<THREE.Scene>();
-  const rendererRef = useRef<THREE.WebGLRenderer>();
-  const cameraRef = useRef<THREE.PerspectiveCamera>();
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const meshesRef = useRef<THREE.Mesh[]>([]);
-  const animationIdRef = useRef<number>();
+  const animationIdRef = useRef<number | null>(null);
 
   const maxValue = useMemo(() => stages?.length ? Math.max(...stages.map((s) => s.value)) : 1, [stages]);
 

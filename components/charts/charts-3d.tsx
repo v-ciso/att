@@ -25,11 +25,11 @@ export function PieChart3D({
   animate = true,
 }: PieChart3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<THREE.Scene>();
-  const rendererRef = useRef<THREE.WebGLRenderer>();
-  const cameraRef = useRef<THREE.PerspectiveCamera>();
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const meshesRef = useRef<THREE.Mesh[]>([]);
-  const animationIdRef = useRef<number>();
+  const animationIdRef = useRef<number | null>(null);
 
   const total = useMemo(() => data?.reduce((a, b) => a + b, 0) ?? 0, [data]);
 
@@ -228,11 +228,11 @@ export function BarChart3D({
   animate = true,
 }: BarChart3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<THREE.Scene>();
-  const rendererRef = useRef<THREE.WebGLRenderer>();
-  const cameraRef = useRef<THREE.PerspectiveCamera>();
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const meshesRef = useRef<THREE.Mesh[]>([]);
-  const animationIdRef = useRef<number>();
+  const animationIdRef = useRef<number | null>(null);
 
   const max = maxValue || (data?.length ? Math.max(...data) * 1.2 : 100);
 
@@ -352,11 +352,11 @@ export function FunnelChart3D({
   animate = true,
 }: FunnelChart3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<THREE.Scene>();
-  const rendererRef = useRef<THREE.WebGLRenderer>();
-  const cameraRef = useRef<THREE.PerspectiveCamera>();
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const meshesRef = useRef<THREE.Mesh[]>([]);
-  const animationIdRef = useRef<number>();
+  const animationIdRef = useRef<number | null>(null);
 
   const maxValue = useMemo(() => stages?.length ? Math.max(...stages.map(s => s.value)) : 1, [stages]);
 
