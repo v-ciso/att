@@ -66,30 +66,11 @@ const nextConfig = {
       },
     ];
   },
-  webpack(config, { webpack }) {
-    config.experiments = { ...config.experiments, topLevelAwait: true };
-    // Add path aliases for @/ imports
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      '@': __dirname,
-      '@/components': `${__dirname}/components`,
-      '@/lib': `${__dirname}/lib`,
-      '@/hooks': `${__dirname}/hooks`,
-      '@/types': `${__dirname}/types`,
-    };
-    // Use a custom loader to handle next-auth CSS file
-    config.module.rules.push({
-      test: /next-auth\/css\/index\.js$/,
-      use: {
-        loader: 'raw-loader',
-        options: {
-          esModule: false,
-        },
-      },
-      type: 'javascript/auto',
-    });
-    return config;
-  },
+  // Next 16 builds with Turbopack; the old webpack() block (topLevelAwait,
+  // @/ aliases, next-auth raw-loader hack) is obsolete — aliases come from
+  // tsconfig paths and topLevelAwait is native. Keeping it made Vercel builds
+  // fail ("webpack config with no turbopack config").
+  turbopack: {},
 };
 
 module.exports = nextConfig;
