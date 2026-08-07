@@ -1,12 +1,18 @@
 'use client';
 
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { cn } from '@/lib/utils';
+import { useSession } from 'next-auth/react';
+import { cn, getInitials, ROLE_LABELS } from '@/lib/utils';
 import { useTheme } from '@/components/white-label/theme-provider';
-import { Menu, X } from 'lucide-react';
+import { Menu, ShieldCheck, X } from 'lucide-react';
 import { navigation, isNavItemActive } from './nav-items';
 import { useModalA11y } from '@/hooks/use-modal-a11y';
+import { can } from '@/lib/permissions';
+import { isSuperAdminEmail } from '@/lib/super-admins';
+import { useActor } from '@/lib/use-actor';
+import { WorkspaceSwitcher } from './workspace-switcher';
 
 function Logo() {
   const { theme } = useTheme();
@@ -40,6 +46,28 @@ function MobileMenuPanel({ onClose }: { onClose: () => void }) {
   const searchParams = useSearchParams();
   const currentTab = searchParams.get('tab');
   const panelRef = useModalA11y<HTMLDivElement>(onClose);
+  const { data: session } = useSession();
+
+  // Same capability filtering as the desktop sidebar — the two menus must
+  // never disagree about which tabs a seat can see.
+  const actor = useActor();
+  const visibleNavigation = useMemo(
+    () => navigation.filter((item) => !item.capability || can(actor, item.capability)),
+    [actor]
+  );
+
+  const showAdmin = can(
+    {
+      role: actor.role,
+      isSuperAdmin: session?.user?.isSuperAdmin ?? isSuperAdminEmail(session?.user?.email),
+    },
+    'admin.console'
+  );
+
+  const userName = session?.user?.name ?? 'Demo Owner';
+  const userRole = session?.user?.role
+    ? (ROLE_LABELS[session.user.role as keyof typeof ROLE_LABELS] ?? session.user.role)
+    : 'Market Owner';
 
   return (
     <div
@@ -64,7 +92,7 @@ function MobileMenuPanel({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         <nav className="space-y-2" aria-label="Main">
-          {navigation.map((item) => {
+          {visibleNavigation.map((item) => {
             const isActive = isNavItemActive(item, pathname, currentTab);
             return (
               <Link
@@ -91,6 +119,40 @@ function MobileMenuPanel({ onClose }: { onClose: () => void }) {
             );
           })}
         </nav>
+
+        {/* Same footer as the desktop sidebar: Admin Console link, the
+            Demo/Live workspace switcher, the signed-in user, and Sign out.
+            This block is the whole reason phones/tablets could not switch
+            workspaces or sign out — the sidebar is display:none below lg. */}
+        <div className="mt-8 pt-6 border-t border-border-subtle space-y-3">
+          {showAdmin && (
+            <Link
+              href="/admin"
+              onClick={onClose}
+              className="flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-xl text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"
+            >
+              <ShieldCheck className="w-4 h-4 flex-none" style={{ color: 'var(--brand)' }} aria-hidden="true" />
+              Admin Console
+            </Link>
+          )}
+          <WorkspaceSwitcher />
+          <div className="flex items-center gap-3 px-3 py-2">
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-none"
+              style={{
+                background: 'linear-gradient(135deg, var(--brand-2), var(--brand-3))',
+                color: 'var(--brand-ink)',
+              }}
+              aria-hidden="true"
+            >
+              {getInitials(userName)}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium truncate">{userName}</p>
+              <p className="text-xs text-text-muted truncate">{userRole}</p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -5,8 +5,8 @@ import { useSession, signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { Database, FlaskConical, Lock, LogOut, RotateCcw, Wand2 } from 'lucide-react';
 import {
-  DataMode, Workspace, DEFAULT_WORKSPACE, readWorkspace, setWorkspace, clearWorkspaceData,
-  reconcileWorkspace, purgeAllLiveBuckets,
+  DataMode, Workspace, DEFAULT_WORKSPACE, WORKSPACE_KEY, readWorkspace, setWorkspace,
+  clearWorkspaceData, reconcileWorkspace, purgeAllLiveBuckets,
 } from '@/lib/workspace';
 import { reopenSetup } from './setup-wizard';
 import { can } from '@/lib/permissions';
@@ -63,11 +63,22 @@ export function WorkspaceSwitcher() {
   }, [session, superAdmin]);
 
   // Super-admins may sit in Demo deliberately, but their LIVE bucket must still
-  // be attributed to the right tenant before any sync can run.
+  // be attributed to the right tenant before any sync can run. And a FRESH
+  // pointer (no stored workspace at all — the case after every sign-out, which
+  // wipes it) must start in Live: landing in the Demo sandbox by default made
+  // the founder see sample staff "in" their real company and their actual
+  // roster apparently gone. Demo stays one tap away, but only as an explicit
+  // choice, never a default.
   useEffect(() => {
     if (!session || !superAdmin) return;
     const tenantId = session.user?.marketOwnerId;
     if (!tenantId) return;
+    let stored: string | null = null;
+    try { stored = window.localStorage.getItem(WORKSPACE_KEY); } catch { /* private mode */ }
+    if (stored == null) {
+      reconcileWorkspace(tenantId); // fresh sign-in → Live, own tenant (reloads)
+      return;
+    }
     const current = readWorkspace();
     if (current.mode === 'live' && current.scope !== tenantId) {
       reconcileWorkspace(tenantId);
