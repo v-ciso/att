@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { isSuperAdminEmail } from '@/lib/super-admins';
+import { audit } from '@/lib/audit';
 
 // Server-side recycle bin. Every rep/store/competition removal and every full
 // tenant snapshot lands in DataArchive as a JSON payload, scoped to a company.
@@ -94,6 +95,11 @@ export async function recordArchive(
       deletedBy: actor.userId,
       reason: input.reason,
     },
+  });
+  await audit({
+    action: 'archive.created', actor,
+    targetType: input.kind, targetId: input.refId,
+    meta: { archiveId: row.id, label: input.label, reason: input.reason ?? null },
   });
   return toItem(row);
 }
@@ -190,6 +196,11 @@ export async function restoreArchive(actor: Actor, id: string): Promise<ArchiveI
     data: { restoredAt: new Date(), restoredBy: actor.userId },
     include: { marketOwner: { select: { name: true } } },
   });
+  await audit({
+    action: 'archive.restored', actor: { ...actor, marketOwnerId: row.marketOwnerId },
+    targetType: row.kind, targetId: row.refId,
+    meta: { archiveId: row.id, label: row.label },
+  });
   return toItem(updated);
 }
 
@@ -205,6 +216,11 @@ export async function purgeArchive(actor: Actor, id: string, reason: string): Pr
   await prisma.dataArchive.update({
     where: { id },
     data: { purgedAt: new Date(), purgedBy: actor.userId, reason, payload: { purged: true } },
+  });
+  await audit({
+    action: 'archive.purged', actor: { ...actor, marketOwnerId: row.marketOwnerId },
+    targetType: row.kind, targetId: row.refId,
+    meta: { archiveId: row.id, label: row.label, reason },
   });
   return true;
 }

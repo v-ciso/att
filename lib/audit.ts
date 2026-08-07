@@ -22,12 +22,25 @@ export type AuditAction =
   | 'user.disabled'
   | 'user.enabled'
   | 'user.deleted'
+  | 'user.removed'
+  | 'user.password_reset'
+  | 'company.created'
   | 'company.disabled'
   | 'company.enabled'
+  | 'company.suspended'
+  | 'company.reinstated'
+  | 'company.seats_changed'
   | 'doc.created'
+  | 'doc.uploaded'
+  | 'doc.downloaded'
+  | 'doc.signed_url_created'
+  | 'doc.acknowledged'
   | 'doc.deleted'
   | 'data.archived'
   | 'data.restored'
+  | 'archive.created'
+  | 'archive.restored'
+  | 'archive.purged'
   | 'settings.updated';
 
 export type AuditActor = {
@@ -137,6 +150,23 @@ export async function listAuditLog(
     });
   } catch (err) {
     console.error('[audit] read failed', err);
+    return [];
+  }
+}
+
+/** Platform-wide read is deliberately separate and must only be called after a
+ * super-admin check. Keeping it out of listAuditLog prevents an omitted tenant
+ * argument from silently becoming a cross-company data leak. */
+export async function listPlatformAuditLog(opts?: { limit?: number; action?: string }) {
+  const limit = Math.min(Math.max(opts?.limit ?? 100, 1), 500);
+  try {
+    return await prisma.auditLog.findMany({
+      where: opts?.action ? { action: opts.action } : undefined,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+  } catch (err) {
+    console.error('[audit] platform read failed', err);
     return [];
   }
 }

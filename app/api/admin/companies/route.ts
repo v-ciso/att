@@ -4,6 +4,7 @@ import { requireSuperAdmin } from '@/lib/admin';
 import { provisionCompany, setCompanyDisabled, setCompanySeats } from '@/lib/provision';
 import { z } from 'zod';
 import { blankAsUndefined, fields, parseBody } from '@/lib/api-validation';
+import { audit, clientIp } from '@/lib/audit';
 
 // Vendor admin surface. Every handler re-checks super-admin — the middleware
 // gate is defence in depth, not the only lock.
@@ -62,12 +63,22 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  if (!(await requireSuperAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const adminEmail = await requireSuperAdmin();
+  if (!adminEmail) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const parsed = await parseBody(request, createCompanySchema);
   if (!parsed.ok) return parsed.response;
 
   try {
     const result = await provisionCompany(parsed.data);
+    await audit({
+      action: 'company.created',
+      actor: { email: adminEmail, role: 'SUPER_ADMIN', marketOwnerId: result.marketOwnerId },
+      targetType: 'MarketOwner',
+      targetId: result.marketOwnerId,
+      meta: { slug: result.slug, seats: result.seats, campaign: result.campaign },
+      ip: clientIp(request),
+      userAgent: request.headers.get('user-agent'),
+    });
     return NextResponse.json({ success: true, ...result });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Failed to create company' }, { status: 400 });
@@ -75,7 +86,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  if (!(await requireSuperAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const adminEmail = await requireSuperAdmin();
+  if (!adminEmail) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const parsed = await parseBody(request, updateCompanySchema);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
@@ -83,10 +95,22 @@ export async function PATCH(request: NextRequest) {
   try {
     if (typeof body.seats === 'number') {
       const result = await setCompanySeats(body.id, body.seats);
+      await audit({
+        action: 'company.seats_changed',
+        actor: { email: adminEmail, role: 'SUPER_ADMIN', marketOwnerId: body.id },
+        targetType: 'MarketOwner', targetId: body.id, meta: { seats: result.seats },
+        ip: clientIp(request), userAgent: request.headers.get('user-agent'),
+      });
       return NextResponse.json({ success: true, ...result });
     }
     if (typeof body.disabled === 'boolean') {
       const result = await setCompanyDisabled(body.id, body.disabled);
+      await audit({
+        action: body.disabled ? 'company.suspended' : 'company.reinstated',
+        actor: { email: adminEmail, role: 'SUPER_ADMIN', marketOwnerId: body.id },
+        targetType: 'MarketOwner', targetId: body.id,
+        ip: clientIp(request), userAgent: request.headers.get('user-agent'),
+      });
       return NextResponse.json({ success: true, ...result });
     }
     return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });

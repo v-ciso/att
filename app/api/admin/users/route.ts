@@ -3,6 +3,7 @@ import { requireSuperAdmin } from '@/lib/admin';
 import { addCompanyUser, removeCompanyUser, resetUserPassword } from '@/lib/provision';
 import { z } from 'zod';
 import { blankAsUndefined, fields, parseBody } from '@/lib/api-validation';
+import { audit, clientIp } from '@/lib/audit';
 
 /**
  * `role` was previously `(body.role ?? 'MANAGER') as Role` — a cast, which tells
@@ -33,12 +34,20 @@ const deleteUserSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  if (!(await requireSuperAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const adminEmail = await requireSuperAdmin();
+  if (!adminEmail) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const parsed = await parseBody(request, addUserSchema);
   if (!parsed.ok) return parsed.response;
 
   try {
     const result = await addCompanyUser(parsed.data);
+    await audit({
+      action: 'user.created',
+      actor: { email: adminEmail, role: 'SUPER_ADMIN', marketOwnerId: parsed.data.marketOwnerId },
+      targetType: 'User', targetId: result.userId,
+      meta: { email: result.email, role: result.role },
+      ip: clientIp(request), userAgent: request.headers.get('user-agent'),
+    });
     return NextResponse.json({ success: true, ...result });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Failed to add user' }, { status: 400 });
@@ -47,13 +56,21 @@ export async function POST(request: NextRequest) {
 
 // Reset a user's password (manage an owner/manager). Returns the new one once.
 export async function PATCH(request: NextRequest) {
-  if (!(await requireSuperAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const adminEmail = await requireSuperAdmin();
+  if (!adminEmail) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const parsed = await parseBody(request, resetPasswordSchema);
   if (!parsed.ok) return parsed.response;
 
   try {
     const { userId, password } = parsed.data;
     const result = await resetUserPassword(userId, password);
+    await audit({
+      action: 'user.password_reset',
+      actor: { email: adminEmail, role: 'SUPER_ADMIN', marketOwnerId: result.marketOwnerId },
+      targetType: 'User', targetId: result.userId,
+      meta: { email: result.email },
+      ip: clientIp(request), userAgent: request.headers.get('user-agent'),
+    });
     return NextResponse.json({ success: true, ...result });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Failed to reset password' }, { status: 400 });
@@ -61,12 +78,20 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  if (!(await requireSuperAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const adminEmail = await requireSuperAdmin();
+  if (!adminEmail) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const parsed = await parseBody(request, deleteUserSchema);
   if (!parsed.ok) return parsed.response;
 
   try {
     const result = await removeCompanyUser(parsed.data.userId);
+    await audit({
+      action: 'user.removed',
+      actor: { email: adminEmail, role: 'SUPER_ADMIN', marketOwnerId: result.marketOwnerId },
+      targetType: 'User', targetId: result.userId,
+      meta: { email: result.email },
+      ip: clientIp(request), userAgent: request.headers.get('user-agent'),
+    });
     return NextResponse.json({ success: true, ...result });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Failed to remove user' }, { status: 400 });

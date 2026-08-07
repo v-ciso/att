@@ -155,7 +155,7 @@ model User {
   // policy and record the last successful enrollment; no shared secret is
   // copied into the application database.
   mfaEnrolledAt  DateTime?
-  mfaRequired    Boolean   @default(true)
+  mfaRequired    Boolean   @default(false)
   mfaExemptUntil DateTime?
   name           String
   role          Role      @default(REP)
@@ -187,7 +187,7 @@ model MarketOwner {
   // refused, but the rows survive so it can be reinstated without data loss.
   disabled               Boolean   @default(false)
   // Company default. A per-user exemption can temporarily override it.
-  requireMfa             Boolean   @default(true)
+  requireMfa             Boolean   @default(false)
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 

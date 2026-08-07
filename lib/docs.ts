@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import type { Actor } from '@/lib/archive';
 import { can, type Role } from '@/lib/permissions';
+import { audit } from '@/lib/audit';
 
 // Server-side document library. Files live in the PRIVATE Supabase Storage
 // bucket `tenant-docs`; this module is the only thing that talks to it, so the
@@ -285,6 +286,11 @@ export async function createDocument(
     data: { storagePath: path },
     include: { acks: true },
   });
+  await audit({
+    action: 'doc.uploaded', actor,
+    targetType: 'Document', targetId: saved.id,
+    meta: { title: saved.title, kind: saved.kind, sizeBytes: saved.sizeBytes, version: saved.version },
+  });
   return toDTO(saved as DocRow, true);
 }
 
@@ -305,6 +311,11 @@ export async function signedUrlFor(
     .storage.from(DOC_BUCKET)
     .createSignedUrl(doc.storagePath, expiresInSeconds);
   if (error || !data?.signedUrl) return null;
+  await audit({
+    action: 'doc.signed_url_created', actor,
+    targetType: 'Document', targetId: id,
+    meta: { expiresInSeconds },
+  });
   return data.signedUrl;
 }
 
@@ -330,6 +341,12 @@ export async function documentBytes(
   const { data, error } = await supabaseAdmin().storage.from(DOC_BUCKET).download(doc.storagePath);
   if (error || !data) return null;
 
+  await audit({
+    action: 'doc.downloaded', actor,
+    targetType: 'Document', targetId: id,
+    meta: { title: doc.title, mimeType: doc.mimeType },
+  });
+
   return {
     bytes: Buffer.from(await data.arrayBuffer()),
     mimeType: doc.mimeType,
@@ -353,6 +370,10 @@ export async function deleteDocument(actor: Actor, id: string): Promise<boolean>
   await prisma.document.update({
     where: { id: row.id },
     data: { deletedAt: new Date(), deletedBy: actor.email || actor.userId },
+  });
+  await audit({
+    action: 'doc.deleted', actor,
+    targetType: 'Document', targetId: row.id,
   });
   return true;
 }
@@ -378,6 +399,11 @@ export async function acknowledgeDocument(
     where: { documentId_personId: { documentId: doc.id, personId } },
     create: { documentId: doc.id, personId, personName },
     update: { personName },
+  });
+  await audit({
+    action: 'doc.acknowledged', actor,
+    targetType: 'Document', targetId: doc.id,
+    meta: { personId, personName },
   });
   return true;
 }

@@ -17,12 +17,10 @@ import { authSecret } from '@/lib/auth-secret';
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
-  // An 8-hour ceiling covers a full field shift, so a rep on a route is not
-  // bounced to the login screen mid-visit, while still ending the session the
-  // same day rather than leaving a 30-day token (NextAuth's default) alive on a
-  // phone that gets lost or handed over. updateAge keeps the token from being
-  // rewritten on every single request.
-  session: { strategy: 'jwt', maxAge: 8 * 60 * 60, updateAge: 30 * 60 },
+  // A two-hour ceiling limits exposure on shared or lost field devices while
+  // still covering a focused work block. updateAge avoids rewriting the token
+  // on every request; explicit Sign out remains available from the profile.
+  session: { strategy: 'jwt', maxAge: 2 * 60 * 60, updateAge: 15 * 60 },
   pages: { signIn: '/login' },
   providers: [
     CredentialsProvider({

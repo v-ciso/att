@@ -103,7 +103,7 @@ export async function provisionCompany(input: CompanyInput) {
         marketOwnerId: owner.id,
       },
     });
-    return { slug, ownerEmail: email, tempPassword: password, seats, campaign, authBackend: cred.authId ? 'supabase' : 'bcrypt' as const };
+    return { marketOwnerId: owner.id, slug, ownerEmail: email, tempPassword: password, seats, campaign, authBackend: cred.authId ? 'supabase' : 'bcrypt' as const };
   } catch (e) {
     // Roll back the Supabase auth user if the DB write failed, so we never leave
     // an orphan in the Authentication tab.
@@ -147,7 +147,7 @@ export async function addCompanyUser(input: {
         marketOwnerId: owner.id,
       },
     });
-    return { email: user.email, role: user.role, tempPassword: password, seatsUsed: used + 1, seats };
+    return { userId: user.id, email: user.email, role: user.role, tempPassword: password, seatsUsed: used + 1, seats };
   } catch (e) {
     if (cred.authId) await deleteAuthUser(cred.authId);
     throw e;
@@ -239,7 +239,7 @@ export async function resetUserPassword(userId: string, password?: string) {
 
   if (user.authId) await setAuthPassword(user.authId, pw);
   await prisma.user.update({ where: { id: userId }, data: { passwordHash: await bcrypt.hash(pw, 12) } });
-  return { email: user.email, tempPassword: pw };
+  return { userId: user.id, marketOwnerId: user.marketOwnerId, email: user.email, tempPassword: pw };
 }
 
 export async function removeCompanyUser(userId: string) {
@@ -255,5 +255,5 @@ export async function removeCompanyUser(userId: string) {
     prisma.goal.deleteMany({ where: { userId } }),
     prisma.user.delete({ where: { id: userId } }),
   ]);
-  return { email: user.email };
+  return { userId: user.id, marketOwnerId: user.marketOwnerId, email: user.email };
 }

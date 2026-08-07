@@ -10,6 +10,7 @@ import { useTheme } from '@/components/white-label/theme-provider';
 import { cn } from '@/lib/utils';
 import { Palette, Globe, CheckCircle, Upload, Lock, KeyRound } from 'lucide-react';
 import { ChangePassword } from '@/components/dashboard/change-password';
+import { AuditTrail } from '@/components/dashboard/audit-trail';
 import { isSuperAdminEmail } from '@/lib/super-admins';
 import type { ThemePreset } from '@/lib/theme';
 import { TabBar, tabPanelProps } from '@/components/ui/tabs';
@@ -31,6 +32,7 @@ export default function SettingsPage() {
   // those at purchase (the admin console); in their own Settings they only get
   // to change their password.
   const canBrand = session?.user?.isSuperAdmin ?? isSuperAdminEmail(session?.user?.email);
+  const canAudit = canBrand || session?.user?.role === 'OWNER';
   const [draft, setDraft] = useState({
     companyName: theme.companyName,
     logoUrl: theme.logoUrl ?? '',
@@ -70,8 +72,9 @@ export default function SettingsPage() {
       />
 
       {activeTab === 'account' && (
-        <div {...tabPanelProps('account', activeTab)}>
+        <div className="flex flex-col gap-4" {...tabPanelProps('account', activeTab)}>
           <ChangePassword />
+          {canAudit && <AuditTrail />}
         </div>
       )}
 

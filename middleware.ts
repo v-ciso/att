@@ -1,5 +1,5 @@
 import { withAuth } from 'next-auth/middleware';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { authSecret } from '@/lib/auth-secret';
 import { canWrite, can, type Role } from '@/lib/permissions';
 
@@ -16,6 +16,31 @@ import { canWrite, can, type Role } from '@/lib/permissions';
 // a hint, not a permission, and a read-only seat that can still POST is not
 // read-only.
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const PRIVATE_NO_STORE = 'no-store, private';
+
+function apiResponse(body: object, status: number) {
+  return NextResponse.json(body, {
+    status,
+    headers: { 'Cache-Control': PRIVATE_NO_STORE },
+  });
+}
+
+/**
+ * Authenticated writes are same-origin only. Browsers attach Origin to fetches
+ * and form submissions; comparing it with the proxy-aware host blocks another
+ * site from using a signed-in employee's cookies to mutate company data.
+ */
+function hasTrustedOrigin(req: NextRequest): boolean {
+  const origin = req.headers.get('origin');
+  if (!origin) return false;
+  const forwardedHost = req.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
+  const expectedHost = forwardedHost || req.headers.get('host');
+  try {
+    return !!expectedHost && new URL(origin).host === expectedHost;
+  } catch {
+    return false;
+  }
+}
 
 export default withAuth(
   function middleware(req) {
@@ -32,7 +57,7 @@ export default withAuth(
     };
 
     if (isApi && !token) {
-      return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
+      return apiResponse({ error: 'Not signed in' }, 401);
     }
 
     // Was `role !== 'OWNER'`, which locked super-admins out of Settings even
@@ -45,11 +70,18 @@ export default withAuth(
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
 
-    if (isApi && MUTATING.has(req.method) && !canWrite(actor)) {
-      return NextResponse.json({ error: 'Your account has read-only access.' }, { status: 403 });
+    if (isApi && MUTATING.has(req.method)) {
+      if (!hasTrustedOrigin(req)) {
+        return apiResponse({ error: 'Cross-origin write refused.' }, 403);
+      }
+      if (!canWrite(actor)) {
+        return apiResponse({ error: 'Your account has read-only access.' }, 403);
+      }
     }
 
-    return NextResponse.next();
+    const response = NextResponse.next();
+    if (isApi) response.headers.set('Cache-Control', PRIVATE_NO_STORE);
+    return response;
   },
   {
     pages: { signIn: '/login' },
@@ -72,5 +104,5 @@ export const config = {
   // /api/auth/* is excluded so sign-in and the NextAuth callbacks stay
   // reachable to anonymous visitors; every other API route is gated. The
   // /admin page and /api/admin routes additionally check super-admin server-side.
-  matcher: ['/dashboard/:path*', '/settings/:path*', '/admin/:path*', '/api/((?!auth/).*)'],
+  matcher: ['/dashboard/:path*', '/settings/:path*', '/admin/:path*', '/api/((?!auth/|webhooks/).*)'],
 };
