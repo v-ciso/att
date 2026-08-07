@@ -150,8 +150,14 @@ model User {
   authId        String?   @unique
   // A disabled account cannot sign in even though the row survives (so its
   // history stays intact). Toggled per company from the admin console.
-  disabled      Boolean   @default(false)
-  name          String
+  disabled       Boolean   @default(false)
+  // TOTP is stored and verified by Supabase Auth. These fields only control
+  // policy and record the last successful enrollment; no shared secret is
+  // copied into the application database.
+  mfaEnrolledAt  DateTime?
+  mfaRequired    Boolean   @default(true)
+  mfaExemptUntil DateTime?
+  name           String
   role          Role      @default(REP)
   employeeId    String?   @unique
   avatarUrl     String?
@@ -180,6 +186,8 @@ model MarketOwner {
   // A suspended company (non-payment, offboarding): every login under it is
   // refused, but the rows survive so it can be reinstated without data loss.
   disabled               Boolean   @default(false)
+  // Company default. A per-user exemption can temporarily override it.
+  requireMfa             Boolean   @default(true)
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
