@@ -22,7 +22,8 @@ const endSchema = z.object({
 
 // "End & save": freeze the full numeric standings and flip status to 'ended'.
 // The comp is never deleted — this is the durable historical record.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const actor = await currentActor();
   if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: NO_STORE });
   if (!can(actor, 'competition.manage')) {
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid standings', details: parsed.error.flatten() }, { status: 400, headers: NO_STORE });
   }
-  const item = await endCompetition(actor, params.id, parsed.data.standings, parsed.data.periodEnd);
+  const item = await endCompetition(actor, id, parsed.data.standings, parsed.data.periodEnd);
   if (!item) return NextResponse.json({ error: 'Not found' }, { status: 404, headers: NO_STORE });
   return NextResponse.json({ item }, { headers: NO_STORE });
 }

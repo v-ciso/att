@@ -127,16 +127,8 @@ export async function extractPromoGrid(file: File): Promise<{ grid: string[][]; 
       return { grid };
     }
 
-    const XLSX = await import('xlsx');
-    const wb = XLSX.read(buf, { type: 'array' });
-    const grid: string[][] = [];
-    for (const name of wb.SheetNames) {
-      const sheet = wb.Sheets[name];
-      if (!sheet) continue;
-      const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, blankrows: false });
-      for (const r of rows) grid.push((r as unknown[]).map(c => String(c ?? '')));
-    }
-    return { grid };
+    const { readTabularFile } = await import('@/lib/tabular-file');
+    return { grid: await readTabularFile(file, true) };
   } catch {
     return { grid: [], error: 'Could not read that file. Supported: PDF, XLSX, CSV.' };
   }

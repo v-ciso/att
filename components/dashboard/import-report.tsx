@@ -95,11 +95,8 @@ export function ImportReport({ sales, commission }: { sales: SaleEntry[]; commis
         setRows(parsed);
         return;
       }
-      const XLSX = await import('xlsx');
-      const wb = XLSX.read(buf, { type: 'array' });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, { header: 1, blankrows: false });
-      setRows(parseRows(data));
+      const { readTabularFile } = await import('@/lib/tabular-file');
+      setRows(parseRows(await readTabularFile(file)));
     } catch (e) {
       setError(`Couldn't read that file: ${(e as Error).message}. Try Excel/CSV or paste the cells.`);
     }
