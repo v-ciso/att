@@ -8,6 +8,33 @@ import { useConfirm } from '@/hooks/use-confirm';
 import { useAnnounce } from '@/components/a11y/announcer';
 import { notifyDataChanged } from '@/lib/sales';
 import { fetchArchives, restoreEntity, purgeEntity, type ArchiveItem } from '@/lib/archive-client';
+import { readWorkspace } from '@/lib/workspace';
+import { localArchiveList, localArchiveTake, localArchivePurge } from '@/lib/local-archive';
+
+// Demo restore: put the archived payload back into the demo bucket's own
+// `se-*` key. The workspace shim prefixes these into `demo:` automatically,
+// so this can never touch a live company's data.
+const RESTORE_TARGET_KEY: Record<string, string> = {
+  PERSON: 'se-people-v1',
+  COMPETITION: 'se-competitions-v1',
+};
+
+function localRestorePayload(kind: string, payload: unknown): boolean {
+  const key = RESTORE_TARGET_KEY[kind];
+  if (!key || !payload || typeof payload !== 'object') return false;
+  try {
+    const raw = window.localStorage.getItem(key);
+    const list = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(list)) return false;
+    const id = (payload as { id?: string }).id;
+    const next = id ? list.filter((x: { id?: string }) => x.id !== id) : list;
+    next.push(payload);
+    window.localStorage.setItem(key, JSON.stringify(next));
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const KIND_LABEL: Record<string, string> = {
   PERSON: 'Employee',
@@ -36,12 +63,35 @@ export function RecycleBin() {
   const { confirm, confirmDialog } = useConfirm();
   const announce = useAnnounce();
 
+  // Captured once per mount — switching workspaces reloads the page, so this
+  // cannot go stale. In demo mode this component reads/writes ONLY the local
+  // demo bin; the server bin (real retention data) is never even fetched.
+  const [isDemo] = useState(() => readWorkspace().mode === 'demo');
+
   const [items, setItems] = useState<ArchiveItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
+    if (isDemo) {
+      const local = localArchiveList();
+      setItems(
+        local.map((l) => ({
+          id: l.id,
+          kind: l.kind,
+          refId: l.refId,
+          label: l.label,
+          reason: l.reason ?? null,
+          deletedAt: l.deletedAt,
+          restoredAt: null,
+          purgedAt: null,
+          companyName: 'Demo sandbox',
+          payload: l.payload,
+        })) as unknown as ArchiveItem[]
+      );
+      return;
+    }
     try {
       const data = await fetchArchives();
       setItems(data);
@@ -49,7 +99,7 @@ export function RecycleBin() {
       setError('Could not load the recycle bin. Please try again.');
       setItems([]);
     }
-  }, []);
+  }, [isDemo]);
 
   useEffect(() => {
     void load();
@@ -66,9 +116,16 @@ export function RecycleBin() {
     if (!ok) return;
     setBusyId(item.id);
     try {
-      await restoreEntity(item.id);
-      // A restored PERSON/STORE edits tenant data server-side; nudge every open
-      // view to re-pull so the roster/board updates without a manual refresh.
+      if (isDemo) {
+        const taken = localArchiveTake(item.id);
+        if (!taken || !localRestorePayload(taken.kind, taken.payload)) {
+          throw new Error('local restore failed');
+        }
+      } else {
+        await restoreEntity(item.id);
+      }
+      // A restored PERSON/STORE edits tenant data; nudge every open view to
+      // re-pull so the roster/board updates without a manual refresh.
       notifyDataChanged();
       announce(`${item.label} restored.`);
       await load();
@@ -91,7 +148,9 @@ export function RecycleBin() {
     if (!ok) return;
     setBusyId(item.id);
     try {
-      const purged = await purgeEntity(item.id, 'Purged from recycle bin by super-admin', item.companyName ?? item.label);
+      const purged = isDemo
+        ? localArchivePurge(item.id)
+        : await purgeEntity(item.id, 'Purged from recycle bin by super-admin', item.companyName ?? item.label);
       if (!purged) throw new Error('purge failed');
       announce(`${item.label} permanently deleted.`);
       await load();
@@ -109,10 +168,16 @@ export function RecycleBin() {
         <div>
           <h2 className="text-xl font-bold neon-brand flex items-center gap-2">
             <Trash2 className="w-5 h-5" /> Recycle Bin
+            {isDemo && (
+              <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/10 border border-border-subtle text-text-secondary font-normal">
+                Demo sandbox
+              </span>
+            )}
           </h2>
           <p className="text-xs text-text-secondary mt-1">
-            Archived employees, stores and competitions live here. Restore anything you removed by mistake
-            {isSuper ? '. As a super-admin you can also permanently delete items.' : '. Deleted items are kept until an administrator purges them.'}
+            {isDemo
+              ? 'This is the demo sandbox\u2019s own bin \u2014 completely separate from your live company. Demo archives never appear in the live Recycle Bin, and resetting the demo clears this too.'
+              : `Archived employees, stores and competitions live here. Restore anything you removed by mistake${isSuper ? '. As a super-admin you can also permanently delete items.' : '. Deleted items are kept until an administrator purges them.'}`}
           </p>
         </div>
         <Button variant="ghost" size="sm" onClick={() => load()}>
@@ -167,7 +232,7 @@ export function RecycleBin() {
                       >
                         <RotateCcw className="w-3.5 h-3.5" /> Restore
                       </button>
-                      {isSuper && (
+                      {(isSuper || isDemo) && (
                         <button
                           onClick={() => onPurge(item)}
                           disabled={busyId === item.id}

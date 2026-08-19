@@ -59,14 +59,23 @@ export function ScheduleBoard({ people, storeOptions, compact = false }: {
     });
 
   // person -> {store, code} for this date (Map for O(1) lookups per the guide)
+  //
+  // Only people CURRENTLY on the active roster count. The saved schedule can
+  // hold names of reps who were since archived/retired (or demo sample names
+  // from before an import) — counting those made a store show "Covered" while
+  // every visible shift row was empty, because the card only renders current
+  // roster members. Ghost entries are ignored here rather than deleted, so
+  // restoring the person restores their schedule too.
   const placed = useMemo(() => {
+    const roster = new Set(people.map(p => p.name));
     const m = new Map<string, { store: string; code: ShiftCode }>();
     for (const [person, value] of Object.entries(dayPlan)) {
+      if (!roster.has(person)) continue;
       const { store, code } = parseShift(value);
       if (store && code) m.set(person, { store, code });
     }
     return m;
-  }, [dayPlan]);
+  }, [dayPlan, people]);
 
   const unscheduled = people.filter(p => !placed.has(p.name));
 

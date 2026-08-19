@@ -111,8 +111,27 @@ interface EditableProps {
 }
 
 export function Editable({ value, onCommit, className, label }: EditableProps) {
+  const ref = useRef<HTMLSpanElement>(null);
+  // Tracks whether the user is mid-edit. While true, React must not touch the
+  // span's text — the DOM is the source of truth until blur commits it.
+  const editingRef = useRef(false);
+
+  // UNCONTROLLED ON PURPOSE. The previous version rendered `{value}` as a
+  // React child of the contentEditable span. Typing mutates the DOM text node
+  // behind React's back; the commit then re-renders, React tries to reconcile
+  // a text node that no longer exists, and the whole tab crashes with
+  // NotFoundError (the "press Enter on a commission number and it dies" bug).
+  // The text is now written imperatively and only when the user isn't editing.
+  useEffect(() => {
+    const el = ref.current;
+    if (el && !editingRef.current && el.textContent !== value) {
+      el.textContent = value;
+    }
+  }, [value]);
+
   return (
     <span
+      ref={ref}
       contentEditable
       suppressContentEditableWarning
       // role/aria-label/tabIndex: makes this announce as a labelled text box
@@ -128,7 +147,19 @@ export function Editable({ value, onCommit, className, label }: EditableProps) {
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]',
         className
       )}
-      onBlur={(e) => onCommit(e.currentTarget.textContent ?? '')}
+      onFocus={() => {
+        editingRef.current = true;
+      }}
+      onBlur={(e) => {
+        editingRef.current = false;
+        const text = e.currentTarget.textContent ?? '';
+        if (text !== value) {
+          onCommit(text);
+        } else if (ref.current) {
+          // No change — normalize any stray formatting the browser inserted.
+          ref.current.textContent = value;
+        }
+      }}
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
@@ -138,12 +169,11 @@ export function Editable({ value, onCommit, className, label }: EditableProps) {
         if (e.key === 'Escape') {
           e.preventDefault();
           e.currentTarget.textContent = value;
+          editingRef.current = false;
           (e.currentTarget as HTMLElement).blur();
         }
       }}
-    >
-      {value}
-    </span>
+    />
   );
 }
 
@@ -537,13 +567,18 @@ export function CommissionEngine() {
 // ---------------------------------------------------------------------------
 
 // Every line item carries its billing cadence; views convert automatically
-// (e.g. yearly insurance ÷52 in the weekly view).
-export type Cadence = 'weekly' | 'monthly' | 'yearly';
-export const CADENCE_LABELS: Record<Cadence, string> = { weekly: 'W', monthly: 'M', yearly: 'Y' };
-const CADENCE_ORDER: Cadence[] = ['weekly', 'monthly', 'yearly'];
+// (e.g. yearly insurance ÷52 in the weekly view). 'once' is a dated one-time
+// hit — a bonus, an equipment purchase — that counts ONLY in the view window
+// containing its date (same window logic as roadtrips), never amortized.
+export type Cadence = 'weekly' | 'monthly' | 'yearly' | 'once';
+export const CADENCE_LABELS: Record<Cadence, string> = { weekly: 'W', monthly: 'M', yearly: 'Y', once: '1×' };
+const CADENCE_ORDER: Cadence[] = ['weekly', 'monthly', 'yearly', 'once'];
 
-// per-year multiplier for a cadence, and periods-per-year for a view
-const PER_YEAR: Record<Cadence, number> = { weekly: 52, monthly: 12, yearly: 1 };
+// per-year multiplier for a cadence, and periods-per-year for a view.
+// 'once' is 0 here on purpose: a one-time amount has no annual run-rate, so
+// any path that forgets to date-gate it contributes nothing instead of a
+// silently invented recurring figure.
+const PER_YEAR: Record<Cadence, number> = { weekly: 52, monthly: 12, yearly: 1, once: 0 };
 const VIEW_DIVISOR: Record<PnlView, number> = { daily: 365, weekly: 52, monthly: 12, yearly: 1 };
 
 export function toView(amount: number, cadence: Cadence, view: PnlView): number {
@@ -554,6 +589,16 @@ interface MoneyItem {
   name: string;
   amount: number;
   cadence?: Cadence; // missing on old saved data → treated as monthly
+  date?: string;     // YYYY-MM-DD; only meaningful when cadence === 'once'
+}
+
+/** What this line contributes to the given view. */
+export function itemInView(item: MoneyItem, view: PnlView): number {
+  const cadence = item.cadence ?? 'monthly';
+  if (cadence === 'once') {
+    return inWindow(item.date || isoToday(), view) ? item.amount : 0;
+  }
+  return toView(item.amount, cadence, view);
 }
 
 export interface PnlState {
@@ -608,7 +653,7 @@ function MoneyList({
   color: 'green' | 'red' | 'orange';
   items: MoneyItem[];
   view: PnlView;
-  onEdit: (index: number, field: 'name' | 'amount', value: string) => void;
+  onEdit: (index: number, field: 'name' | 'amount' | 'date', value: string) => void;
   onCadence: (index: number) => void;
   onAdd: () => void;
   onRemove: (index: number) => void;
@@ -637,35 +682,52 @@ function MoneyList({
       <div className="space-y-1.5 text-xs">
         {items.map((item, i) => {
           const cadence = item.cadence ?? 'monthly';
-          const converted = toView(item.amount, cadence, view);
+          const isOnce = cadence === 'once';
+          const converted = itemInView(item, view);
           return (
-            <div key={i} className="group flex items-center justify-between gap-2 p-2 rounded-lg bg-white/5">
-              <Editable label={`${title} item ${i + 1} name`} value={item.name} onCommit={(v) => onEdit(i, 'name', v)} className="flex-1 min-w-0" />
-              <span className="flex items-center gap-1.5">
-                <span className={cn('font-semibold', colorClasses[color])}>
-                  $<Editable label={`${item.name} amount, billed ${cadence}`} value={String(item.amount)} onCommit={(v) => onEdit(i, 'amount', v)} />
+            <div key={i} className="group p-2 rounded-lg bg-white/5 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <Editable label={`${title} item ${i + 1} name`} value={item.name} onCommit={(v) => onEdit(i, 'name', v)} className="flex-1 min-w-0" />
+                <span className="flex items-center gap-1.5">
+                  <span className={cn('font-semibold', colorClasses[color])}>
+                    $<Editable label={`${item.name} amount, billed ${isOnce ? 'one-time' : cadence}`} value={String(item.amount)} onCommit={(v) => onEdit(i, 'amount', v)} />
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onCadence(i)}
+                    // Was title-only, which screen readers and touch users never
+                    // get. aria-label states the current value and the action.
+                    aria-label={`${item.name} is billed ${isOnce ? 'one-time' : cadence}. Change billing cadence.`}
+                    className="px-2 py-1 min-h-8 rounded border border-border-subtle text-[10px] font-bold text-text-secondary hover:text-white hover:border-border-strong transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+                  >
+                    {CADENCE_LABELS[cadence]}
+                  </button>
+                  <span className="text-text-muted text-[10px] w-16 text-right" title={`In the ${view} view`}>
+                    = {formatCurrency(converted)}
+                  </span>
+                  <button
+                    onClick={() => onRemove(i)}
+                    className="p-0.5 rounded text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red transition-all"
+                    aria-label={`Remove ${item.name}`}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => onCadence(i)}
-                  // Was title-only, which screen readers and touch users never
-                  // get. aria-label states the current value and the action.
-                  aria-label={`${item.name} is billed ${cadence}. Change billing cadence.`}
-                  className="px-2 py-1 min-h-8 rounded border border-border-subtle text-[10px] font-bold text-text-secondary hover:text-white hover:border-border-strong transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
-                >
-                  {CADENCE_LABELS[cadence]}
-                </button>
-                <span className="text-text-muted text-[10px] w-16 text-right" title={`In the ${view} view`}>
-                  = {formatCurrency(converted)}
-                </span>
-                <button
-                  onClick={() => onRemove(i)}
-                  className="p-0.5 rounded text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red transition-all"
-                  aria-label={`Remove ${item.name}`}
-                >
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              </span>
+              </div>
+              {isOnce && (
+                <div className="flex items-center justify-between gap-2 text-[10px]">
+                  <input
+                    type="date"
+                    value={item.date || isoToday()}
+                    onChange={(e) => onEdit(i, 'date', e.target.value)}
+                    className="bg-transparent border border-border-subtle rounded px-1.5 py-0.5 text-text-secondary focus:border-border-strong focus:outline-none"
+                    aria-label={`${item.name} one-time date`}
+                  />
+                  <span className="text-text-muted">
+                    {converted > 0 ? 'counted in this view' : 'outside this view window'}
+                  </span>
+                </div>
+              )}
             </div>
           );
         })}
@@ -781,16 +843,15 @@ export function PnlEditor({ derived }: { derived: PnlDerivedByView }) {
 
   const editList =
     (list: 'revenue' | 'expenses') =>
-    (index: number, field: 'name' | 'amount', value: string) =>
+    (index: number, field: 'name' | 'amount' | 'date', value: string) =>
       setState(prev => ({
         ...prev,
-        [list]: prev[list].map((item, i) =>
-          i === index
-            ? field === 'amount'
-              ? { ...item, amount: parseNum(value) }
-              : { ...item, name: value.trim() || item.name }
-            : item
-        ),
+        [list]: prev[list].map((item, i) => {
+          if (i !== index) return item;
+          if (field === 'amount') return { ...item, amount: parseNum(value) };
+          if (field === 'date') return { ...item, date: value || isoToday() };
+          return { ...item, name: value.trim() || item.name };
+        }),
       }));
 
   const editRoadtrip = (index: number, field: 'name' | 'amount' | 'date' | 'receivedDate', value: string) =>
@@ -812,7 +873,10 @@ export function PnlEditor({ derived }: { derived: PnlDerivedByView }) {
         if (i !== index) return item;
         const current = item.cadence ?? 'monthly';
         const next = CADENCE_ORDER[(CADENCE_ORDER.indexOf(current) + 1) % CADENCE_ORDER.length];
-        return { ...item, cadence: next };
+        // Entering one-time mode needs a date to gate against; default today.
+        return next === 'once'
+          ? { ...item, cadence: next, date: item.date || isoToday() }
+          : { ...item, cadence: next };
       }),
     }));
 
@@ -829,7 +893,7 @@ export function PnlEditor({ derived }: { derived: PnlDerivedByView }) {
     setState(prev => ({ ...prev, roadtrips: prev.roadtrips.filter((_, i) => i !== index) }));
 
   const sumInView = (items: MoneyItem[]) =>
-    items.reduce((a, b) => a + toView(b.amount, b.cadence ?? 'monthly', view), 0);
+    items.reduce((a, b) => a + itemInView(b, view), 0);
 
   const rate = Math.min(100, Math.max(0, state.reimburseRate)) / 100;
   // Cost hits on the trip date; the money comes back ~2 weeks later, so only
@@ -870,8 +934,9 @@ export function PnlEditor({ derived }: { derived: PnlDerivedByView }) {
         </div>
       </div>
       <p className="text-[10px] text-text-muted mb-3">
-        Every line has a billing cadence (W/M/Y chip — click to change). Amounts auto-convert to the selected view:
-        a $24,000/yr insurance shows as {formatCurrency(toView(24000, 'yearly', 'weekly'))}/week.
+        Every line has a billing cadence (W/M/Y/1× chip — click to cycle). Recurring amounts auto-convert to the
+        selected view: a $24,000/yr insurance shows as {formatCurrency(toView(24000, 'yearly', 'weekly'))}/week.
+        A 1× line is a dated one-time amount — it counts only in views whose window contains its date.
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
