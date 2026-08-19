@@ -2,7 +2,7 @@
 
 Single source of truth for how this app works, its architecture, and its current
 state. Written so a fresh engineer (or another AI tool / new chat) can pick it up
-with zero prior context. Current on `v0/sales-engine-9e518872` as of 2026-08-07.
+with zero prior context. Current on `v0/sales-engine-9e518872` as of 2026-08-19.
 
 ---
 
@@ -123,9 +123,13 @@ All under `app/(dashboard)/dashboard/page.tsx`, tab state in `?tab=`:
 - **Daily Tracker** — log a sale; mark attendance (Present/Late/Absent, Late-out
   GPS chargeback, Morning-Meeting checkbox); shows each rep's scheduled shift.
 - **Roster** — people are the identity source of truth. Each receives a stable
-  employee code; lifecycle is active → retired/archived → rehire without losing
-  history. The profile drawer derives lifetime production, attendance, tenure,
-  stores, timeline, and document completion from existing source data.
+  employee code and an optional **email**; lifecycle is active → retired/archived
+  → rehire without losing history. Names link to a **full Employee File page**
+  (`/people/[code]`) with identity, tenure, lifetime production, status actions,
+  and a per-person **Documents** section (docs assigned via `audiencePersonIds`).
+  The quick-view drawer remains and links to the full page. In **demo mode**,
+  archiving writes to a local demo recycle bin (`lib/local-archive.ts`) — it
+  never touches the server `DataArchive`.
 - **Leaderboard** — ranked reps, PDF/print.
 - **Meeting Mode** — fullscreen present surface; leadership earnings table,
   teams, competition, schedule, and a **Promo/attachments** panel (links persist;
@@ -141,13 +145,21 @@ All under `app/(dashboard)/dashboard/page.tsx`, tab state in `?tab=`:
   back-dated entries cannot rewrite history. Ended competitions can be archived.
 - **Library** — private Supabase Storage documents under tenant-prefixed paths;
   audience by role/person, effective dates, version chains, acknowledgement
-  tracking, same-origin byte streaming, and Meeting Mode preview.
+  tracking, same-origin byte streaming, and Meeting Mode preview. Plus:
+  **Company forms** (`components/dashboard/form-generator.tsx`,
+  `lib/hr-templates.ts`) — offer letter / write-up / award / promotion-letter
+  templates that generate a filled PDF and file it on the chosen employee's
+  profile (doc kind `TEMPLATE`); and a **Promotions & announcements archive**
+  (`promo-archive.tsx`) — an append-only dated log mirrored from Meeting Mode
+  promos, so clearing the meeting screen never erases history.
 - **Recycle Bin** — `DataArchive` recovery portal for archived tenant entities.
   Owners restore their own company data; only super-admin can permanently purge,
   with company confirmation, reason, and audit row.
 - **P&L** — Daily/Weekly/Monthly/Yearly (cadence conversion via `toView`);
   revenue/expenses/roadtrips; **roadtrip "Mark received"** button; live sales
-  commission + chargebacks folded in.
+  commission + chargebacks folded in. Manual lines support a **one-time (1×)
+  cadence** with a date — the amount counts only in the view window containing
+  that date (same window logic as roadtrips).
 - **Commission** — the payout engine (tiers, per-store multipliers, plan payouts,
   role rules, late-penalty). `normalizeCommission` guards against partial data.
 - **Import** — reconcile uploaded .xlsx/.csv/.pdf vs computed pay (flags diffs).
@@ -190,8 +202,13 @@ Staffing coverage in `lib/shifts.ts` (`test:shifts`). B2B campaign = straight
   login.
 - **Per company**: add/remove **Stores** (handoff setup), add users (default
   **MANAGER**; seat cap auto-raises), **Reset pw** on any user (owners included),
-  edit seats inline, **Suspend/Reinstate** the whole company.
-- Users created here carry the **"Supabase"** badge; CLI/bcrypt accounts don't.
+  edit seats inline, **Suspend/Reinstate** the whole company, and an **Edit
+  company** form (PATCH `/api/admin/companies`) for name/campaign/seats — fixes
+  the "campaign chosen wrong at creation" dead end.
+- The add-user form shows a **role legend** (kept in sync with `ROLE_CAPS` in
+  `lib/permissions.ts`) explaining what each assignable role unlocks.
+- Users created here carry the **"Secured login"** badge (Supabase Auth);
+  CLI/bcrypt accounts show "legacy login" — both fully supported.
 - **Audit** activity is available to super-admin across companies; company owners
   see only their own tenant slice.
 
