@@ -1,27 +1,19 @@
 'use client';
 
-import { useState } from 'react';
-import { X } from 'lucide-react';
+import Link from 'next/link';
+import { X, ExternalLink } from 'lucide-react';
 import { useModalA11y } from '@/hooks/use-modal-a11y';
-import { cn, formatCurrency, getInitials } from '@/lib/utils';
-import { loadPeople, loadPromoRules, promotionStatus, effectiveAttendance, ROSTER_ROLE_LABELS, ROLE_LADDER } from './roster';
-import { Period, PERIOD_LABELS, aggregateSales, loadSales, loadCommission } from '@/lib/sales';
-import { computePay } from '@/lib/pay';
-import { RepLifetime } from './rep-lifetime';
+import { getInitials } from '@/lib/utils';
+import { loadPeople, ROSTER_ROLE_LABELS } from './roster';
+import { Period } from '@/lib/sales';
+import { PersonSnapshot } from './person-profile';
 
+// Quick-view profile. The full employee file (identity, status actions, and
+// documents) lives at /people/[employeeCode]; this drawer is the fast in-place
+// look during a meeting or while scanning a leaderboard. Both render the same
+// PersonSnapshot, so the numbers can never disagree.
 export function ProfileDrawer({ name, period, onClose }: { name: string; period: Period; onClose: () => void }) {
-  // The drawer used to be locked to whatever period the dashboard was on, so
-  // there was no way to see a rep's full history from their profile.
-  const [span, setSpan] = useState<Period>(period);
   const person = loadPeople().find(p => p.name.trim().toLowerCase() === name.trim().toLowerCase());
-  const rules = loadPromoRules();
-  const status = person ? promotionStatus(person, rules) : null;
-  const roleIndex = person ? ROLE_LADDER.indexOf(person.role) : -1;
-  const profitMax = person ? Math.max(...person.weeklyProfit, rules.profitPerWeek) : 1;
-
-  // Live stats for this person over the selected period, derived from sales entries
-  const agg = aggregateSales(loadSales(), loadCommission(), { period: span });
-  const stats = agg.perPerson.find(p => p.person.trim().toLowerCase() === name.trim().toLowerCase());
 
   // Focus enters the drawer on open, Tab stays inside it, Escape closes, and
   // focus returns to the trigger on close.
@@ -49,182 +41,27 @@ export function ProfileDrawer({ name, period, onClose }: { name: string; period:
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-11 h-11 inline-flex items-center justify-center flex-none rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
-            aria-label={`Close ${name} profile`}
-          >
-            <X className="w-5 h-5" aria-hidden="true" />
-          </button>
-        </div>
-
-        {/* Period production, derived from the Daily Tracker */}
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <p className="text-[10px] text-text-muted uppercase tracking-wider">{PERIOD_LABELS[span]} Production</p>
-          <div className="flex gap-1" role="radiogroup" aria-label="Production period">
-            {(['daily', 'weekly', 'monthly', 'all'] as Period[]).map(p => (
-              <button
-                key={p}
-                type="button"
-                role="radio"
-                aria-checked={span === p}
-                onClick={() => setSpan(p)}
-                className={cn(
-                  'tab-btn min-h-11',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]',
-                  span === p ? 'active' : 'inactive'
-                )}
+          <div className="flex items-center gap-1">
+            {person?.employeeCode && (
+              <Link
+                href={`/people/${encodeURIComponent(person.employeeCode)}`}
+                className="min-h-11 px-3 inline-flex items-center gap-1.5 rounded-lg text-xs text-accent-blue hover:bg-white/10 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
               >
-                {PERIOD_LABELS[p]}
-              </button>
-            ))}
+                <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" /> Full profile
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-11 h-11 inline-flex items-center justify-center flex-none rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+              aria-label={`Close ${name} profile`}
+            >
+              <X className="w-5 h-5" aria-hidden="true" />
+            </button>
           </div>
         </div>
-        {stats ? (
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            {[
-              { label: 'Lines', value: String(stats.lines), color: 'text-accent-blue' },
-              { label: 'Premium', value: String(stats.premium), color: 'text-accent-purple' },
-              { label: 'Internet', value: String(stats.internet), color: 'text-accent-cyan' },
-              { label: 'Next Up', value: String(stats.nextUps), color: 'text-accent-red' },
-              { label: 'Generated', value: formatCurrency(stats.revenue), color: 'text-accent-green' },
-              { label: stats.chargebacks > 0 ? 'Commission*' : 'Commission', value: formatCurrency(stats.commission), color: 'text-accent-blue' },
-            ].map(s => (
-              <div key={s.label} className="p-2 rounded-xl bg-white/5 text-center">
-                <p className="text-[9px] text-text-muted uppercase tracking-wider">{s.label}</p>
-                <p className={cn('text-sm font-bold', s.color)}>{s.value}</p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-xs text-text-muted p-3 rounded-xl bg-white/5 mb-4">
-            No sales logged for this period — add them in the <span className="text-accent-blue">Daily Tracker</span>.
-          </p>
-        )}
-        {person && (() => {
-          // Full pay for the week: base + lead bump + ASM override, then the
-          // greater of that vs the guaranteed hourly.
-          const allPeople = loadPeople();
-          const pay = computePay(person, { sales: loadSales(), commission: loadCommission(), people: allPeople, period: span === 'daily' ? 'weekly' : span });
-          const hourly = person.hourlyWeekly ?? 0;
-          const paid = Math.max(pay.total, hourly);
-          const via = pay.total >= hourly ? 'earnings' : 'hourly floor';
-          return (
-            <div className="p-3 rounded-xl bg-accent-cyan/5 border border-accent-cyan/20 mb-4">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs text-text-secondary">💵 This week&apos;s pay</span>
-                <span className="text-accent-cyan font-bold text-sm">{formatCurrency(paid)} <span className="text-[10px] text-text-muted font-normal">via {via}</span></span>
-              </div>
-              <div className="space-y-0.5 text-[11px]">
-                <div className="flex justify-between"><span className="text-text-muted">Base commission (own sales)</span><span className="text-accent-blue">{formatCurrency(pay.base)}</span></div>
-                {pay.bump > 0 && <div className="flex justify-between"><span className="text-text-muted">Lead per-line bump (own lines)</span><span className="text-accent-purple">+{formatCurrency(pay.bump)}</span></div>}
-                {pay.override > 0 && <div className="flex justify-between"><span className="text-text-muted">ASM override (team production)</span><span className="text-accent-yellow">+{formatCurrency(pay.override)}</span></div>}
-                {hourly > 0 && <div className="flex justify-between"><span className="text-text-muted">Guaranteed hourly floor</span><span className="text-text-secondary">{formatCurrency(hourly)}</span></div>}
-              </div>
-              {pay.notes.length > 0 && (
-                <p className="text-[9px] text-text-muted mt-1.5">{pay.notes.join(' · ')} — rates editable in the Commission tab&apos;s Role Structure.</p>
-              )}
-            </div>
-          );
-        })()}
 
-        {stats && stats.chargebacks > 0 && (
-          <p className="text-[11px] text-accent-red p-2.5 rounded-lg bg-accent-red/5 border border-accent-red/20 mb-4">
-            ⏰ Late clock-out chargebacks this period: <span className="font-bold">−{formatCurrency(stats.chargebacks)}</span>
-            <span className="text-text-muted"> — already deducted from Generated and Commission above.</span>
-          </p>
-        )}
-
-        {person && status ? (
-          <>
-            <p className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Leadership Roadmap</p>
-            <div className="flex items-center gap-1 mb-4">
-              {ROLE_LADDER.map((role, i) => (
-                <div key={role} className="flex-1 flex items-center gap-1">
-                  {/* Colour alone signalled which rung is current; aria-current
-                      and an sr-only suffix state it non-visually too. */}
-                  <div
-                    aria-current={i === roleIndex ? 'step' : undefined}
-                    className={cn(
-                      'flex-1 text-center py-1.5 rounded-lg text-[10px] font-semibold border transition-all',
-                      i < roleIndex && 'bg-accent-green/10 text-accent-green border-accent-green/30',
-                      i === roleIndex && 'bg-accent-blue/20 text-accent-blue border-accent-blue/40 shadow-neon-blue',
-                      i > roleIndex && 'bg-white/5 text-text-muted border-border-subtle'
-                    )}
-                  >
-                    {ROSTER_ROLE_LABELS[role]}
-                    {i < roleIndex && <span className="sr-only"> (completed)</span>}
-                    {i === roleIndex && <span className="sr-only"> (current role)</span>}
-                  </div>
-                  {i < ROLE_LADDER.length - 1 && <span className="text-text-muted text-[10px]">→</span>}
-                </div>
-              ))}
-            </div>
-
-            <div className={cn('p-3 rounded-xl border mb-4', status.ready ? 'bg-accent-green/10 border-accent-green/30' : 'bg-white/5 border-border-subtle')}>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-semibold">{status.ready ? '🎉 ' : ''}{status.label}</span>
-                <span className="text-[10px] text-text-muted">
-                  needs {formatCurrency(rules.profitPerWeek)}/wk × {rules.weeks} wks + {rules.minAttendance}% attendance
-                </span>
-              </div>
-              <div
-                className="w-full h-1.5 rounded-full bg-bg-tertiary"
-                role="progressbar"
-                aria-valuenow={Math.round(status.progress)}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label={`${name} progress toward promotion`}
-              >
-                <div className={cn('h-full rounded-full', status.ready ? 'bg-accent-green' : 'bg-gradient-to-r from-accent-blue to-accent-green')} style={{ width: `${status.progress}%` }} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-xl bg-white/5">
-                <p className="text-[9px] text-text-muted uppercase tracking-wider mb-2">Weekly Profit (roadmap)</p>
-                <div className="flex items-end gap-3">
-                  {person.weeklyProfit.map((w, i) => (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                      {/* fixed pixel heights — % collapses without a sized parent */}
-                      <div
-                        className={cn('w-full rounded-t', w >= rules.profitPerWeek ? 'bg-accent-green' : 'bg-accent-green/40')}
-                        style={{ height: `${Math.max(8, Math.round((w / profitMax) * 56))}px` }}
-                      />
-                      <span className="text-[9px] text-text-secondary font-medium">{formatCurrency(w)}</span>
-                      <span className="text-[8px] text-text-muted">wk {i + 1}</span>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-[8px] text-text-muted mt-1.5">target {formatCurrency(rules.profitPerWeek)}/wk · solid bar = week hit</p>
-              </div>
-              <div className="p-3 rounded-xl bg-white/5 flex flex-col items-center justify-center">
-                <p className="text-[9px] text-text-muted uppercase tracking-wider mb-1">Attendance</p>
-                {(() => {
-                  const att = effectiveAttendance(person);
-                  return (
-                    <>
-                      <p className={cn('text-2xl font-bold', att.pct >= rules.minAttendance ? 'text-accent-green' : 'text-accent-yellow')}>
-                        {att.pct}%
-                      </p>
-                      <p className="text-[9px] text-text-muted">
-                        target {rules.minAttendance}%{att.tracked ? ' · from tracker marks' : ''}
-                      </p>
-                    </>
-                  );
-                })()}
-              </div>
-            </div>
-
-            <RepLifetime person={person} />
-          </>
-        ) : (
-          <p className="text-xs text-text-secondary p-3 rounded-xl bg-white/5">
-            This rep isn&apos;t in the roster yet. Add them on the <span className="text-accent-blue font-medium">Roster</span> tab
-            (same name) to track their store, team, promotions, and leadership roadmap here.
-          </p>
-        )}
+        <PersonSnapshot name={name} period={period} />
       </div>
     </div>
   );

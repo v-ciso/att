@@ -10,7 +10,8 @@ import { useSession } from 'next-auth/react';
 import { TeamTree } from './team-tree';
 import { notifyDataChanged, loadCommission, markStatus, ATTENDANCE_KEY, type AttendanceBook } from '@/lib/sales';
 import { RETAILERS } from '@/lib/shifts';
-import { seedForWorkspace } from '@/lib/workspace';
+import { seedForWorkspace, readWorkspace } from '@/lib/workspace';
+import { localArchiveAdd } from '@/lib/local-archive';
 import { useConfirm } from '@/hooks/use-confirm';
 import { useAnnounce } from '@/components/a11y/announcer';
 import {
@@ -54,6 +55,7 @@ export interface Person {
   weeklyProfit: number[];
   attendance: number; // manual fallback % (tracked records win when present)
   hourlyWeekly?: number; // guaranteed weekly hourly pay; rep is paid MAX(commission, hourly). 0 = commission-only
+  email?: string; // contact email for offer letters, write-ups, and other HR paperwork
   // --- Identity + lifecycle (Phase 4) ---------------------------------------
   // Stable, immutable, human-readable id (e.g. "SOR-0007"). Assigned once at
   // migration/hire and never reused, so history (sales, attendance, comps) can
@@ -366,6 +368,7 @@ function EditEmployeeModal({ person, storeOptions, teamOptions, onSave, onClose 
   const [hourly, setHourly] = useState(String(person.hourlyWeekly ?? 0));
   const [attendance, setAttendance] = useState(String(person.attendance ?? 100));
   const [hiredAt, setHiredAt] = useState(person.hiredAt ?? '');
+  const [email, setEmail] = useState(person.email ?? '');
 
   // Escape closes, focus is trapped inside, and returns to the trigger on close.
   const panelRef = useModalA11y<HTMLDivElement>(onClose);
@@ -383,6 +386,7 @@ function EditEmployeeModal({ person, storeOptions, teamOptions, onSave, onClose 
       // Blank clears the date rather than writing an empty string, so the
       // lifetime panel can tell "no hire date on file" from a real one.
       hiredAt: hiredAt || undefined,
+      email: email.trim() || undefined,
     });
   };
 
@@ -440,6 +444,18 @@ function EditEmployeeModal({ person, storeOptions, teamOptions, onSave, onClose 
             />
             <p className="text-[10px] text-text-muted mt-1">Drives tenure on their profile. Leave blank if you don&apos;t know it.</p>
           </div>
+          <div>
+            <label className="label-base">Email</label>
+            <input
+              aria-label="Employee email"
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="person@example.com"
+              className={selectClass}
+            />
+            <p className="text-[10px] text-text-muted mt-1">Used on generated paperwork (offer letters, write-ups) and shown on their profile.</p>
+          </div>
           <Button className="w-full" onClick={save}>Save changes</Button>
         </div>
       </div>
@@ -458,13 +474,22 @@ function AddEmployeeModal({ storeOptions, teamOptions, onAdd, onClose }: {
   const [role, setRole] = useState<RosterRole>('INTERN');
   const [stores, setStores] = useState<string[]>(storeOptions.slice(0, 1));
   const [team, setTeam] = useState('');
+  const [email, setEmail] = useState('');
 
   // Escape closes, focus is trapped inside, and returns to the trigger on close.
   const panelRef = useModalA11y<HTMLDivElement>(onClose);
 
   const submit = () => {
     if (!name.trim()) return;
-    onAdd({ name: name.trim(), role, stores: stores.length ? stores : [storeOptions[0] ?? 'Costco'], team, weeklyProfit: [0, 0], attendance: 100 });
+    onAdd({
+      name: name.trim(),
+      role,
+      stores: stores.length ? stores : [storeOptions[0] ?? 'Costco'],
+      team,
+      weeklyProfit: [0, 0],
+      attendance: 100,
+      email: email.trim() || undefined,
+    });
     onClose();
   };
 
@@ -507,6 +532,17 @@ function AddEmployeeModal({ storeOptions, teamOptions, onAdd, onClose }: {
               <option value="">Unassigned</option>
               {teamOptions.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
+          </div>
+          <div>
+            <label className="label-base">Email (optional)</label>
+            <input
+              aria-label="Employee email"
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="person@example.com"
+              className={selectClass}
+            />
           </div>
           <Button className="w-full" onClick={submit} disabled={!name.trim()}>Add to roster</Button>
         </div>
@@ -641,6 +677,22 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
       destructive: true,
     });
     if (!ok) return;
+    // Demo workspace: the server DataArchive is the REAL company's bin, and it
+    // cannot tell which browser bucket the archive came from. A sample rep
+    // archived while playing in Demo must never land next to real employees in
+    // a legal-retention surface, so demo archives go to the local demo bin
+    // (an se-* key the workspace shim prefixes into the demo: bucket).
+    if (readWorkspace().mode === 'demo') {
+      localArchiveAdd({
+        kind: 'PERSON',
+        refId: p.id,
+        label: `${p.name}${p.employeeCode ? ` (${p.employeeCode})` : ''}`,
+        payload: p,
+      });
+      setPeople(prev => prev.filter(x => x.id !== id));
+      announce(`${p.name} archived to the demo recycle bin.`);
+      return;
+    }
     // Persist to the recycle bin FIRST and only remove from the roster if that
     // succeeded. archiveEntity resolves to null (never throws) on any non-2xx,
     // so a failed save must not orphan the person — otherwise they would vanish

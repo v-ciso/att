@@ -17,7 +17,7 @@ import { audit } from '@/lib/audit';
 
 export const DOC_BUCKET = 'tenant-docs';
 
-export const DOC_KINDS = ['TRAINING', 'COMPLIANCE', 'PROMO', 'ADASM', 'OTHER'] as const;
+export const DOC_KINDS = ['TRAINING', 'COMPLIANCE', 'PROMO', 'ADASM', 'TEMPLATE', 'OTHER'] as const;
 export type DocKind = (typeof DOC_KINDS)[number];
 
 export const MAX_DOC_BYTES = 25 * 1024 * 1024;

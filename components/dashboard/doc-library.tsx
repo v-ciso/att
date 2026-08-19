@@ -18,6 +18,7 @@ const KINDS = [
   { value: 'TRAINING', label: 'Training' },
   { value: 'COMPLIANCE', label: 'Compliance' },
   { value: 'ADASM', label: 'AD/ASM Course' },
+  { value: 'TEMPLATE', label: 'Form / Template' },
   { value: 'OTHER', label: 'Other' },
 ];
 

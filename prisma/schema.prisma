@@ -84,6 +84,7 @@ enum DocumentKind {
   COMPLIANCE
   PROMO
   ADASM
+  TEMPLATE // company forms: offer letters, write-ups, award certificates
   OTHER
 }
 
