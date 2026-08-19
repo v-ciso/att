@@ -43,6 +43,8 @@ import { readWorkspace } from '@/lib/workspace';
 import { can, canSeeTab, type Role } from '@/lib/permissions';
 import { AttendanceEditor } from '@/components/dashboard/attendance-editor';
 import { DocLibrary } from '@/components/dashboard/doc-library';
+import { FormGenerator } from '@/components/dashboard/form-generator';
+import { PromoArchive } from '@/components/dashboard/promo-archive';
 import { MeetingDocs } from '@/components/dashboard/meeting-docs';
 import { normalizeName } from '@/lib/people';
 import { useTheme } from '@/components/white-label/theme-provider';
@@ -1454,7 +1456,7 @@ function DashboardContent() {
       )}
 
       {activeTab === 'library' && (
-        <div id="view-panel-library" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-library" tabIndex={0}>
+        <div id="view-panel-library" className="tab-panel flex flex-col gap-4" role="tabpanel" aria-labelledby="view-tab-library" tabIndex={0}>
           <Card className="p-5">
             <DocLibrary
               actor={actor}
@@ -1462,6 +1464,14 @@ function DashboardContent() {
               personName={session?.user?.name ?? null}
               people={people}
             />
+          </Card>
+          {can(actor, 'docs.manage') && (
+            <Card className="p-5">
+              <FormGenerator actor={actor} people={people} />
+            </Card>
+          )}
+          <Card className="p-5">
+            <PromoArchive actor={actor} />
           </Card>
         </div>
       )}

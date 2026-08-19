@@ -199,6 +199,52 @@ export async function setCompanySeats(marketOwnerId: string, seats: number) {
   return { seats: n, used };
 }
 
+// Rename a company and/or switch its campaign after provisioning. This fixes
+// the "created with the wrong campaign, can't recreate because the name is
+// taken" dead end. Name changes propagate to every place the old name lives:
+// the MarketOwner row, the theme JSON on that row, and the tenant's own
+// se-theme-v1 blob (what their dashboard header actually reads). Campaign
+// changes update theme.campaign and the tenant's se-campaign-v1 key; the
+// commission plan is deliberately left alone — the owner may have customized
+// rates, and silently resetting them would destroy real configuration.
+export async function setCompanyDetails(
+  marketOwnerId: string,
+  input: { name?: string; campaign?: 'retail' | 'b2b' }
+) {
+  const owner = await prisma.marketOwner.findUniqueOrThrow({ where: { id: marketOwnerId } });
+  const theme = { ...(owner.theme as Record<string, unknown>) };
+  const name = input.name?.trim();
+  const campaign = input.campaign ? (input.campaign === 'b2b' ? 'AT&T B2B' : 'AT&T Retail EDM') : undefined;
+
+  if (name) theme.companyName = name;
+  if (campaign) theme.campaign = campaign;
+
+  await prisma.marketOwner.update({
+    where: { id: marketOwnerId },
+    data: { ...(name ? { name } : {}), theme },
+  });
+
+  if (campaign) {
+    await prisma.tenantData.upsert({
+      where: { marketOwnerId_key: { marketOwnerId, key: 'se-campaign-v1' } },
+      create: { marketOwnerId, key: 'se-campaign-v1', value: campaign },
+      update: { value: campaign },
+    });
+  }
+  if (name) {
+    const row = await prisma.tenantData.findUnique({
+      where: { marketOwnerId_key: { marketOwnerId, key: 'se-theme-v1' } },
+    });
+    const tenantTheme = { ...((row?.value ?? {}) as object), companyName: name };
+    await prisma.tenantData.upsert({
+      where: { marketOwnerId_key: { marketOwnerId, key: 'se-theme-v1' } },
+      create: { marketOwnerId, key: 'se-theme-v1', value: tenantTheme },
+      update: { value: tenantTheme },
+    });
+  }
+  return { name: name ?? owner.name, campaign: campaign ?? (theme.campaign as string | undefined) };
+}
+
 // The clean starting point for a new tenant. Empty collections so no invented
 // staff or money appears; the client fills the commission plan payouts from its
 // own liveDefault. Kept as JSON blobs matching the app's localStorage shapes.

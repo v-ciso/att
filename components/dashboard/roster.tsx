@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocalState, Editable, parseNum } from './editable-sections';
@@ -836,7 +838,14 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                           {person.name}
                         </button>
                         {person.employeeCode && (
-                          <span className="text-[9px] font-mono text-text-muted" title="Employee code">{person.employeeCode}</span>
+                          <Link
+                            href={`/people/${encodeURIComponent(person.employeeCode)}`}
+                            className="text-[9px] font-mono text-text-muted hover:text-accent-blue transition-colors"
+                            title="Open full employee file"
+                            aria-label={`Open ${person.name}'s full employee file`}
+                          >
+                            {person.employeeCode}
+                          </Link>
                         )}
                         {retired && (
                           <span className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-accent-amber/15 text-accent-amber border border-accent-amber/25">Retired</span>

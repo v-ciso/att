@@ -118,6 +118,7 @@ export function AdminConsole({ adminEmail }: { adminEmail: string }) {
                     </div>
                   </button>
                   <div className="flex items-center gap-2">
+                    <CompanyEditor company={c} onSaved={load} />
                     <SeatEditor company={c} onSaved={load} />
                     <button
                       onClick={() => toggleCompany(c)}
@@ -272,6 +273,64 @@ function TenantStores({ company }: { company: Company }) {
         </button>
       </div>
     </div>
+  );
+}
+
+// Fixes the "created with the wrong campaign, can't recreate — name already
+// exists" dead end: rename or re-campaign the company in place. Campaign
+// changes take effect on the customer's next sign-in / data pull; their
+// commission rates are left untouched on purpose.
+function CompanyEditor({ company, onSaved }: { company: Company; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(company.name);
+  const [campaign, setCampaign] = useState(company.campaign.includes('B2B') ? 'b2b' : 'retail');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const save = async () => {
+    setBusy(true); setErr('');
+    const res = await fetch('/api/admin/companies', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: company.id, name: name.trim() || undefined, campaign }),
+    });
+    setBusy(false);
+    if (!res.ok) { setErr((await res.json()).error ?? 'Failed'); return; }
+    setEditing(false);
+    onSaved();
+  };
+
+  if (!editing) {
+    return (
+      <button
+        onClick={() => setEditing(true)}
+        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] text-text-muted hover:text-white hover:bg-white/5 transition-colors"
+        title="Rename this company or switch its campaign (Retail ↔ B2B)"
+      >
+        <Pencil className="w-3 h-3" /> Edit
+      </button>
+    );
+  }
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <input
+        value={name}
+        onChange={e => setName(e.target.value)}
+        aria-label="Company name"
+        className="w-36 bg-bg-tertiary border border-border-subtle rounded px-2 py-1 text-[11px] focus:outline-none"
+      />
+      <select
+        value={campaign}
+        onChange={e => setCampaign(e.target.value)}
+        aria-label="Campaign"
+        className="bg-bg-tertiary border border-border-subtle rounded px-1.5 py-1 text-[11px] focus:outline-none"
+      >
+        <option value="retail">Retail EDM</option>
+        <option value="b2b">B2B (50% split)</option>
+      </select>
+      <button onClick={save} disabled={busy} className="px-1.5 py-1 rounded text-[11px] text-accent-green hover:bg-accent-green/10">save</button>
+      <button onClick={() => { setEditing(false); setName(company.name); setErr(''); }} className="px-1 text-[11px] text-text-muted hover:text-white">✕</button>
+      {err && <span role="alert" className="text-[10px] text-accent-red w-full">{err}</span>}
+    </span>
   );
 }
 

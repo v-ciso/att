@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { requireSuperAdmin } from '@/lib/admin';
-import { provisionCompany, setCompanyDisabled, setCompanySeats } from '@/lib/provision';
+import { provisionCompany, setCompanyDisabled, setCompanySeats, setCompanyDetails } from '@/lib/provision';
 import { z } from 'zod';
 import { blankAsUndefined, fields, parseBody } from '@/lib/api-validation';
 import { audit, clientIp } from '@/lib/audit';
@@ -37,6 +37,10 @@ const updateCompanySchema = z.object({
   id: fields.id,
   seats: fields.count.optional(),
   disabled: z.boolean().optional(),
+  // Post-provision corrections: rename a company or switch its campaign type
+  // without deleting and recreating it (which the unique name check forbids).
+  name: blankAsUndefined(fields.name),
+  campaign: z.enum(['retail', 'b2b']).optional(),
 });
 
 export async function GET() {
@@ -99,6 +103,17 @@ export async function PATCH(request: NextRequest) {
         action: 'company.seats_changed',
         actor: { email: adminEmail, role: 'SUPER_ADMIN', marketOwnerId: body.id },
         targetType: 'MarketOwner', targetId: body.id, meta: { seats: result.seats },
+        ip: clientIp(request), userAgent: request.headers.get('user-agent'),
+      });
+      return NextResponse.json({ success: true, ...result });
+    }
+    if (body.name || body.campaign) {
+      const result = await setCompanyDetails(body.id, { name: body.name, campaign: body.campaign });
+      await audit({
+        action: 'company.details_changed',
+        actor: { email: adminEmail, role: 'SUPER_ADMIN', marketOwnerId: body.id },
+        targetType: 'MarketOwner', targetId: body.id,
+        meta: { name: result.name, campaign: result.campaign },
         ip: clientIp(request), userAgent: request.headers.get('user-agent'),
       });
       return NextResponse.json({ success: true, ...result });

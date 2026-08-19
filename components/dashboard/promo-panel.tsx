@@ -5,6 +5,7 @@ import { Megaphone, Plus, Trash2, Upload, ExternalLink, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Editable, useLocalState } from './editable-sections';
 import { isoToday } from '@/lib/roadtrips';
+import { upsertPromoArchive } from './promo-archive';
 
 // Promotions to walk the floor through during the morning meeting.
 //
@@ -46,15 +47,25 @@ export function PromoPanel() {
   };
 
   // Counter appended because two promos added in the same millisecond would
-  // otherwise share an id and collide as React keys.
+  // otherwise share an id and collide as React keys. Every add/edit is also
+  // mirrored into the Library's append-only history (upsertPromoArchive), so
+  // clearing the meeting screen never erases what was announced and when.
   const add = () =>
-    setPromos(p => [
-      ...p,
-      { id: `p${Date.now()}-${promoCounter++}`, title: 'New promotion', note: '', url: '', added: isoToday() },
-    ]);
+    setPromos(p => {
+      const next = [
+        ...p,
+        { id: `p${Date.now()}-${promoCounter++}`, title: 'New promotion', note: '', url: '', added: isoToday() },
+      ];
+      upsertPromoArchive(next);
+      return next;
+    });
 
   const edit = (id: string, field: 'title' | 'note' | 'url', value: string) =>
-    setPromos(p => p.map(x => (x.id === id ? { ...x, [field]: value } : x)));
+    setPromos(p => {
+      const next = p.map(x => (x.id === id ? { ...x, [field]: value } : x));
+      upsertPromoArchive(next);
+      return next;
+    });
 
   return (
     <div className="mt-5 pt-4 border-t border-border-subtle">
