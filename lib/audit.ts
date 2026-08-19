@@ -30,6 +30,7 @@ export type AuditAction =
   | 'company.suspended'
   | 'company.reinstated'
   | 'company.seats_changed'
+  | 'company.details_changed'
   | 'doc.created'
   | 'doc.uploaded'
   | 'doc.downloaded'

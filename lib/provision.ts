@@ -2,7 +2,7 @@ import { randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { createAuthUser, setAuthPassword, deleteAuthUser, supabaseAuthReady } from '@/lib/supabase-admin';
-import type { Role } from '@prisma/client';
+import type { Role, Prisma } from '@prisma/client';
 
 // One place that creates tenants and logins, used by the admin API (and usable
 // by the CLI scripts). New accounts go into Supabase Auth so they appear in the
@@ -221,7 +221,9 @@ export async function setCompanyDetails(
 
   await prisma.marketOwner.update({
     where: { id: marketOwnerId },
-    data: { ...(name ? { name } : {}), theme },
+    // Prisma's Json input type doesn't accept Record<string, unknown> directly;
+    // the object is plain JSON built from a JSON column, so the cast is safe.
+    data: { ...(name ? { name } : {}), theme: theme as Prisma.InputJsonValue },
   });
 
   if (campaign) {

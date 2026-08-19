@@ -50,22 +50,25 @@ export function PromoPanel() {
   // otherwise share an id and collide as React keys. Every add/edit is also
   // mirrored into the Library's append-only history (upsertPromoArchive), so
   // clearing the meeting screen never erases what was announced and when.
-  const add = () =>
-    setPromos(p => {
-      const next = [
-        ...p,
-        { id: `p${Date.now()}-${promoCounter++}`, title: 'New promotion', note: '', url: '', added: isoToday() },
-      ];
-      upsertPromoArchive(next);
-      return next;
-    });
+  //
+  // `next` is computed OUTSIDE setPromos on purpose: StrictMode runs state
+  // updaters twice in dev, so a side effect inside the updater fired twice
+  // and wrote duplicate archive entries (each run drew a fresh counter id).
+  // Updaters must stay pure; the mirror happens once, out here.
+  const add = () => {
+    const next = [
+      ...promos,
+      { id: `p${Date.now()}-${promoCounter++}`, title: 'New promotion', note: '', url: '', added: isoToday() },
+    ];
+    upsertPromoArchive(next);
+    setPromos(next);
+  };
 
-  const edit = (id: string, field: 'title' | 'note' | 'url', value: string) =>
-    setPromos(p => {
-      const next = p.map(x => (x.id === id ? { ...x, [field]: value } : x));
-      upsertPromoArchive(next);
-      return next;
-    });
+  const edit = (id: string, field: 'title' | 'note' | 'url', value: string) => {
+    const next = promos.map(x => (x.id === id ? { ...x, [field]: value } : x));
+    upsertPromoArchive(next);
+    setPromos(next);
+  };
 
   return (
     <div className="mt-5 pt-4 border-t border-border-subtle">

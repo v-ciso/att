@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import {
-  Building2, Plus, Users, Power, Trash2, Copy, Check, ShieldCheck, ChevronDown, ChevronRight, KeyRound, Upload,
+  Building2, Plus, Users, Power, Trash2, Copy, Check, ShieldCheck, ChevronDown, ChevronRight, KeyRound, Upload, Pencil, Info,
 } from 'lucide-react';
 import { useConfirm } from '@/hooks/use-confirm';
 
@@ -19,6 +19,18 @@ interface Company {
 }
 
 const ROLES = ['MANAGER', 'VIEWER', 'ASM', 'LEAD', 'REP', 'INTERN'];
+
+// What each assignable role actually unlocks, in plain words, kept in sync
+// with ROLE_CAPS in lib/permissions.ts. Shown next to the role picker so the
+// admin doesn't have to guess (VIEWER vs REP was a recurring question).
+const ROLE_MEANINGS: [string, string][] = [
+  ['MANAGER', 'Edits roster, schedule, data, docs and competitions. Commission & P&L are read-only; branding and seats stay off-limits.'],
+  ['ASM', 'Edits their own team\u2019s roster and daily data. Sees commission & P&L read-only.'],
+  ['LEAD', 'Edits own team\u2019s data; adding team members must be granted per-lead.'],
+  ['VIEWER', 'Read-only: sees commission, P&L, competitions and docs. Changes nothing.'],
+  ['REP', 'Sees documents shared with them (training, promos). No dashboard editing.'],
+  ['INTERN', 'Same access as REP \u2014 receives training and compliance material.'],
+];
 
 export function AdminConsole({ adminEmail }: { adminEmail: string }) {
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -467,9 +479,19 @@ function CompanyUsers({ company, onChange, onBanner }: {
             <span className="flex items-center gap-2 min-w-0">
               <span className="font-medium truncate">{u.email}</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-text-muted">{u.role}</span>
-              {u.authBackend === 'supabase' && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-green/15 text-accent-green flex items-center gap-1" title="Managed in Supabase Auth — OAuth/MFA available from the Supabase console">
-                  <KeyRound className="w-2.5 h-2.5" /> Supabase
+              {u.authBackend === 'supabase' ? (
+                <span
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-accent-green/15 text-accent-green flex items-center gap-1"
+                  title="Sign-in is handled by Supabase Auth: hashed + salted password, rate-limited attempts, recoverable via email. Reset pw here still works."
+                >
+                  <KeyRound className="w-2.5 h-2.5" /> Secured login
+                </span>
+              ) : (
+                <span
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-text-muted"
+                  title="Local bcrypt credential (older account). Still hashed + salted and fully supported; Reset pw rotates it. New accounts are created in Supabase Auth."
+                >
+                  legacy login
                 </span>
               )}
             </span>
@@ -495,6 +517,19 @@ function CompanyUsers({ company, onChange, onBanner }: {
           <div className="sm:col-span-4 flex items-center gap-2">
             <Button type="submit" size="sm" loading={busy} disabled={busy}>Add</Button>
             {err && <span role="alert" className="text-xs text-accent-red">{err}</span>}
+          </div>
+          <div className="sm:col-span-4 rounded-lg bg-white/[0.03] border border-border-subtle p-2.5">
+            <p className="text-[10px] font-semibold text-text-secondary flex items-center gap-1 mb-1.5">
+              <Info className="w-3 h-3" /> What each role can do
+            </p>
+            <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1">
+              {ROLE_MEANINGS.map(([role, meaning]) => (
+                <div key={role} className="flex gap-1.5 text-[10px] leading-relaxed">
+                  <dt className="font-mono font-semibold text-text-secondary flex-none w-16">{role}</dt>
+                  <dd className="text-text-muted">{meaning}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         </form>
       )}
