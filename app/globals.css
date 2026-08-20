@@ -528,17 +528,21 @@
     z-index: 1;
     pointer-events: none;
     opacity: 0;
+    /* color-mix, not rgba(var(--brand-rgb)): --brand is a hex token per theme
+       and no *-rgb variant exists — an invalid gradient silently renders as
+       nothing, which is exactly the bug this line replaces. */
     background: radial-gradient(
       520px circle at var(--px, 50%) var(--py, 50%),
-      rgba(var(--brand-rgb), 0.055),
+      color-mix(in srgb, var(--brand) 6%, transparent),
       transparent 70%
     );
     transition: opacity 0.6s ease;
   }
-  @media (pointer: fine) {
-    .pointer-glow.is-active {
-      opacity: 1;
-    }
+  /* No (pointer: fine) gate here: hybrid laptops report their primary pointer
+     as coarse even when a mouse is attached. pointer-glow.tsx already ignores
+     pointerType 'touch', so is-active only ever appears for mouse/pen input. */
+  .pointer-glow.is-active {
+    opacity: 1;
   }
 
   /* Content offset below the fixed mobile header. The header now grows by

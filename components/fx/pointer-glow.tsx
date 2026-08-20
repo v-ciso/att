@@ -20,9 +20,12 @@ export function PointerGlow() {
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
-    const fine = window.matchMedia('(pointer: fine)');
+    // Gate on the EVENT's pointerType, not matchMedia('(pointer: fine)'):
+    // hybrid laptops report their PRIMARY pointer, so a touchscreen laptop
+    // can answer "coarse" while the user is moving a real mouse. A finger
+    // never emits pointerType 'mouse', so touch stays glow-free either way.
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
-    if (!fine.matches || reduced.matches) return;
+    if (reduced.matches) return;
 
     let raf = 0;
     let targetX = window.innerWidth / 2;
@@ -45,6 +48,7 @@ export function PointerGlow() {
     };
 
     const onMove = (e: PointerEvent) => {
+      if (e.pointerType === 'touch') return;
       targetX = e.clientX;
       targetY = e.clientY;
       if (!node.classList.contains('is-active')) node.classList.add('is-active');

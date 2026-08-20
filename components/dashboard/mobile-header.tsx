@@ -3,10 +3,10 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { cn, getInitials, ROLE_LABELS } from '@/lib/utils';
 import { useTheme } from '@/components/white-label/theme-provider';
-import { LogOut, Menu, ShieldCheck, X } from 'lucide-react';
+import { Menu, ShieldCheck, X } from 'lucide-react';
 import { navigation, isNavItemActive } from './nav-items';
 import { useModalA11y } from '@/hooks/use-modal-a11y';
 import { can } from '@/lib/permissions';
@@ -163,17 +163,12 @@ function MobileMenuPanel({ onClose }: { onClose: () => void }) {
               <p className="text-xs text-text-muted truncate">{userRole}</p>
             </div>
           </div>
-          {/* The comment above always PROMISED a Sign out here; the button was
-              never actually rendered — which meant phones (where the sidebar is
-              display:none) had no way to log out at all. */}
-          <button
-            type="button"
-            onClick={() => signOut({ callbackUrl: '/login' })}
-            className="w-full flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-xl text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"
-          >
-            <LogOut className="w-4 h-4 flex-none" aria-hidden="true" />
-            Sign out
-          </button>
+          {/* Sign out lives inside WorkspaceSwitcher above — its handler also
+              purges cached tenant data on the device, so never add a bare
+              signOut() here. Phones that showed NO sign-out were running
+              months-old cached HTML from before the switcher existed; the
+              session-version gate in proxy.ts now forces those devices onto a
+              fresh login and therefore a fresh bundle. */}
         </div>
       </div>
     </div>

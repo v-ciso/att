@@ -3,14 +3,14 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { cn, getInitials, ROLE_LABELS } from '@/lib/utils';
 import { useTheme } from '@/components/white-label/theme-provider';
 import { navigation, isNavItemActive } from './nav-items';
 import { can } from '@/lib/permissions';
 import { isSuperAdminEmail } from '@/lib/super-admins';
 import { useActor } from '@/lib/use-actor';
-import { LogOut, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { WorkspaceSwitcher } from './workspace-switcher';
 
 export function Sidebar() {
@@ -124,16 +124,8 @@ export function Sidebar() {
             <p className="text-xs text-text-muted truncate">{userRole}</p>
           </div>
         </div>
-        {/* The footer comment always said "Sign out" lived here, but the button
-            was never rendered — the only way out was clearing cookies. */}
-        <button
-          type="button"
-          onClick={() => signOut({ callbackUrl: '/login' })}
-          className="w-full flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-xl text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"
-        >
-          <LogOut className="w-4 h-4 flex-none" aria-hidden="true" />
-          Sign out
-        </button>
+        {/* Sign out lives inside WorkspaceSwitcher above — its handler also
+            purges cached tenant data, so never add a bare signOut() here. */}
       </div>
     </aside>
   );
