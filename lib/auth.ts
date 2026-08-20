@@ -14,6 +14,7 @@ import {
 import { verifySupabasePassword } from '@/lib/supabase-admin';
 import { isSuperAdminEmail } from '@/lib/super-admins';
 import { authSecret } from '@/lib/auth-secret';
+import { SESSION_VERSION } from '@/lib/session-version';
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -157,6 +158,9 @@ export const authOptions: NextAuthOptions = {
         // readable) and stamp it on the token, so the browser never has to
         // re-derive it from an email that may not survive the session round-trip.
         token.isSuperAdmin = isSuperAdminEmail(user.email);
+        // Version every fresh session; proxy.ts refuses tokens without the
+        // current value, which is how pre-2h-ceiling sessions get retired.
+        token.sv = SESSION_VERSION;
       }
       return token;
     },

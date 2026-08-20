@@ -2,6 +2,7 @@ import { withAuth } from 'next-auth/middleware';
 import { NextRequest, NextResponse } from 'next/server';
 import { authSecret } from '@/lib/auth-secret';
 import { canWrite, can, type Role } from '@/lib/permissions';
+import { SESSION_VERSION } from '@/lib/session-version';
 
 // Auth gate for pages AND the data API.
 //
@@ -60,6 +61,14 @@ export default withAuth(
       return apiResponse({ error: 'Not signed in' }, 401);
     }
 
+    // Retire pre-versioning sessions. Old JWTs were minted with a 30-day exp,
+    // so a phone signed in months ago still sailed through — with a stale UI
+    // to match. Pages get the redirect from `authorized` below; API calls from
+    // such a session get an explicit 401 here instead of an HTML login page.
+    if (isApi && token && token.sv !== SESSION_VERSION) {
+      return apiResponse({ error: 'Session expired — please sign in again.' }, 401);
+    }
+
     // Was `role !== 'OWNER'`, which locked super-admins out of Settings even
     // though they own the platform. `can()` grants them the capability.
     if (pathname.startsWith('/settings') && !can(actor, 'settings.view')) {
@@ -93,9 +102,13 @@ export default withAuth(
     secret: authSecret(),
     callbacks: {
       // API routes report their own 401 above, so they must not be redirected
-      // here. Pages still get the normal sign-in redirect.
+      // here. Pages need BOTH a token and the current session version —
+      // pre-versioning tokens (30-day exp) bounce to /login for a fresh
+      // sign-in, which also pulls fresh HTML onto long-idle devices.
       authorized: ({ token, req }) =>
-        req.nextUrl.pathname.startsWith('/api/') ? true : !!token,
+        req.nextUrl.pathname.startsWith('/api/')
+          ? true
+          : !!token && token.sv === SESSION_VERSION,
     },
   }
 );

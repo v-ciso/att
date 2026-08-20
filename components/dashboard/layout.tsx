@@ -4,6 +4,7 @@ import { ReactNode, Suspense, useState } from 'react';
 import { Sidebar } from './sidebar';
 import { MobileHeader, MobileMenu } from './mobile-header';
 import { TenantSync } from './tenant-sync';
+import { PointerGlow } from '@/components/fx/pointer-glow';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -32,11 +33,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           The two supporting orbs stay fixed and faint so the wash never turns
           muddy — a full-viewport gold wash read brown, hence the low opacities. */}
       <div className="aurora" aria-hidden="true" />
+      {/* min sizes: vw units shrank these to ~200px on phones, where a 120px
+          blur dissolved them completely — mobile got a dead flat background. */}
       <div
         className="orb"
         aria-hidden="true"
         style={{
-          width: '52vw', height: '52vw', top: '-20vw', right: '-12vw',
+          width: '52vw', height: '52vw', minWidth: '380px', minHeight: '380px',
+          top: '-20vw', right: '-12vw',
           background: 'radial-gradient(circle, var(--brand), transparent 62%)',
           opacity: 0.16, filter: 'blur(120px)',
         }}
@@ -45,7 +49,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         className="orb"
         aria-hidden="true"
         style={{
-          width: '40vw', height: '40vw', bottom: '-16vw', left: '-10vw',
+          width: '40vw', height: '40vw', minWidth: '300px', minHeight: '300px',
+          bottom: '-16vw', left: '-10vw',
           background: 'radial-gradient(circle, var(--brand-3), transparent 60%)',
           opacity: 0.09, filter: 'blur(120px)',
         }}
@@ -54,18 +59,25 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         className="orb"
         aria-hidden="true"
         style={{
-          width: '30vw', height: '30vw', top: '36%', right: '6%',
+          width: '30vw', height: '30vw', minWidth: '240px', minHeight: '240px',
+          top: '36%', right: '6%',
           background: 'radial-gradient(circle, #06B6D4, transparent 60%)',
           opacity: 0.06, filter: 'blur(120px)',
         }}
       />
+
+      {/* Cursor-follow spotlight — desktop only, see components/fx/pointer-glow.tsx */}
+      <PointerGlow />
 
       <MobileHeader onMenuClick={toggleMobileMenu} />
       <Suspense fallback={null}>
         <MobileMenu isOpen={isMobileMenuOpen} onClose={closeMobileMenu} />
       </Suspense>
 
-      <div className="flex min-h-screen pt-14 lg:pt-0">
+      {/* content-below-header replaces pt-14: the fixed header now grows by
+          env(safe-area-inset-top) on notched phones, and the old hardcoded
+          offset left the page title underneath it. */}
+      <div className="flex min-h-screen content-below-header">
         <Suspense fallback={null}>
           <Sidebar />
         </Suspense>

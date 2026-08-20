@@ -29,5 +29,7 @@ declare module 'next-auth/jwt' {
     employeeId?: string;
     isSuperAdmin?: boolean;
     companyName?: string;
+    /** Session version — see lib/session-version.ts. Absent on legacy tokens. */
+    sv?: number;
   }
 }

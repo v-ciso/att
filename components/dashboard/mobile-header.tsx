@@ -3,10 +3,10 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 import { cn, getInitials, ROLE_LABELS } from '@/lib/utils';
 import { useTheme } from '@/components/white-label/theme-provider';
-import { Menu, ShieldCheck, X } from 'lucide-react';
+import { LogOut, Menu, ShieldCheck, X } from 'lucide-react';
 import { navigation, isNavItemActive } from './nav-items';
 import { useModalA11y } from '@/hooks/use-modal-a11y';
 import { can } from '@/lib/permissions';
@@ -24,7 +24,12 @@ function Logo() {
 
 export function MobileHeader({ onMenuClick }: { onMenuClick: () => void }) {
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 glass border-b border-border-subtle px-4 py-3 flex items-center justify-between lg:hidden">
+    <header
+      className="fixed top-0 left-0 right-0 z-40 glass border-b border-border-subtle px-4 py-3 flex items-center justify-between lg:hidden"
+      // black-translucent status bar means the page renders UNDER the notch;
+      // without this inset the logo and menu button sit behind the clock.
+      style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}
+    >
       <Logo />
       <button onClick={onMenuClick} className="p-2 rounded-lg hover:bg-white/5 transition-colors" aria-label="Open menu">
         <Menu className="w-6 h-6" />
@@ -84,7 +89,13 @@ function MobileMenuPanel({ onClose }: { onClose: () => void }) {
       aria-modal="true"
       aria-label="Mobile navigation"
     >
-      <div className="p-6 bg-bg-secondary/95 backdrop-blur-glass min-h-full">
+      <div
+        className="p-6 bg-bg-secondary/95 backdrop-blur-glass min-h-full"
+        style={{
+          paddingTop: 'calc(1.5rem + env(safe-area-inset-top))',
+          paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))',
+        }}
+      >
         <div className="flex items-center justify-between mb-8">
           <Logo />
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/5 transition-colors" aria-label="Close menu">
@@ -152,6 +163,17 @@ function MobileMenuPanel({ onClose }: { onClose: () => void }) {
               <p className="text-xs text-text-muted truncate">{userRole}</p>
             </div>
           </div>
+          {/* The comment above always PROMISED a Sign out here; the button was
+              never actually rendered — which meant phones (where the sidebar is
+              display:none) had no way to log out at all. */}
+          <button
+            type="button"
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="w-full flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-xl text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"
+          >
+            <LogOut className="w-4 h-4 flex-none" aria-hidden="true" />
+            Sign out
+          </button>
         </div>
       </div>
     </div>

@@ -64,6 +64,46 @@
   body {
     @apply bg-bg-primary text-text-primary font-sans antialiased;
     background: #000;
+    /* Phones must never scroll sideways: one over-wide table or chart is all
+       it takes, and the whole app then wobbles horizontally forever. Desktop
+       keeps natural overflow behaviour. */
+  }
+
+  @media (max-width: 1023px) {
+    html,
+    body {
+      overflow-x: clip;
+    }
+  }
+
+  /* Surface treatment: flat #000 reads like an empty void ("AI default").
+     Two fixed layers make it read like a lit material instead:
+     1. a film-grain speckle (two offset radial dot fields, alpha 1.5–2%) that
+        breaks up banding on the big blurred orbs, and
+     2. a corner vignette that pools light toward the content column.
+     Both are pointer-transparent and sit under everything (z-index 0 siblings
+     already stack above body backgrounds). */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      radial-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+      radial-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px);
+    background-size: 22px 22px, 26px 26px;
+    background-position: 0 0, 11px 13px;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(120% 90% at 50% -10%, rgba(255, 255, 255, 0.03), transparent 55%),
+      radial-gradient(140% 100% at 50% 115%, rgba(0, 0, 0, 0.5), transparent 60%);
   }
 
   /* Distinctive display face for headings — Sora reads as intentional, not
@@ -185,6 +225,13 @@
 
   .card-3d {
     @apply relative bg-grad-card rounded-2xl border border-border-subtle transition-all duration-300;
+    /* Layered ambient shadow: a tight contact line plus a wide soft pool.
+       Cards used to float shadowless on flat black, which is a big part of
+       what made the UI read "generated" — depth needs a light model. */
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.55),
+      0 10px 30px -12px rgba(0, 0, 0, 0.65),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03);
   }
 
   .card-3d::before {
@@ -469,6 +516,41 @@
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Pointer spotlight: a soft brand-tinted glow that trails the cursor,
+     driven by --px/--py CSS vars from components/fx/pointer-glow.tsx.
+     Mouse/trackpad only — on touch there is no cursor to follow — and the
+     reduced-motion block at the bottom of this file kills its transition. */
+  .pointer-glow {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(
+      520px circle at var(--px, 50%) var(--py, 50%),
+      rgba(var(--brand-rgb), 0.055),
+      transparent 70%
+    );
+    transition: opacity 0.6s ease;
+  }
+  @media (pointer: fine) {
+    .pointer-glow.is-active {
+      opacity: 1;
+    }
+  }
+
+  /* Content offset below the fixed mobile header. The header now grows by
+     env(safe-area-inset-top) on notched phones, so a hardcoded pt-14 left the
+     page title tucked under it. Desktop (lg+) has no fixed header. */
+  .content-below-header {
+    padding-top: calc(3.5rem + env(safe-area-inset-top));
+  }
+  @media (min-width: 1024px) {
+    .content-below-header {
+      padding-top: 0;
+    }
   }
 }
 
