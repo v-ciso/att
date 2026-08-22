@@ -10,6 +10,9 @@ const schema = z.object({
   reportName: z.string().trim().min(2).max(140),
   profileId: z.string().cuid().optional(),
   displayName: z.string().trim().min(2).max(140).optional(),
+  // A roster employeeCode (e.g. SOR-0001): map this carrier ID onto the
+  // tracker's live roster member so DD data flows to their employee file.
+  employeeCode: z.string().trim().min(2).max(60).optional(),
 });
 
 type SessionUser = { id: string; email?: string | null; role?: string; marketOwnerId?: string };
@@ -29,11 +32,14 @@ export async function POST(request: NextRequest) {
       : null;
     if (input.profileId && !target) throw new Error('Profile not found in this company.');
     if (!target) {
-      const code = `REP-${input.externalRepId}`;
+      // Prefer the roster employeeCode so the employee file, leaderboard, and
+      // documents all key off the same durable code; REP-<id> is the fallback
+      // for people who exist only in carrier reports.
+      const code = input.employeeCode ?? `REP-${input.externalRepId}`;
       target = await tx.repProfile.upsert({
         where: { marketOwnerId_employeeCode: { marketOwnerId, employeeCode: code } },
         create: { marketOwnerId, employeeCode: code, displayName: input.displayName ?? input.reportName, legalName: input.reportName },
-        update: {},
+        update: { displayName: input.displayName ?? input.reportName },
       });
     }
     await tx.repExternalIdentity.upsert({

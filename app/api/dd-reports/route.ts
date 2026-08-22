@@ -16,10 +16,23 @@ async function actor(): Promise<(SessionUser & { marketOwnerId: string }) | null
   return user?.marketOwnerId ? { ...user, marketOwnerId: user.marketOwnerId } : null;
 }
 
+interface RosterPerson { name: string; employeeCode: string; role?: string; team?: string }
+
+/** The live roster lives in TenantData as the same JSON the tracker uses. */
+async function loadRoster(marketOwnerId: string): Promise<RosterPerson[]> {
+  const row = await prisma.tenantData.findUnique({ where: { marketOwnerId_key: { marketOwnerId, key: 'se-people-v1' } } });
+  if (!Array.isArray(row?.value)) return [];
+  return (row.value as Array<Record<string, unknown>>)
+    .filter(person => typeof person?.name === 'string' && typeof person?.employeeCode === 'string')
+    .map(person => ({ name: person.name as string, employeeCode: person.employeeCode as string, role: person.role as string | undefined, team: person.team as string | undefined }));
+}
+
+const nameKey = (value: string) => value.toLowerCase().replace(/[^a-z]/g, '');
+
 export async function GET() {
   const user = await actor();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: NO_STORE });
-  const [batches, profiles, company, productionBatch] = await Promise.all([
+  const [batches, profiles, company, productionBatch, roster] = await Promise.all([
     prisma.dDImportBatch.findMany({
       where: { marketOwnerId: user.marketOwnerId },
       orderBy: { createdAt: 'desc' },
@@ -45,8 +58,9 @@ export async function GET() {
         },
       },
     }),
+    loadRoster(user.marketOwnerId),
   ]);
-  return NextResponse.json({ batches, profiles, productionBatch, operatingStartDate: company?.operatingStartDate }, { headers: NO_STORE });
+  return NextResponse.json({ batches, profiles, productionBatch, roster, operatingStartDate: company?.operatingStartDate }, { headers: NO_STORE });
 }
 
 export async function POST(request: NextRequest) {
@@ -76,7 +90,42 @@ export async function POST(request: NextRequest) {
     }
     const identities = await prisma.repExternalIdentity.findMany({ where: { marketOwnerId: user.marketOwnerId, source: 'ATT_DD', externalRepId: { in: parsed.rows.map(row => row.externalRepId) } }, include: { repProfile: true } });
     const byId = new Map(identities.map(identity => [identity.externalRepId, identity]));
-    const summaries = summarizeRows(parsed.rows).map(summary => ({ ...summary, profile: byId.get(summary.externalRepId)?.repProfile ?? null }));
+    let summaries = summarizeRows(parsed.rows).map(summary => ({ ...summary, profile: byId.get(summary.externalRepId)?.repProfile ?? null }));
+
+    // Auto-match: a carrier name that exactly matches a roster member or an
+    // existing profile (case/punctuation-insensitive) maps itself, so known
+    // reps never need manual resolution — only genuinely new people prompt.
+    const unmatched = summaries.filter(summary => !summary.profile);
+    if (unmatched.length) {
+      const [roster, existingProfiles] = await Promise.all([
+        loadRoster(user.marketOwnerId),
+        prisma.repProfile.findMany({ where: { marketOwnerId: user.marketOwnerId } }),
+      ]);
+      const profilesByName = new Map(existingProfiles.map(profile => [nameKey(profile.displayName), profile]));
+      const rosterByName = new Map(roster.map(person => [nameKey(person.name), person]));
+      summaries = await Promise.all(summaries.map(async summary => {
+        if (summary.profile) return summary;
+        const key = nameKey(summary.reportName);
+        let target = profilesByName.get(key) ?? null;
+        if (!target) {
+          const person = rosterByName.get(key);
+          if (person) {
+            target = await prisma.repProfile.upsert({
+              where: { marketOwnerId_employeeCode: { marketOwnerId: user.marketOwnerId, employeeCode: person.employeeCode } },
+              create: { marketOwnerId: user.marketOwnerId, employeeCode: person.employeeCode, displayName: person.name, teamName: person.team || null },
+              update: { displayName: person.name },
+            });
+          }
+        }
+        if (!target) return summary;
+        await prisma.repExternalIdentity.upsert({
+          where: { marketOwnerId_source_externalRepId: { marketOwnerId: user.marketOwnerId, source: 'ATT_DD', externalRepId: summary.externalRepId } },
+          create: { marketOwnerId: user.marketOwnerId, source: 'ATT_DD', externalRepId: summary.externalRepId, reportName: summary.reportName, repProfileId: target.id },
+          update: { reportName: summary.reportName, repProfileId: target.id },
+        });
+        return { ...summary, profile: target };
+      }));
+    }
     return NextResponse.json({ preview: { ...parsed, hash, fileName: name, summaries, totals: { officeGenerated: summaries.reduce((sum, row) => sum + row.generated, 0), ecBonusReceived: summaries.reduce((sum, row) => sum + row.ecBonusReceived, 0), ecBonusMissing: summaries.reduce((sum, row) => sum + row.ecBonusMissing, 0), rows: parsed.rows.length, reps: summaries.length, unmapped: summaries.filter(row => !row.profile).length } } }, { headers: NO_STORE });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'The report could not be parsed.';

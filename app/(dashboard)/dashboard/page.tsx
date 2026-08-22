@@ -1197,9 +1197,10 @@ function DashboardContent() {
         </div>
       )}
 
-      {activeTab === 'leaderboard' && (
-        <div id="view-panel-leaderboard" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-leaderboard" tabIndex={0}>
-          <Card className="p-5">
+        {activeTab === 'leaderboard' && (
+          <div id="view-panel-leaderboard" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-leaderboard" tabIndex={0}>
+            <MeetingDDScoreboard onOpenProfile={setProfileName} />
+            <Card className="p-5">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h2 className="text-xl font-bold neon-brand">
                 Team Leaderboard
