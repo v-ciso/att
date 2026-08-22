@@ -133,7 +133,13 @@ function normalizeTableauDetail(grid: string[][], sourceText: string): Omit<DDPa
   let reportName = idIndex >= 0 && firstData ? clean(firstData[idIndex + 1]) : '';
   const flattened = grid.slice(headerIndex + 1).map(row => row.map(clean).filter(Boolean));
   if (reportName && !reportName.includes(' ')) {
-    const surname = flattened.slice(1, 5).flat().find(cell => /^[A-Z][A-Za-z'’-]+$/.test(cell) && !/^Wireless$/i.test(cell));
+    // Tableau wraps the lead rep's name across rows: the first name sits on the
+    // data row and the surname on a continuation row BELOW it. Search after the
+    // data row (not from the top, which re-finds the first name) and skip
+    // layout words so "Benjamin" + "Tinoco" resolves instead of "Benjamin Benjamin".
+    const dataRowIndex = idCell ? flattened.findIndex(row => row.includes(clean(idCell))) : -1;
+    const surname = flattened.slice(dataRowIndex + 1, dataRowIndex + 6).flat().find(cell =>
+      /^[A-Z][A-Za-z'’-]+$/.test(cell) && cell !== reportName && !/^(Wireless|Base|Campaign|Type|Completed|AIR|Costco|Target)$/i.test(cell));
     if (surname) reportName = `${reportName} ${surname}`;
   }
   const externalRepId = clean(idCell);
@@ -207,7 +213,11 @@ export async function extractPdfGrid(bytes: Uint8Array) {
   // the global it checks before attempting its own (untraceable) import.
   const pdfjsWorker = await import('pdfjs-dist/legacy/build/pdf.worker.mjs');
   (globalThis as { pdfjsWorker?: unknown }).pdfjsWorker = pdfjsWorker;
-  const document = await pdfjs.getDocument({ data: bytes }).promise;
+  // pdfjs TRANSFERS the buffer it is given, detaching the caller's copy —
+  // anything hashed or re-read after this call would silently see an empty
+  // array (every report then shares the empty-input SHA-256 and collides as
+  // "already confirmed"). Hand pdfjs its own copy so the caller's bytes survive.
+  const document = await pdfjs.getDocument({ data: bytes.slice() }).promise;
   if (document.numPages > 250) throw new Error('PDF exceeds the 250 page limit.');
   const grid: string[][] = [];
   let text = '';
