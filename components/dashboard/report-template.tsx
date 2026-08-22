@@ -3,6 +3,7 @@
 import { LeaderboardEntry } from './dashboard-components';
 import { DEFAULT_PNL, PnlState, roadtripTotals } from './editable-sections';
 import { loadPeople, loadPromoRules, promotionStatus, ROSTER_ROLE_LABELS } from './roster';
+import { useTheme } from '@/components/white-label/theme-provider';
 
 // Branded PDF report. Rendered off-screen only during export and captured by
 // html2pdf/html2canvas — so everything uses plain inline styles (no glass
@@ -60,7 +61,7 @@ export const SECTION_LABELS: Record<keyof ReportSections, string> = {
 };
 
 export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leaderboard: LeaderboardEntry[]; sections?: ReportSections }) {
-  const theme = load<{ companyName?: string; primaryColor?: string }>('se-theme-v1', {});
+  const { theme } = useTheme();
   const pnl = load<PnlState>('se-pnl-v1', DEFAULT_PNL);
   const people = loadPeople();
   const promoRules = loadPromoRules();
@@ -94,11 +95,20 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
     <div id="pdf-report" style={{ width: '100%', maxWidth: 780, margin: '0 auto', background: '#E9ECF1', fontFamily: 'Inter, Arial, sans-serif', color: INK }}>
       {/* Header band */}
       <div style={{ background: '#000000', padding: '20px 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <p style={{ color: '#FFFFFF', fontSize: 20, fontWeight: 800, margin: 0, letterSpacing: '-0.01em' }}>{companyName}</p>
-          <p style={{ color: '#9CA3AF', fontSize: 10, margin: '2px 0 0', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-            Performance Report · AT&amp;T Retail
-          </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {theme.logoUrl ? (
+            <img
+              src={theme.logoUrl}
+              alt={`${companyName} logo`}
+              style={{ width: 34, height: 34, objectFit: 'contain' }}
+            />
+          ) : null}
+          <div>
+            <p style={{ color: '#FFFFFF', fontSize: 20, fontWeight: 800, margin: 0, letterSpacing: '0.08em' }}>{companyName.toUpperCase()}</p>
+            <p style={{ color: '#D8AE4B', fontSize: 8, margin: '2px 0 0', textTransform: 'uppercase', letterSpacing: '0.24em' }}>
+              Marketing · Performance Report
+            </p>
+          </div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <p style={{ color: '#FFFFFF', fontSize: 11, margin: 0 }}>{today}</p>

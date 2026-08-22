@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // PDF.js resolves its worker relative to its installed package. Bundling the
+  // route rewrites that path into a Next chunk and breaks fake-worker loading.
+  serverExternalPackages: ['pdfjs-dist'],
   images: {
     remotePatterns: [
       {

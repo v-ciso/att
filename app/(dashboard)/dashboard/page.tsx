@@ -822,12 +822,24 @@ function DashboardContent() {
   const [exportSel, setExportSel] = useState<ReportSections | null>(null);
   useEffect(() => {
     if (!exportSel) return;
+    let cancelled = false;
     const prevTitle = document.title;
     document.title = `Sales_Engine_Report_${new Date().toISOString().slice(0, 10)}`;
     const done = () => { document.title = prevTitle; setExportSel(null); };
     window.addEventListener('afterprint', done, { once: true });
-    const t = setTimeout(() => window.print(), 150);
-    return () => { clearTimeout(t); window.removeEventListener('afterprint', done); };
+
+    const printWhenReady = async () => {
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      const images = Array.from(document.querySelectorAll<HTMLImageElement>('#print-root img'));
+      await Promise.all(images.map(image => image.complete ? Promise.resolve() : image.decode().catch(() => undefined)));
+      if (!cancelled) window.print();
+    };
+    void printWhenReady();
+    return () => {
+      cancelled = true;
+      window.removeEventListener('afterprint', done);
+      document.title = prevTitle;
+    };
   }, [exportSel]);
 
   // Pre-check the section that matches the tab you're on, so exporting from P&L

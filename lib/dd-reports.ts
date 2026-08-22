@@ -109,6 +109,31 @@ export function normalizeGrid(grid: string[][], sourceText: string): Omit<DDPars
   return { reportType, processedWeek, ddWeek, rows, warnings };
 }
 
+export async function extractPdfGrid(bytes: Uint8Array) {
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const document = await pdfjs.getDocument({ data: bytes }).promise;
+  if (document.numPages > 250) throw new Error('PDF exceeds the 250 page limit.');
+  const grid: string[][] = [];
+  let text = '';
+  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
+    const page = await document.getPage(pageNumber);
+    const content = await page.getTextContent();
+    const lines = new Map<number, Array<{ x: number; value: string }>>();
+    for (const raw of content.items) {
+      if (!('str' in raw) || !raw.str.trim()) continue;
+      const y = Math.round(raw.transform[5] / 3) * 3;
+      lines.set(y, [...(lines.get(y) ?? []), { x: raw.transform[4], value: raw.str.trim() }]);
+    }
+    for (const [, cells] of [...lines.entries()].sort((a, b) => b[0] - a[0])) {
+      const row = cells.sort((a, b) => a.x - b.x).map(cell => cell.value);
+      grid.push(row);
+      text += `${row.join('\t')}\n`;
+    }
+  }
+  await document.destroy();
+  return { grid, text };
+}
+
 export function parseDelimitedReport(text: string): Omit<DDParsedReport, 'hash'> {
   return normalizeGrid(splitDelimited(text), text);
 }

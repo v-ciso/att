@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { can } from '@/lib/permissions';
 import { audit, clientIp } from '@/lib/audit';
-import { MAX_REPORT_BYTES, normalizeGrid, parseDelimitedReport, reportHash, summarizeRows } from '@/lib/dd-reports';
+import { extractPdfGrid, MAX_REPORT_BYTES, normalizeGrid, parseDelimitedReport, reportHash, summarizeRows } from '@/lib/dd-reports';
 
 export const runtime = 'nodejs';
 const NO_STORE = { 'Cache-Control': 'no-store, private' } as const;
@@ -14,30 +14,6 @@ async function actor(): Promise<(SessionUser & { marketOwnerId: string }) | null
   const session = await getServerSession(authOptions);
   const user = session?.user as SessionUser | undefined;
   return user?.marketOwnerId ? { ...user, marketOwnerId: user.marketOwnerId } : null;
-}
-
-async function extractPdfGrid(bytes: Uint8Array) {
-  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  const document = await pdfjs.getDocument({ data: bytes }).promise;
-  if (document.numPages > 250) throw new Error('PDF exceeds the 250 page limit.');
-  const grid: string[][] = [];
-  let text = '';
-  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
-    const page = await document.getPage(pageNumber);
-    const content = await page.getTextContent();
-    const lines = new Map<number, Array<{ x: number; value: string }>>();
-    for (const raw of content.items) {
-      if (!('str' in raw) || !raw.str.trim()) continue;
-      const y = Math.round(raw.transform[5] / 3) * 3;
-      lines.set(y, [...(lines.get(y) ?? []), { x: raw.transform[4], value: raw.str.trim() }]);
-    }
-    for (const [, cells] of [...lines.entries()].sort((a, b) => b[0] - a[0])) {
-      const row = cells.sort((a, b) => a.x - b.x).map(cell => cell.value);
-      grid.push(row);
-      text += `${row.join('\t')}\n`;
-    }
-  }
-  return { grid, text };
 }
 
 export async function GET() {
