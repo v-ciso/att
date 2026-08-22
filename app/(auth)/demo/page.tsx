@@ -308,7 +308,7 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1.5">
+        <div className="mb-6 grid grid-cols-4 gap-1.5">
           {/* Explicit labels: capitalising the key rendered "pnl" as "Pnl". */}
           {([
             ['dashboard', 'Dashboard'],
@@ -319,7 +319,7 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={cn('tab-btn px-4 py-2 rounded-lg text-sm font-medium border transition', activeTab === tab ? 'active' : 'inactive')}
+              className={cn('tab-btn min-w-0 px-1.5 py-2 text-xs font-medium sm:px-4 sm:text-sm', activeTab === tab ? 'active' : 'inactive')}
             >
               {label}
             </button>

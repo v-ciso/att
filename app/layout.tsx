@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
 import './globals.css';
 import { Providers } from './providers';
 import { WORKSPACE_SHIM } from '@/lib/workspace';
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
     template: '%s | Sales Engine',
   },
   description:
-    'The command center for AT&T retail market owners — leaderboards, commissions, P&L, goals, and team management in one dashboard.',
+    'The command center for AT&T retail market owners — meetings, authoritative DD reports, P&L, goals, scheduling, and team management.',
   manifest: '/manifest.json',
   icons: { icon: '/favicon.svg' },
 };
@@ -29,9 +30,6 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full">
       <head>
-        {/* Namespaces every `se-*` localStorage key by workspace (demo vs live,
-            and per tenant). Must run before React mounts — see lib/workspace.ts. */}
-        <script dangerouslySetInnerHTML={{ __html: WORKSPACE_SHIM }} />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -42,6 +40,11 @@ export default function RootLayout({
         />
       </head>
       <body className="h-full bg-bg-primary text-text-primary antialiased">
+        {/* Keep storage namespacing ahead of hydration while letting Next own
+            script placement, so preview-injected scripts cannot shift nodes. */}
+        <Script id="workspace-storage-namespace" strategy="beforeInteractive">
+          {WORKSPACE_SHIM}
+        </Script>
         <Providers>{children}</Providers>
       </body>
     </html>
