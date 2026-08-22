@@ -10,15 +10,15 @@ export const runtime = 'nodejs';
 const NO_STORE = { 'Cache-Control': 'no-store, private' } as const;
 type SessionUser = { id: string; email?: string | null; role?: string; marketOwnerId?: string; isSuperAdmin?: boolean };
 
-async function actor() {
+async function actor(): Promise<(SessionUser & { marketOwnerId: string }) | null> {
   const session = await getServerSession(authOptions);
   const user = session?.user as SessionUser | undefined;
-  return user?.marketOwnerId ? user : null;
+  return user?.marketOwnerId ? { ...user, marketOwnerId: user.marketOwnerId } : null;
 }
 
 async function extractPdfGrid(bytes: Uint8Array) {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  const document = await pdfjs.getDocument({ data: bytes, disableWorker: true }).promise;
+  const document = await pdfjs.getDocument({ data: bytes }).promise;
   if (document.numPages > 250) throw new Error('PDF exceeds the 250 page limit.');
   const grid: string[][] = [];
   let text = '';

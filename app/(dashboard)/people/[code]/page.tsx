@@ -55,7 +55,7 @@ export default function PersonProfilePage() {
     displayName: string; employeeCode: string; status: string; startDate?: string | null; email?: string | null;
     teamName?: string | null; storeName?: string | null; externalIds: Array<{ externalRepId: string; reportName?: string | null }>;
     ddSummaries: Array<{ id: string; generated: number; ecBonusReceived: number; ecBonusMissing: number; batch: { ddWeek: string } }>;
-  } }>(`/api/profiles/${encodeURIComponent(code)}`, async url => {
+  } }>(`/api/profiles/${encodeURIComponent(code)}`, async (url: string) => {
     const response = await fetch(url);
     if (!response.ok) throw new Error((await response.json()).error ?? 'Profile not found.');
     return response.json();

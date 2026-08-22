@@ -42,6 +42,10 @@ export type AuditAction =
   | 'archive.created'
   | 'archive.restored'
   | 'archive.purged'
+  | 'dd.upload_failed'
+  | 'dd.identity_mapped'
+  | 'dd.week_replaced'
+  | 'dd.rollback'
   | 'settings.updated';
 
 export type AuditActor = {

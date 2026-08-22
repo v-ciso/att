@@ -22,7 +22,7 @@ import { PnlEditor, TeamData, DEFAULT_COMMISSION } from '@/components/dashboard/
 import { useModalA11y } from '@/hooks/use-modal-a11y';
 import { ModalShell } from '@/components/ui/modal-shell';
 import { ReportTemplate, ReportSections, ALL_SECTIONS, SECTION_LABELS } from '@/components/dashboard/report-template';
-import { RosterManager, loadPeople, ROSTER_ROLE_LABELS } from '@/components/dashboard/roster';
+import { RosterManager, loadPeople } from '@/components/dashboard/roster';
 import { Competition } from '@/components/dashboard/competition';
 import { ScheduleBoard } from '@/components/dashboard/schedule-board';
 import { ImportReport } from '@/components/dashboard/import-report';
@@ -335,7 +335,7 @@ function ProductionDrawer({
                     <th scope="col" className="pb-2">Rep</th>
                     <th scope="col" className="pb-2 text-right">{view.column.head}</th>
                     <th scope="col" className="pb-2 text-right">Generated</th>
-                    <th scope="col" className="pb-2 text-right">Commission</th>
+                    <th scope="col" className="pb-2 text-right">Activity</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
@@ -346,7 +346,7 @@ function ProductionDrawer({
                       </td>
                       <td className={cn('py-2 text-right', view.column.className)}>{view.column.value(p)}</td>
                       <td className="py-2 text-right text-accent-green">{formatCurrency(p.revenue)}</td>
-                      <td className="py-2 text-right text-text-secondary">{formatCurrency(p.commission)}</td>
+                      <td className="py-2 text-right text-text-secondary">{formatNumber(p.lines + p.internet)} items</td>
                     </tr>
                   ))}
                 </tbody>
@@ -834,11 +834,11 @@ function DashboardContent() {
   // defaults to P&L rather than the whole report.
   const defaultSections = (): ReportSections => {
     const map: Record<string, keyof ReportSections> = {
-      pnl: 'pnl', leaderboard: 'leaderboard', commission: 'commission', roster: 'roster', dashboard: 'kpis',
+      pnl: 'pnl', leaderboard: 'leaderboard', roster: 'roster', dashboard: 'kpis',
     };
     const only = map[activeTab];
     if (!only) return { ...ALL_SECTIONS };
-    return { kpis: false, leaderboard: false, pnl: false, commission: false, roster: false, [only]: true };
+    return { kpis: false, leaderboard: false, pnl: false, roster: false, [only]: true };
   };
 
   const reportRows = useMemo(
@@ -1435,7 +1435,7 @@ function DashboardContent() {
 
       {activeTab === 'import' && (
         <div id="view-panel-import" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-import" tabIndex={0}>
-          <Card className="p-5"><ImportReport sales={sales} commission={commission} /></Card>
+          <Card className="p-5"><ImportReport /></Card>
         </div>
       )}
 

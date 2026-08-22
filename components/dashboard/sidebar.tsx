@@ -28,7 +28,7 @@ export function Sidebar() {
 
   // The actor handed to the capability matrix. When there is no session at all
   // this keeps the existing "Demo Owner" fallback and treats the seat as OWNER —
-  // otherwise the unauthenticated preview would silently lose P&L, Commission,
+  // otherwise the unauthenticated preview would silently lose P&L, DD Reports,
   // Import and Settings from the nav. This is presentation only: middleware and
   // the route handlers re-check the real session on every request, so a browser
   // with no cookie still cannot read or write anything.
@@ -42,7 +42,7 @@ export function Sidebar() {
   );
 
   return (
-    <aside className="fixed left-0 top-0 bottom-0 w-64 glass border-r border-border-subtle hidden lg:flex flex-col z-30">
+    <aside className="dashboard-sidebar fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-border-subtle glass lg:flex">
       {/* Header and footer are fixed; only the nav list scrolls. Without the
           min-h-0 below, a 12-item nav pushes the footer (Demo/Live switch, user
           chip, Sign out) off the bottom of a short viewport — which is how the
@@ -89,7 +89,7 @@ export function Sidebar() {
         })}
       </nav>
       {/* flex-none: this block must never be squeezed or scrolled away. */}
-      <div className="flex-none px-6 pt-4 pb-6 border-t border-border-subtle space-y-3">
+      <div className="dashboard-sidebar-footer flex-none space-y-3 border-t border-border-subtle px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
         {/* Same matrix as every other gate. The email fallback is kept for
             sessions minted before isSuperAdmin was stamped into the JWT. */}
         {can(

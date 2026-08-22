@@ -12,7 +12,7 @@ const features = [
   { icon: Zap, title: 'Real-Time Dashboard', desc: 'Daily production, weekly trends, MTD goals, and 3D charts — all in one command center', color: 'blue' },
   { icon: Users, title: 'Team Leaderboard', desc: 'Editable rankings with inline editing, auto-save, and PDF/CSV export', color: 'purple' },
   { icon: Target, title: 'Meeting Mode', desc: 'Full-screen presentation with daily trackers, team overviews, and keyboard navigation', color: 'cyan' },
-  { icon: DollarSign, title: 'Commission Engine', desc: 'Editable phone/fiber plans, store multipliers, and role-based overrides', color: 'green' },
+  { icon: DollarSign, title: 'DD Report Control', desc: 'Carrier-ID mapping, weekly replacement review, EC exceptions, and rollback history', color: 'green' },
   { icon: TrendingUp, title: 'P&L Management', desc: 'Revenue vs expenses, roadtrip reimbursement (60%), net profit margin tracking', color: 'yellow' },
   { icon: Shield, title: 'Your Branding', desc: 'Drop in your own logo and pick your colors — the dashboard and every PDF report carry your company name', color: 'purple' },
 ];
@@ -28,7 +28,7 @@ const plans = [
     features: [
       'Full dashboard & Daily Tracker',
       'Leaderboard & Meeting Mode',
-      'P&L & Commission Engine',
+      'P&L & authoritative DD reports',
       'Schedule, Goals & Attendance',
       'Your logo & colors on the tool',
       'PDF exports with your name',
@@ -92,7 +92,7 @@ export default function DemoPage() {
         </h1>
         <p className="text-text-secondary text-lg max-w-2xl mx-auto mb-8">
           The all-in-one sales management platform for AT&T Retail Market Owners.
-          Track commissions, run morning meetings, manage teams, and monitor P&L — in one beautiful dashboard.
+          Run morning meetings, reconcile weekly DD reports, manage teams, and monitor P&L — in one focused dashboard.
         </p>
         <div className="flex items-center justify-center gap-4 flex-wrap">
           <Button size="lg" onClick={() => setShowDashboard(true)}>
@@ -112,9 +112,9 @@ export default function DemoPage() {
               lines tracked", "$14M+ commission", "99.9% uptime") were invented —
               real prospects ask for references behind figures like that. */}
           {[
-            { value: 'Every line', label: 'Priced through your own commission engine' },
-            { value: 'Zero typing', label: 'Revenue derives from logged sales' },
-            { value: 'Per store', label: 'Multipliers, shifts, and chargebacks' },
+            { value: 'Every ID', label: 'Mapped to one durable rep profile' },
+            { value: 'One review', label: 'Confirm before a DD week goes live' },
+            { value: 'Per team', label: 'Generated totals and EC exceptions' },
             { value: 'One screen', label: 'Run the morning meeting from it' },
           ].map((stat) => (
             <Card key={stat.label} className="text-center p-6">
@@ -281,17 +281,17 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
     <div className="min-h-screen bg-bg-primary">
       <div className="max-w-6xl mx-auto p-4 lg:p-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="mb-2 flex items-center gap-2">
               <Building2 className="w-6 h-6 text-accent-blue" />
               <span className="text-xl font-bold text-text-primary">Sales Engine Demo</span>
             </div>
             <p className="text-text-secondary text-sm">Interactive preview with sample data</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <Badge variant="blue" dot>Live Preview</Badge>
-            <Button variant="ghost" size="sm" onClick={onBack}>Back to Home</Button>
+            <Button className="whitespace-nowrap" variant="ghost" size="sm" onClick={onBack}>Back to Home</Button>
             <Button size="sm" onClick={() => { window.location.href = 'mailto:sameer@khatriinc.com?subject=Sales%20Engine%20access'; }}>Get Started</Button>
           </div>
         </div>
@@ -314,7 +314,6 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
             ['dashboard', 'Dashboard'],
             ['leaderboard', 'Leaderboard'],
             ['schedule', 'Schedule'],
-            ['commission', 'Commission'],
             ['pnl', 'P&L'],
           ] as const).map(([tab, label]) => (
             <button
@@ -403,7 +402,7 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
                     <th scope="col" className="pb-2">Lines</th>
                     <th scope="col" className="pb-2">Premium</th>
                     <th scope="col" className="pb-2">Fiber</th>
-                    <th scope="col" className="pb-2">Commission</th>
+                    <th scope="col" className="pb-2">Generated</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
@@ -504,7 +503,7 @@ function DemoDashboard({ onBack }: { onBack: () => void }) {
               <div>
                 <h4 className="text-sm text-accent-green mb-2">Revenue</h4>
                 <div className="space-y-1">
-                  {[{ cat: 'Commission', amt: 142500 }, { cat: 'Bonus', amt: 12300 }].map((r) => (
+                  {[{ cat: 'Confirmed DD generated', amt: 142500 }, { cat: 'Bonus', amt: 12300 }].map((r) => (
                     <div key={r.cat} className="flex justify-between text-sm p-2 rounded-lg glass">
                       <span>{r.cat}</span>
                       <span className="text-accent-green">${r.amt.toLocaleString()}</span>

@@ -570,15 +570,15 @@ export function CommissionEngine() {
 // (e.g. yearly insurance ÷52 in the weekly view). 'once' is a dated one-time
 // hit — a bonus, an equipment purchase — that counts ONLY in the view window
 // containing its date (same window logic as roadtrips), never amortized.
-export type Cadence = 'weekly' | 'monthly' | 'yearly' | 'once';
-export const CADENCE_LABELS: Record<Cadence, string> = { weekly: 'W', monthly: 'M', yearly: 'Y', once: '1×' };
-const CADENCE_ORDER: Cadence[] = ['weekly', 'monthly', 'yearly', 'once'];
+export type Cadence = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'once';
+export const CADENCE_LABELS: Record<Cadence, string> = { daily: 'D', weekly: 'W', monthly: 'M', yearly: 'Y', once: '1×' };
+const CADENCE_ORDER: Cadence[] = ['daily', 'weekly', 'monthly', 'yearly', 'once'];
 
 // per-year multiplier for a cadence, and periods-per-year for a view.
 // 'once' is 0 here on purpose: a one-time amount has no annual run-rate, so
 // any path that forgets to date-gate it contributes nothing instead of a
 // silently invented recurring figure.
-const PER_YEAR: Record<Cadence, number> = { weekly: 52, monthly: 12, yearly: 1, once: 0 };
+const PER_YEAR: Record<Cadence, number> = { daily: 365, weekly: 52, monthly: 12, yearly: 1, once: 0 };
 const VIEW_DIVISOR: Record<PnlView, number> = { daily: 365, weekly: 52, monthly: 12, yearly: 1 };
 
 export function toView(amount: number, cadence: Cadence, view: PnlView): number {

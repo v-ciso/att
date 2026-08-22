@@ -556,6 +556,31 @@
       padding-top: 0;
     }
   }
+
+  .dashboard-sidebar {
+    height: 100dvh;
+  }
+
+  @media (min-width: 1024px) and (max-height: 760px) {
+    .dashboard-sidebar > :first-child {
+      padding-top: 1rem;
+      padding-bottom: 0.75rem;
+    }
+
+    .dashboard-sidebar nav {
+      padding-inline: 1rem;
+    }
+
+    .dashboard-sidebar nav a {
+      min-height: 2.5rem;
+      padding-block: 0.5rem;
+    }
+
+    .dashboard-sidebar-footer {
+      gap: 0.375rem;
+      padding: 0.625rem 1rem max(0.625rem, env(safe-area-inset-bottom));
+    }
+  }
 }
 
 @layer utilities {

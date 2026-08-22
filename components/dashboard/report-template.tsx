@@ -3,7 +3,6 @@
 import { LeaderboardEntry } from './dashboard-components';
 import { DEFAULT_PNL, PnlState, roadtripTotals } from './editable-sections';
 import { loadPeople, loadPromoRules, promotionStatus, ROSTER_ROLE_LABELS } from './roster';
-import { loadCommission } from '@/lib/sales';
 
 // Branded PDF report. Rendered off-screen only during export and captured by
 // html2pdf/html2canvas — so everything uses plain inline styles (no glass
@@ -48,23 +47,20 @@ export interface ReportSections {
   kpis: boolean;
   leaderboard: boolean;
   pnl: boolean;
-  commission: boolean;
   roster: boolean;
 }
 
-export const ALL_SECTIONS: ReportSections = { kpis: true, leaderboard: true, pnl: true, commission: true, roster: true };
+export const ALL_SECTIONS: ReportSections = { kpis: true, leaderboard: true, pnl: true, roster: true };
 
 export const SECTION_LABELS: Record<keyof ReportSections, string> = {
   kpis: 'KPI summary',
   leaderboard: 'Leaderboard',
   pnl: 'Profit & Loss',
-  commission: 'Payout structure',
   roster: 'Roster & roadmap',
 };
 
 export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leaderboard: LeaderboardEntry[]; sections?: ReportSections }) {
   const theme = load<{ companyName?: string; primaryColor?: string }>('se-theme-v1', {});
-  const commission = loadCommission();
   const pnl = load<PnlState>('se-pnl-v1', DEFAULT_PNL);
   const people = loadPeople();
   const promoRules = loadPromoRules();
@@ -84,14 +80,12 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
   const margin = totalRevenue > 0 ? ((net / totalRevenue) * 100).toFixed(1) : '0.0';
 
   const totalLines = leaderboard.reduce((a, b) => a + b.lines, 0);
-  const totalCommission = leaderboard.reduce((a, b) => a + b.commission, 0);
-  const store = commission.stores[commission.storeIndex] ?? commission.stores[0];
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
   const kpis = [
     { label: 'Total Lines', value: String(totalLines) },
-    { label: 'Team Commission', value: fmt(totalCommission) },
+    { label: 'Active Reps', value: String(leaderboard.length) },
     { label: 'Net Profit', value: fmt(net) },
     { label: 'Margin', value: `${margin}%` },
   ];
@@ -109,7 +103,7 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
         <div style={{ textAlign: 'right' }}>
           <p style={{ color: '#FFFFFF', fontSize: 11, margin: 0 }}>{today}</p>
           <p style={{ color: '#9CA3AF', fontSize: 10, margin: '2px 0 0' }}>
-            Tier {commission.tier} · {store?.name ?? '—'}
+            Office operations record
           </p>
         </div>
       </div>
@@ -148,7 +142,6 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
               <th scope="col" style={{ ...th, textAlign: 'right' }}>Lines</th>
               <th scope="col" style={{ ...th, textAlign: 'right' }}>Premium</th>
               <th scope="col" style={{ ...th, textAlign: 'right' }}>Fiber</th>
-              <th scope="col" style={{ ...th, textAlign: 'right' }}>Commission</th>
             </tr>
           </thead>
           <tbody>
@@ -160,7 +153,6 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
                 <td style={{ ...td, textAlign: 'right' }}>{e.lines}</td>
                 <td style={{ ...td, textAlign: 'right' }}>{e.premium}</td>
                 <td style={{ ...td, textAlign: 'right' }}>{e.fiber}</td>
-                <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: '#047857' }}>{fmt(e.commission)}</td>
               </tr>
             ))}
           </tbody>
@@ -207,26 +199,6 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
 
         </>)}
 
-        {/* Commission structure */}
-        {sections.commission && (<>
-        <SectionTitle>Payout Structure — Tier {commission.tier} · {store?.name}</SectionTitle>
-        <div style={{ display: 'flex', gap: 16 }}>
-          {([['Phone Lines', commission.phonePlans], ['Internet', commission.internet], ['Add-Ons', commission.addOns]] as const).map(([title, items]) => (
-            <div key={title} style={{ flex: 1 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 4px' }}>{title}</p>
-              {items.map(p => (
-                <div key={p.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 10.5, borderBottom: `1px solid ${LINE}` }}>
-                  <span>{p.name}</span>
-                  <span style={{ fontWeight: 700 }}>
-                    {fmt(p.payout)} <span style={{ fontWeight: 500, color: MUTED }}>· rep {fmt(p.rep ?? 0)}</span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-
-        </>)}
 
         {/* Roster & leadership roadmap */}
         {sections.roster && (<>

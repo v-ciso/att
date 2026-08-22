@@ -5,8 +5,6 @@ import useSWR from 'swr';
 import { AlertTriangle, ArrowRight, CheckCircle2, FileText, History, Link2, Loader2, RotateCcw, ShieldCheck, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn, formatCurrency } from '@/lib/utils';
-import type { SaleEntry } from '@/lib/sales';
-import type { CommissionState } from './editable-sections';
 
 interface Profile { id: string; employeeCode: string; displayName: string; legalName?: string | null; externalIds: Array<{ externalRepId: string }> }
 interface Summary { externalRepId: string; reportName: string; generated: number; ecBonusReceived: number; ecBonusMissing: number; detailCount: number; profile: Profile | null }
@@ -16,7 +14,7 @@ interface ReportData { batches: Batch[]; profiles: Profile[]; operatingStartDate
 const fetcher = (url: string) => fetch(url).then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.error); return body; });
 const stepLabels = ['Upload & parse', 'Resolve people', 'Confirm week'];
 
-export function ImportReport(_props: { sales: SaleEntry[]; commission: CommissionState }) {
+export function ImportReport() {
   const { data, mutate } = useSWR<ReportData>('/api/dd-reports', fetcher);
   const fileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
