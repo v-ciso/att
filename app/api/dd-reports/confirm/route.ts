@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     const batch = await prisma.$transaction(async tx => {
       const existingHash = await tx.dDImportBatch.findUnique({ where: { marketOwnerId_sourceHash: { marketOwnerId: user.marketOwnerId!, sourceHash: input.hash } } });
       if (existingHash) return existingHash;
-      const previous = await tx.dDImportBatch.findFirst({ where: { marketOwnerId: user.marketOwnerId, ddWeek, isAuthoritative: true }, orderBy: { confirmedAt: 'desc' } });
+      const previous = await tx.dDImportBatch.findFirst({ where: { marketOwnerId: user.marketOwnerId, ddWeek, reportType: input.reportType, isAuthoritative: true }, orderBy: { confirmedAt: 'desc' } });
       if (previous) await tx.dDImportBatch.update({ where: { id: previous.id }, data: { isAuthoritative: false, status: 'SUPERSEDED' } });
       return tx.dDImportBatch.create({
         data: {

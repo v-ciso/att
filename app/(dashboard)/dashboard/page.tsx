@@ -824,7 +824,8 @@ function DashboardContent() {
     if (!exportSel) return;
     let cancelled = false;
     const prevTitle = document.title;
-    document.title = `Sales_Engine_Report_${new Date().toISOString().slice(0, 10)}`;
+    const exportBrand = (companyName || 'KGVINC').replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '');
+    document.title = `${exportBrand}_Operations_Report_${new Date().toISOString().slice(0, 10)}`;
     const done = () => { document.title = prevTitle; setExportSel(null); };
     window.addEventListener('afterprint', done, { once: true });
 
@@ -955,8 +956,9 @@ function DashboardContent() {
       />
 
       {activeTab === 'dashboard' && (
-        <div id="view-panel-dashboard" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-dashboard" tabIndex={0}>
-          {!hasData && (
+          <div id="view-panel-dashboard" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-dashboard" tabIndex={0}>
+            <MeetingDDScoreboard onOpenProfile={setProfileName} />
+            {!hasData && (
             <Card className="mb-4 p-5 border-accent-blue/30">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>

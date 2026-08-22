@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { jsPDF } from 'jspdf';
 import { extractPdfGrid, normalizeGrid, summarizeRows } from './dd-reports';
 
@@ -28,6 +29,24 @@ async function main() {
   assert.equal(summary.reportName, 'Benjamin Tinoco');
   assert.equal(summary.generated, 1100);
   assert.equal(summary.ecBonusReceived, 100);
+
+  for (const fixture of ['dd-by-rep-sorami.pdf', 'dd-detail-sorami.pdf']) {
+    const fixtureBytes = new Uint8Array(await readFile(new URL(`../test-fixtures/${fixture}`, import.meta.url)));
+    const fixtureExtracted = await extractPdfGrid(fixtureBytes);
+    const fixtureParsed = normalizeGrid(fixtureExtracted.grid, fixtureExtracted.text);
+    assert.equal(fixtureParsed.ddWeek.slice(0, 10), '2026-08-16', `${fixture} DD week`);
+    assert.ok(fixtureParsed.rows.every(row => Number.isFinite(row.generated)));
+    if (fixture === 'dd-by-rep-sorami.pdf') {
+      const summaries = summarizeRows(fixtureParsed.rows);
+      assert.equal(summaries.find(row => row.externalRepId === '9432422')?.generated, 1044);
+      assert.ok(fixtureParsed.rows.some(row => row.raw.description?.includes('Next Up')));
+    } else {
+      assert.equal(fixtureParsed.reportType, 'DD_DETAIL');
+      assert.ok(fixtureParsed.rows.length >= 10);
+      assert.ok(fixtureParsed.rows.some(row => row.raw.description?.includes('Next Up')));
+    }
+  }
+
   console.log('dd-reports: PDF extraction and normalization passed');
 }
 

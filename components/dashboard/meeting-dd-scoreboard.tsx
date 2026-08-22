@@ -6,12 +6,12 @@ import { AlertTriangle, ArrowUpRight, BadgeDollarSign, Building2, Users } from '
 import { formatCurrency } from '@/lib/utils';
 
 interface Summary { id: string; generated: number; ecBonusReceived: number; ecBonusMissing: number; externalRepId: string; reportName: string; teamSnapshot?: string | null; repProfile?: { employeeCode: string; displayName: string; teamName?: string | null } | null }
-interface Batch { id: string; ddWeek: string; officeGenerated: number; ecBonusReceived: number; ecBonusMissing: number; rowCount: number; isAuthoritative: boolean; summaries: Summary[] }
+interface Batch { id: string; ddWeek: string; reportType: string; officeGenerated: number; ecBonusReceived: number; ecBonusMissing: number; rowCount: number; isAuthoritative: boolean; summaries: Summary[] }
 const fetcher = (url: string) => fetch(url).then(response => response.json());
 
 export function MeetingDDScoreboard({ onOpenProfile }: { onOpenProfile?: (name: string) => void }) {
   const { data } = useSWR<{ batches: Batch[] }>('/api/dd-reports', fetcher, { refreshInterval: 30_000 });
-  const batch = data?.batches.find(item => item.isAuthoritative);
+  const batch = data?.batches.find(item => item.isAuthoritative && item.reportType === 'DD_BY_REP');
   if (!batch) return <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-dashed border-border-strong bg-bg-tertiary p-5 md:flex-row md:items-center md:justify-between"><div><p className="font-semibold">No confirmed DD week yet</p><p className="mt-1 text-sm text-text-secondary">Import and confirm a DD report to make office and rep totals authoritative.</p></div><Link href="/dashboard?tab=import" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-accent-yellow px-4 text-sm font-semibold text-bg-primary">Open DD Reports</Link></div>;
   const sorted = [...batch.summaries].sort((a, b) => b.generated - a.generated);
   const exceptions = sorted.filter(row => row.ecBonusMissing > 0);

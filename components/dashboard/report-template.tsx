@@ -119,7 +119,11 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
       </div>
       <div style={{ height: 4, background: `linear-gradient(90deg, ${accent}, #A855F7, #06B6D4)` }} />
 
-      <div style={{ padding: '16px 28px 24px' }}>
+      <div style={{ padding: '16px 28px 24px', position: 'relative', overflow: 'hidden' }}>
+        <div aria-hidden="true" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transform: 'rotate(-28deg)', color: '#111827', opacity: 0.035, fontSize: 58, fontWeight: 900, letterSpacing: '0.12em', pointerEvents: 'none', whiteSpace: 'nowrap' }}>
+          POWERED BY KGVINC
+        </div>
+        <div style={{ position: 'relative' }}>
         {/* KPI row */}
         {sections.kpis && (
         <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '5px 0', marginTop: 6, tableLayout: 'fixed' }}>
@@ -253,7 +257,8 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
         {/* Footer */}
         <div style={{ marginTop: 22, paddingTop: 10, borderTop: `1px solid ${LINE}`, display: 'flex', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 9, color: MUTED }}>Generated {new Date().toLocaleString('en-US')}</span>
-          <span style={{ fontSize: 9, color: MUTED }}>{companyName} · Powered by Sales Engine</span>
+          <span style={{ fontSize: 9, color: MUTED }}>{companyName} · Powered by KGVINC</span>
+        </div>
         </div>
       </div>
     </div>

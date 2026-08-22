@@ -67,7 +67,97 @@ function splitDelimited(text: string): string[][] {
   });
 }
 
+function tableauWeeks(sourceText: string) {
+  const processedMatch = sourceText.match(/Processed Week[\s\S]{0,600}?(\d{1,2}\/\d{1,2}\/20\d{2})/i);
+  const processedWeek = parseDate(processedMatch?.[1] ?? '') ?? new Date().toISOString();
+  const explicitDd = sourceText.match(/(?:DD|Direct Deposit) Week(?: Ending)?[ \t]*[:\-]?[ \t]*(\d{1,2}\/\d{1,2}\/20\d{2})/i);
+  if (explicitDd) return { processedWeek, ddWeek: parseDate(explicitDd[1]) ?? processedWeek };
+  const dates = [...sourceText.matchAll(/\b(\d{1,2}\/\d{1,2}\/20\d{2})\b/g)].map(match => parseDate(match[1])).filter((date): date is string => Boolean(date));
+  const ddWeek = dates.filter(date => date !== processedWeek).sort((a, b) => dates.filter(date => date === b).length - dates.filter(date => date === a).length)[0];
+  if (ddWeek) return { processedWeek, ddWeek };
+  const priorDay = new Date(processedWeek);
+  priorDay.setUTCDate(priorDay.getUTCDate() - 1);
+  return { processedWeek, ddWeek: priorDay.toISOString() };
+}
+
+function normalizeTableauByRep(grid: string[][], sourceText: string): Omit<DDParsedReport, 'hash'> {
+  const starts = grid.map((row, index) => row.some(cell => /Smart Circle/i.test(cell)) ? index : -1).filter(index => index >= 0);
+  const rows: DDNormalizedRow[] = [];
+  for (let blockIndex = 0; blockIndex < starts.length; blockIndex++) {
+    const block = grid.slice(starts[blockIndex], starts[blockIndex + 1] ?? grid.length);
+    const idIndex = block.findIndex(row => row.some(cell => /^\(\d{4,}\)$/.test(clean(cell))));
+    if (idIndex < 0) continue;
+    const externalRepId = clean(block[idIndex].find(cell => /^\(\d{4,}\)$/.test(clean(cell))) ?? '').replace(/\D/g, '');
+    const smartRow = block[0];
+    const smartIndex = smartRow.findIndex(cell => /Smart Circle/i.test(cell));
+    let reportName = clean(smartRow[smartIndex - 1]);
+    if (!reportName.includes(' ')) {
+      const surname = block.slice(1, idIndex).flat().find(cell => /^[A-Z][A-Za-z'’-]+$/.test(clean(cell)) && !/^(Wireless|Base|Campaign|AIR)$/i.test(clean(cell)));
+      if (surname) reportName = `${reportName} ${clean(surname)}`;
+    }
+    let description = '';
+    let quantity = 0;
+    let repTotalSeen = false;
+    for (const line of block) {
+      const cells = line.map(clean).filter(Boolean);
+      if (cells.some(cell => /^Rep Total$/i.test(cell))) { repTotalSeen = true; continue; }
+      const amounts = cells.filter(cell => /^\(?\$[\d,]+(?:\.\d{2})?\)?$/.test(cell));
+      const count = cells.find(cell => /^\d+$/.test(cell));
+      if (count && !amounts.length) quantity = Number(count);
+      const text = cells.filter(cell => !/^\(?\$[\d,]+(?:\.\d{2})?\)?$/.test(cell) && !/^\d+$/.test(cell) && !/^\(\d+\)$/.test(cell));
+      const productText = text.filter(cell => !/Smart Circle|Sorami Marketing|Sameer Khatri|CONFIDENTIAL|Last Server Update/i.test(cell)).join(' ');
+      if (productText && !/^[A-Z][A-Za-z'’-]+$/.test(productText)) description = productText;
+      if (!amounts.length) continue;
+      if (repTotalSeen) { repTotalSeen = false; continue; }
+      const generated = money(amounts[0]);
+      if (!generated || !description) continue;
+      rows.push({
+        externalRepId, reportName, generated, commissionToIcd: generated, ecBonusToIcd: /bonus/i.test(description) ? generated : 0,
+        adjustmentToIcd: 0, bonusesToIcd: /bonus/i.test(description) ? generated : 0,
+        tier: description, orderType: /New Line/i.test(description) ? 'New Line' : /Upgrade/i.test(description) ? 'Upgrade' : /BYOD/i.test(description) ? 'BYOD' : undefined,
+        raw: { description, quantity: String(quantity || 1), amount: amounts[0], report: 'DD BY REP' },
+      });
+      quantity = 0;
+    }
+  }
+  if (!rows.length) throw new Error('No rep totals could be read from this DD BY REP export.');
+  const weeks = tableauWeeks(sourceText);
+  return { reportType: 'DD_BY_REP', ...weeks, rows, warnings: ['DD week was inferred from the report data because the Tableau filter was set to All.'] };
+}
+
+function normalizeTableauDetail(grid: string[][], sourceText: string): Omit<DDParsedReport, 'hash'> {
+  const headerIndex = grid.findIndex(row => row.some(cell => /^ID$/i.test(clean(cell))) && row.some(cell => /^Name$/i.test(clean(cell))));
+  const firstData = grid.slice(headerIndex + 1).find(row => row.some(cell => /^\d{4,6}$/.test(clean(cell))) && row.some(cell => /Smart Circle/i.test(cell)));
+  const idCell = firstData?.find(cell => /^\d{4,6}$/.test(clean(cell)));
+  const idIndex = idCell && firstData ? firstData.indexOf(idCell) : -1;
+  let reportName = idIndex >= 0 && firstData ? clean(firstData[idIndex + 1]) : '';
+  const flattened = grid.slice(headerIndex + 1).map(row => row.map(clean).filter(Boolean));
+  if (reportName && !reportName.includes(' ')) {
+    const surname = flattened.slice(1, 5).flat().find(cell => /^[A-Z][A-Za-z'’-]+$/.test(cell) && !/^Wireless$/i.test(cell));
+    if (surname) reportName = `${reportName} ${surname}`;
+  }
+  const externalRepId = clean(idCell);
+  if (!externalRepId || !reportName) throw new Error('The lead rep identity could not be read from this DD DETAIL export.');
+  const lookupIndexes = flattened.map((row, index) => row.some(cell => /^SPE-\d+$/i.test(cell)) ? index : -1).filter(index => index >= 0);
+  const rows = lookupIndexes.map((start, index): DDNormalizedRow => {
+    const segment = flattened.slice(start, lookupIndexes[index + 1] ?? flattened.length).flat();
+    const description = segment.filter(cell => /Next Up|Wireless Bon|Device Bonus|AT&T Unlimit|AIR|New Line|Upgrade|BYOD/i.test(cell)).join(' · ');
+    return {
+      externalRepId, reportName, generated: 0, commissionToIcd: 0, ecBonusToIcd: 0, adjustmentToIcd: 0, bonusesToIcd: 0,
+      noEcBonusReason: segment.find(cell => /no ec|ineligible|missing|withheld/i.test(cell)),
+      tier: segment.find(cell => /Base|Campaign|Add On/i.test(cell)), retail: segment.find(cell => /Costco|Target|BJS/i.test(cell)),
+      orderType: segment.find(cell => /^(New Line|Upgrade|BYOD)$/i.test(cell)),
+      raw: { productionLookup: segment.find(cell => /^SPE-\d+$/i.test(cell)) ?? '', description, report: 'DD DETAIL' },
+    };
+  });
+  if (!rows.length) throw new Error('No production detail rows could be read from this DD DETAIL export.');
+  const weeks = tableauWeeks(sourceText);
+  return { reportType: 'DD_DETAIL', ...weeks, rows, warnings: ['DD DETAIL contains production attributes but no reliable per-row amount in this export; office dollars are reconciled from DD BY REP.'] };
+}
+
 export function normalizeGrid(grid: string[][], sourceText: string): Omit<DDParsedReport, 'hash'> {
+  if (/DD\s*BY\s*REP/i.test(sourceText) && grid.some(row => row.some(cell => /Smart Circle/i.test(cell)))) return normalizeTableauByRep(grid, sourceText);
+  if (/DD\s*DETAIL/i.test(sourceText) && grid.some(row => row.some(cell => /cl\.Production/i.test(cell)))) return normalizeTableauDetail(grid, sourceText);
   const headerIndex = grid.findIndex(row => row.some(cell => /rep\s*(id|#)|company\s*id|agent\s*id/i.test(cell)));
   if (headerIndex < 0) throw new Error('Carrier rep ID column was not found. Export DD BY REP or DD DETAIL with company IDs included.');
   const headers = grid[headerIndex].map(clean);
