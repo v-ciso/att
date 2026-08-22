@@ -19,7 +19,7 @@ async function actor(): Promise<(SessionUser & { marketOwnerId: string }) | null
 export async function GET() {
   const user = await actor();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: NO_STORE });
-  const [batches, profiles, company] = await Promise.all([
+  const [batches, profiles, company, productionBatch] = await Promise.all([
     prisma.dDImportBatch.findMany({
       where: { marketOwnerId: user.marketOwnerId },
       orderBy: { createdAt: 'desc' },
@@ -32,8 +32,21 @@ export async function GET() {
       orderBy: { displayName: 'asc' },
     }),
     prisma.marketOwner.findUnique({ where: { id: user.marketOwnerId }, select: { operatingStartDate: true } }),
+    prisma.dDImportBatch.findFirst({
+      where: { marketOwnerId: user.marketOwnerId, reportType: 'DD_DETAIL', isAuthoritative: true },
+      orderBy: { confirmedAt: 'desc' },
+      select: {
+        id: true,
+        ddWeek: true,
+        detailRows: {
+          select: { id: true, externalRepId: true, reportName: true, tier: true, retail: true, store: true, orderType: true, noEcBonusReason: true, rowData: true },
+          orderBy: { id: 'asc' },
+          take: 500,
+        },
+      },
+    }),
   ]);
-  return NextResponse.json({ batches, profiles, operatingStartDate: company?.operatingStartDate }, { headers: NO_STORE });
+  return NextResponse.json({ batches, profiles, productionBatch, operatingStartDate: company?.operatingStartDate }, { headers: NO_STORE });
 }
 
 export async function POST(request: NextRequest) {
