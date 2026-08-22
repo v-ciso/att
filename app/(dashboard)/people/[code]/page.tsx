@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
+import useSWR from 'swr';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Mail, CalendarDays, Store, Users, BadgeCheck } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/layout';
@@ -50,14 +51,27 @@ export default function PersonProfilePage() {
   const actor = useActor();
   const code = decodeURIComponent(params.code ?? '');
 
-  // localStorage is client-only; resolve after mount to avoid hydration drift.
-  const [person, setPerson] = useState<Person | null | undefined>(undefined);
-  useEffect(() => {
-    // Includes retired people on purpose — their file must stay reachable for
-    // exactly the legal/HR paperwork this page exists to hold.
-    const found = loadPeople().find(p => p.employeeCode === code) ?? null;
-    setPerson(found);
-  }, [code]);
+  const { data, error, isLoading } = useSWR<{ profile: {
+    displayName: string; employeeCode: string; status: string; startDate?: string | null; email?: string | null;
+    teamName?: string | null; storeName?: string | null; externalIds: Array<{ externalRepId: string; reportName?: string | null }>;
+    ddSummaries: Array<{ id: string; generated: number; ecBonusReceived: number; ecBonusMissing: number; batch: { ddWeek: string } }>;
+  } }>(`/api/profiles/${encodeURIComponent(code)}`, async url => {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error((await response.json()).error ?? 'Profile not found.');
+    return response.json();
+  });
+  const localPerson = typeof window === 'undefined' ? null : loadPeople().find(p => p.employeeCode === code) ?? null;
+  const person = useMemo<Person | null | undefined>(() => {
+    if (data?.profile) return {
+      id: data.profile.employeeCode, employeeCode: data.profile.employeeCode, name: data.profile.displayName,
+      role: localPerson?.role ?? 'REP', stores: data.profile.storeName ? [data.profile.storeName] : localPerson?.stores ?? [],
+      team: data.profile.teamName ?? localPerson?.team ?? '', weeklyProfit: localPerson?.weeklyProfit ?? [],
+      attendance: localPerson?.attendance ?? 100, email: data.profile.email ?? undefined,
+      hiredAt: data.profile.startDate?.slice(0, 10), status: data.profile.status as Person['status'],
+    };
+    if (isLoading) return undefined;
+    return localPerson;
+  }, [data, isLoading, localPerson]);
 
   return (
     <DashboardLayout>
@@ -145,7 +159,30 @@ export default function PersonProfilePage() {
             )}
           </section>
 
-          {/* Live production — the same block the quick-view drawer renders */}
+          {data?.profile && (
+            <section aria-label={`${person.name} direct deposit history`} className="glass border border-border-subtle rounded-2xl p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-text-muted">Authoritative DD history</h2>
+                  <p className="mt-1 text-xs text-text-secondary">Office-generated totals and EC outcomes. These are not rep commissions.</p>
+                </div>
+                {data.profile.externalIds.map(identity => (
+                  <span key={identity.externalRepId} className="rounded-full border border-border-subtle bg-bg-tertiary px-3 py-1 font-mono text-xs text-text-secondary">
+                    Carrier ID {identity.externalRepId}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full min-w-[560px] text-sm">
+                  <thead><tr className="border-b border-border-subtle text-left text-[10px] uppercase tracking-wider text-text-muted"><th className="pb-2">DD week</th><th className="pb-2 text-right">Generated</th><th className="pb-2 text-right">EC received</th><th className="pb-2 text-right">EC exception</th></tr></thead>
+                  <tbody className="divide-y divide-border-subtle">{data.profile.ddSummaries.map(summary => <tr key={summary.id}><td className="py-3">{new Date(summary.batch.ddWeek).toLocaleDateString()}</td><td className="py-3 text-right font-mono font-semibold">{summary.generated.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}</td><td className="py-3 text-right font-mono text-accent-green">{summary.ecBonusReceived.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}</td><td className="py-3 text-right font-mono text-accent-yellow">{summary.ecBonusMissing ? summary.ecBonusMissing.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '—'}</td></tr>)}</tbody>
+                </table>
+                {!data.profile.ddSummaries.length && <p className="py-4 text-sm text-text-muted">No confirmed DD weeks for this profile yet.</p>}
+              </div>
+            </section>
+          )}
+
+          {/* Operational tracker activity remains separate from the authoritative DD record. */}
           <section aria-label={`${person.name} production`} className="glass border border-border-subtle rounded-2xl p-5">
             <PersonSnapshot name={person.name} period="weekly" />
           </section>

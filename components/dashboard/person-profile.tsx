@@ -5,7 +5,6 @@ import { FileText, Upload } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import { loadPeople, loadPromoRules, promotionStatus, effectiveAttendance, ROSTER_ROLE_LABELS, ROLE_LADDER, type Person } from './roster';
 import { Period, PERIOD_LABELS, aggregateSales, loadSales, loadCommission } from '@/lib/sales';
-import { computePay } from '@/lib/pay';
 import { RepLifetime } from './rep-lifetime';
 import { can, type Actor } from '@/lib/permissions';
 import { fetchDocuments, uploadDocument, documentFileUrl, formatBytes, type DocumentDTO } from '@/lib/docs-client';
@@ -60,7 +59,7 @@ export function PersonSnapshot({ name, period }: { name: string; period: Period 
             { label: 'Internet', value: String(stats.internet), color: 'text-accent-cyan' },
             { label: 'Next Up', value: String(stats.nextUps), color: 'text-accent-red' },
             { label: 'Generated', value: formatCurrency(stats.revenue), color: 'text-accent-green' },
-            { label: stats.chargebacks > 0 ? 'Commission*' : 'Commission', value: formatCurrency(stats.commission), color: 'text-accent-blue' },
+            { label: 'Attendance', value: person ? `${effectiveAttendance(person).pct}%` : '—', color: 'text-accent-blue' },
           ].map(s => (
             <div key={s.label} className="p-2 rounded-xl bg-white/5 text-center">
               <p className="text-[9px] text-text-muted uppercase tracking-wider">{s.label}</p>
@@ -73,33 +72,6 @@ export function PersonSnapshot({ name, period }: { name: string; period: Period 
           No sales logged for this period — add them in the <span className="text-accent-blue">Daily Tracker</span>.
         </p>
       )}
-      {person && (() => {
-        // Full pay for the week: base + lead bump + ASM override, then the
-        // greater of that vs the guaranteed hourly.
-        const allPeople = loadPeople();
-        const pay = computePay(person, { sales: loadSales(), commission: loadCommission(), people: allPeople, period: span === 'daily' ? 'weekly' : span });
-        const hourly = person.hourlyWeekly ?? 0;
-        const paid = Math.max(pay.total, hourly);
-        const via = pay.total >= hourly ? 'earnings' : 'hourly floor';
-        return (
-          <div className="p-3 rounded-xl bg-accent-cyan/5 border border-accent-cyan/20 mb-4">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs text-text-secondary">💵 This week&apos;s pay</span>
-              <span className="text-accent-cyan font-bold text-sm">{formatCurrency(paid)} <span className="text-[10px] text-text-muted font-normal">via {via}</span></span>
-            </div>
-            <div className="space-y-0.5 text-[11px]">
-              <div className="flex justify-between"><span className="text-text-muted">Base commission (own sales)</span><span className="text-accent-blue">{formatCurrency(pay.base)}</span></div>
-              {pay.bump > 0 && <div className="flex justify-between"><span className="text-text-muted">Lead per-line bump (own lines)</span><span className="text-accent-purple">+{formatCurrency(pay.bump)}</span></div>}
-              {pay.override > 0 && <div className="flex justify-between"><span className="text-text-muted">ASM override (team production)</span><span className="text-accent-yellow">+{formatCurrency(pay.override)}</span></div>}
-              {hourly > 0 && <div className="flex justify-between"><span className="text-text-muted">Guaranteed hourly floor</span><span className="text-text-secondary">{formatCurrency(hourly)}</span></div>}
-            </div>
-            {pay.notes.length > 0 && (
-              <p className="text-[9px] text-text-muted mt-1.5">{pay.notes.join(' · ')} — rates editable in the Commission tab&apos;s Role Structure.</p>
-            )}
-          </div>
-        );
-      })()}
-
       {stats && stats.chargebacks > 0 && (
         <p className="text-[11px] text-accent-red p-2.5 rounded-lg bg-accent-red/5 border border-accent-red/20 mb-4">
           ⏰ Late clock-out chargebacks this period: <span className="font-bold">−{formatCurrency(stats.chargebacks)}</span>

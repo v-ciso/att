@@ -189,6 +189,7 @@ model MarketOwner {
   disabled               Boolean   @default(false)
   // Company default. A per-user exemption can temporarily override it.
   requireMfa             Boolean   @default(false)
+  operatingStartDate     DateTime?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
@@ -203,6 +204,8 @@ model MarketOwner {
   archives               DataArchive[]
   competitions           Competition[]
   documents              Document[]
+  repProfiles            RepProfile[]
+  ddImportBatches        DDImportBatch[]
 }
 
 // The recycle bin. Nothing in this app is ever hard-deleted from the UI: every
@@ -344,6 +347,117 @@ model TenantData {
 
   @@unique([marketOwnerId, key])
   @@index([marketOwnerId])
+}
+
+model RepProfile {
+  id               String      @id @default(cuid())
+  marketOwnerId    String
+  marketOwner      MarketOwner @relation(fields: [marketOwnerId], references: [id], onDelete: Cascade)
+  employeeCode     String
+  displayName      String
+  legalName        String?
+  status           String      @default("active")
+  startDate        DateTime?
+  email            String?
+  phone            String?
+  teamName         String?
+  storeName        String?
+  title             String?
+  notes             String?
+  metadata          Json?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  externalIds       RepExternalIdentity[]
+  ddSummaries       DDRepSummary[]
+
+  @@unique([marketOwnerId, employeeCode])
+  @@index([marketOwnerId, status, teamName])
+}
+
+model RepExternalIdentity {
+  id             String      @id @default(cuid())
+  marketOwnerId  String
+  source         String
+  externalRepId  String
+  reportName     String?
+  repProfileId   String
+  repProfile     RepProfile  @relation(fields: [repProfileId], references: [id], onDelete: Cascade)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([marketOwnerId, source, externalRepId])
+  @@index([repProfileId])
+}
+
+model DDImportBatch {
+  id                  String          @id @default(cuid())
+  marketOwnerId       String
+  marketOwner         MarketOwner     @relation(fields: [marketOwnerId], references: [id], onDelete: Cascade)
+  source              String          @default("PDF_UPLOAD")
+  sourceFileName      String
+  sourceHash          String
+  reportType          String
+  processedWeek       DateTime
+  ddWeek              DateTime
+  status              String          @default("PENDING")
+  isAuthoritative     Boolean         @default(false)
+  supersedesId        String?
+  uploadedBy          String
+  confirmedBy         String?
+  confirmedAt         DateTime?
+  officeGenerated     Float           @default(0)
+  ecBonusReceived     Float           @default(0)
+  ecBonusMissing      Float           @default(0)
+  rowCount            Int             @default(0)
+  warnings            Json?
+  createdAt           DateTime        @default(now())
+  summaries           DDRepSummary[]
+  detailRows          DDDetailRow[]
+
+  @@unique([marketOwnerId, sourceHash])
+  @@index([marketOwnerId, ddWeek, isAuthoritative])
+  @@index([marketOwnerId, createdAt])
+}
+
+model DDRepSummary {
+  id                  String        @id @default(cuid())
+  batchId             String
+  batch               DDImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  repProfileId        String?
+  repProfile          RepProfile?   @relation(fields: [repProfileId], references: [id])
+  externalRepId       String
+  reportName          String
+  generated           Float         @default(0)
+  ecBonusReceived     Float         @default(0)
+  ecBonusMissing      Float         @default(0)
+  detailCount         Int           @default(0)
+  tier                 String?
+  teamSnapshot        String?
+
+  @@unique([batchId, externalRepId])
+  @@index([repProfileId])
+}
+
+model DDDetailRow {
+  id                  String        @id @default(cuid())
+  batchId             String
+  batch               DDImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  externalRepId       String
+  reportName          String
+  generated           Float         @default(0)
+  commissionToIcd     Float         @default(0)
+  ecBonusToIcd        Float         @default(0)
+  adjustmentToIcd     Float         @default(0)
+  bonusesToIcd        Float         @default(0)
+  noEcBonusReason     String?
+  tier                 String?
+  retail              String?
+  store                String?
+  orderType            String?
+  rowData              Json?
+
+  @@index([batchId, externalRepId])
+  @@index([batchId, noEcBonusReason])
 }
 
 model Team {

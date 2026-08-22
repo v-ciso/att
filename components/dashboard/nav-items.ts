@@ -4,7 +4,6 @@ import {
   Trophy,
   Presentation,
   Receipt,
-  DollarSign,
   Settings,
   Users,
   ClipboardList,
@@ -41,8 +40,7 @@ export const navigation: NavItem[] = [
   { name: 'Attendance', href: '/dashboard?tab=attendance', tab: 'attendance', icon: ClipboardCheck },
   { name: 'Competition', href: '/dashboard?tab=competition', tab: 'competition', icon: Award },
   { name: 'P&L', href: '/dashboard?tab=pnl', tab: 'pnl', icon: Receipt, capability: 'pnl.view' },
-  { name: 'Commission', href: '/dashboard?tab=commission', tab: 'commission', icon: DollarSign, capability: 'commission.view' },
-  { name: 'Import Report', href: '/dashboard?tab=import', tab: 'import', icon: FileSpreadsheet, capability: 'import.use' },
+  { name: 'DD Reports', href: '/dashboard?tab=import', tab: 'import', icon: FileSpreadsheet, capability: 'import.use' },
   { name: 'Recycle Bin', href: '/dashboard?tab=recycle', tab: 'recycle', icon: Trash2, capability: 'company.recycleBin' },
   { name: 'Settings', href: '/settings', icon: Settings, capability: 'settings.view' },
 ];

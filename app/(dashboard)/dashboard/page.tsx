@@ -18,7 +18,7 @@ import {
   Building2, MapPin, PieChart, Maximize2, Minimize2, ChevronDown, Sparkles, ClipboardList,
 } from 'lucide-react';
 import { MeetingTracker } from '@/components/dashboard/dashboard-components';
-import { CommissionEngine, PnlEditor, TeamData, DEFAULT_COMMISSION } from '@/components/dashboard/editable-sections';
+import { PnlEditor, TeamData, DEFAULT_COMMISSION } from '@/components/dashboard/editable-sections';
 import { useModalA11y } from '@/hooks/use-modal-a11y';
 import { ModalShell } from '@/components/ui/modal-shell';
 import { ReportTemplate, ReportSections, ALL_SECTIONS, SECTION_LABELS } from '@/components/dashboard/report-template';
@@ -38,7 +38,6 @@ import { Editable, parseNum, useLocalState } from '@/components/dashboard/editab
 import { SetupWizard, SETUP_DONE_KEY, SETUP_FORCE_KEY } from '@/components/dashboard/setup-wizard';
 import { PromoPanel } from '@/components/dashboard/promo-panel';
 import { AttendanceSheet } from '@/components/dashboard/attendance-sheet';
-import { computePay } from '@/lib/pay';
 import { readWorkspace } from '@/lib/workspace';
 import { can, canSeeTab, type Role } from '@/lib/permissions';
 import { AttendanceEditor } from '@/components/dashboard/attendance-editor';
@@ -46,6 +45,7 @@ import { DocLibrary } from '@/components/dashboard/doc-library';
 import { FormGenerator } from '@/components/dashboard/form-generator';
 import { PromoArchive } from '@/components/dashboard/promo-archive';
 import { MeetingDocs } from '@/components/dashboard/meeting-docs';
+import { MeetingDDScoreboard } from '@/components/dashboard/meeting-dd-scoreboard';
 import { normalizeName } from '@/lib/people';
 import { useTheme } from '@/components/white-label/theme-provider';
 
@@ -62,8 +62,7 @@ const ALL_TAB_ITEMS: { value: string; label: string; ariaLabel?: string }[] = [
   { value: 'competition', label: 'Competition' },
   { value: 'library', label: 'Library' },
   { value: 'pnl', label: 'P&L', ariaLabel: 'Profit and loss' },
-  { value: 'commission', label: 'Commission' },
-  { value: 'import', label: 'Import' },
+  { value: 'import', label: 'DD Reports' },
   { value: 'recycle', label: 'Recycle Bin' },
 ];
 
@@ -725,17 +724,6 @@ function DashboardContent() {
     () => aggregateSales(sales, commission, { period: meetingPeriod, stores: storeSel }),
     [sales, commission, meetingPeriod, storeSel]
   );
-  // Leads and ASMs earn off other people's production, so their pay is not
-  // visible anywhere in their own sales row.
-  const leadershipPay = useMemo(
-    () => people
-      .filter(p => p.role === 'LEAD' || p.role === 'ASM')
-      .map(person => ({ person, pay: computePay(person, { sales, commission, people, period: meetingPeriod }) }))
-      .filter(x => x.pay.total > 0)
-      .sort((a, b) => b.pay.total - a.pay.total),
-    [people, sales, commission, meetingPeriod]
-  );
-
   const meetingTeams = useMemo(() => {
     let teams: TeamData[] = [];
     try { teams = JSON.parse(localStorage.getItem('se-teams-v2') || '[]'); } catch { /* none */ }
@@ -1260,7 +1248,9 @@ function DashboardContent() {
               </div>
             </div>
 
-            {/* Every tracker follows the selected meeting period */}
+            <MeetingDDScoreboard onOpenProfile={setProfileName} />
+
+            {/* Tracker activity supports coaching; confirmed DD remains authoritative. */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
               <MeetingTracker label={`${PERIOD_LABELS[meetingPeriod]} Lines`} value={String(meetingAgg.lines)} color="blue" size="2xl" />
               <MeetingTracker label={`Top Rep · ${PERIOD_LABELS[meetingPeriod]}`} value={meetingAgg.perPerson[0]?.person ?? '—'} color="purple" size="lg" />
@@ -1299,47 +1289,6 @@ function DashboardContent() {
                 </div>
               ))}
             </div>
-
-            {/* Leadership earnings were computed in lib/pay.ts but only visible
-                by opening one rep's profile. Leads and ASMs get paid off other
-                people's production, so it belongs on the screen you present. */}
-            {leadershipPay.length > 0 && (
-              <div className="mb-5">
-                <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-2">
-                  <Trophy className="w-4 h-4" style={{ color: 'var(--brand)' }} /> Leadership earnings · {PERIOD_LABELS[meetingPeriod]}
-                </h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[520px] text-xs">
-                    <thead>
-                      <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
-                        <th scope="col" className="pb-2">Name</th><th scope="col" className="pb-2">Role</th>
-                        <th scope="col" className="pb-2 text-right">Own sales</th>
-                        <th scope="col" className="pb-2 text-right">Lead bump</th>
-                        <th scope="col" className="pb-2 text-right">ASM override</th>
-                        <th scope="col" className="pb-2 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border-subtle">
-                      {leadershipPay.map(({ person, pay }) => (
-                        <tr key={person.id} className="hover:bg-white/5 transition-colors">
-                          <td className="py-2">
-                            <button onClick={() => setProfileName(person.name)} className="font-medium hover:underline">{person.name}</button>
-                          </td>
-                          <td className="py-2 text-text-muted">{ROSTER_ROLE_LABELS[person.role]}</td>
-                          <td className="py-2 text-right">{formatCurrency(pay.base)}</td>
-                          <td className="py-2 text-right text-accent-purple">{pay.bump > 0 ? formatCurrency(pay.bump) : '—'}</td>
-                          <td className="py-2 text-right text-accent-yellow">
-                            {pay.override > 0 ? formatCurrency(pay.override) : '—'}
-                            {pay.teamRevenue > 0 && <span className="block text-[9px] text-text-muted">on {formatCurrency(pay.teamRevenue)} team</span>}
-                          </td>
-                          <td className="py-2 text-right text-accent-green font-bold">{formatCurrency(pay.total)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
 
             <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-2">
               <Users className="w-4 h-4" /> Teams · live from members&apos; sales
@@ -1481,12 +1430,6 @@ function DashboardContent() {
           <Card className="p-5">
             <PnlEditor derived={pnlDerived} />
           </Card>
-        </div>
-      )}
-
-      {activeTab === 'commission' && (
-        <div id="view-panel-commission" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-commission" tabIndex={0}>
-          <Card className="p-5"><CommissionEngine /></Card>
         </div>
       )}
 
