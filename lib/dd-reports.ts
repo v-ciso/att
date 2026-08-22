@@ -201,6 +201,12 @@ export function normalizeGrid(grid: string[][], sourceText: string): Omit<DDPars
 
 export async function extractPdfGrid(bytes: Uint8Array) {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  // Serverless bundles only trace literal import specifiers. pdfjs loads its
+  // worker through a computed dynamic import, which is invisible to the
+  // tracer — so import it here with a literal path and hand it to pdfjs via
+  // the global it checks before attempting its own (untraceable) import.
+  const pdfjsWorker = await import('pdfjs-dist/legacy/build/pdf.worker.mjs');
+  (globalThis as { pdfjsWorker?: unknown }).pdfjsWorker = pdfjsWorker;
   const document = await pdfjs.getDocument({ data: bytes }).promise;
   if (document.numPages > 250) throw new Error('PDF exceeds the 250 page limit.');
   const grid: string[][] = [];

@@ -4,6 +4,12 @@ const nextConfig = {
   // PDF.js resolves its worker relative to its installed package. Bundling the
   // route rewrites that path into a Next chunk and breaks fake-worker loading.
   serverExternalPackages: ['pdfjs-dist'],
+  // Belt-and-suspenders for the above: make sure the worker (and its cmaps)
+  // are physically present in the serverless bundle for the DD parsing route,
+  // even if tracing misses the dynamic import chain.
+  outputFileTracingIncludes: {
+    '/api/dd-reports': ['./node_modules/pdfjs-dist/legacy/build/**'],
+  },
   images: {
     remotePatterns: [
       {

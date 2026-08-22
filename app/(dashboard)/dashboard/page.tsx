@@ -71,6 +71,16 @@ const VALID_TABS = ALL_TAB_ITEMS.map((t) => t.value);
 // Renders overlays inside the fullscreened element when presentation mode is
 // active — otherwise drawers opened during Present would be invisible until
 // the user exits fullscreen.
+// The print root must be a DIRECT child of <body>: buried inside the
+// dashboard's scroll containers, the browser's print engine clipped it to
+// the (hidden) first page and exported a blank PDF.
+function BodyPortal({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+  return createPortal(children, document.body);
+}
+
 function FsPortal({ children }: { children: React.ReactNode }) {
   const [target, setTarget] = useState<Element | null>(null);
   useEffect(() => {
@@ -830,6 +840,12 @@ function DashboardContent() {
     window.addEventListener('afterprint', done, { once: true });
 
     const printWhenReady = async () => {
+      // The print root is portalled to <body> and mounts one commit later —
+      // poll until it exists (with a hard cap) before printing, or the
+      // browser prints an empty page.
+      for (let attempt = 0; attempt < 60 && !document.getElementById('print-root'); attempt++) {
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      }
       await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
       const images = Array.from(document.querySelectorAll<HTMLImageElement>('#print-root img'));
       await Promise.all(images.map(image => image.complete ? Promise.resolve() : image.decode().catch(() => undefined)));
@@ -1585,9 +1601,11 @@ function DashboardContent() {
         <ExportDialog initial={defaultSections()} onCancel={() => setExportMenu(false)} onExport={(sel) => { setExportMenu(false); setExportSel(sel); }} />
       )}
       {exportSel && (
-        <div id="print-root">
-          <ReportTemplate leaderboard={reportRows} sections={exportSel} />
-        </div>
+        <BodyPortal>
+          <div id="print-root">
+            <ReportTemplate leaderboard={reportRows} sections={exportSel} />
+          </div>
+        </BodyPortal>
       )}
     </DashboardLayout>
   );

@@ -612,19 +612,23 @@
 }
 
 @media print {
-  body * {
-    visibility: hidden;
+  /* Hide the app itself, not just paint it invisible: the old visibility
+     trick kept the dashboard's layout boxes in the page flow, so the report
+     (buried inside scroll containers) printed as a blank page. The report is
+     portalled to <body>, so hiding its siblings leaves only the report. */
+  body > *:not(#print-root) {
+    display: none !important;
+  }
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
   }
   #print-root {
     display: block;
-    visibility: visible;
-    position: absolute;
-    left: 0;
-    top: 0;
+    position: static;
     width: 100%;
-  }
-  #print-root * {
-    visibility: visible;
   }
   #print-root,
   #print-root * {
