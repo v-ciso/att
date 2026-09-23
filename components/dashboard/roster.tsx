@@ -30,13 +30,15 @@ import { can } from '@/lib/permissions';
 // ---------------------------------------------------------------------------
 
 export const ROLE_LADDER = ['INTERN', 'REP', 'LEAD', 'ASM'] as const;
-export type RosterRole = (typeof ROLE_LADDER)[number];
+export const ROSTER_ROLES = [...ROLE_LADDER, 'OWNER'] as const;
+export type RosterRole = (typeof ROSTER_ROLES)[number];
 
 export const ROSTER_ROLE_LABELS: Record<RosterRole, string> = {
   INTERN: 'Intern',
   REP: 'Sales Rep',
   LEAD: 'Lead',
   ASM: 'ASM / AD',
+  OWNER: 'Owner (outside teams)',
 };
 
 const ROLE_BADGE: Record<RosterRole, string> = {
@@ -44,6 +46,7 @@ const ROLE_BADGE: Record<RosterRole, string> = {
   REP: 'bg-blue-500/20 text-blue-400 border-blue-500/20',
   LEAD: 'bg-purple-500/20 text-purple-400 border-purple-500/20',
   ASM: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/20',
+  OWNER: 'bg-bg-tertiary text-text-primary border-border-strong',
 };
 
 export type PersonStatus = 'active' | 'retired' | 'archived';
@@ -104,7 +107,7 @@ export const DEFAULT_PEOPLE: Person[] = [
 // rather than letting a bad string travel into promotion math and badges.
 export function normalizeRole(role: unknown): RosterRole {
   const up = String(role ?? '').trim().toUpperCase();
-  return (ROLE_LADDER as readonly string[]).includes(up) ? (up as RosterRole) : 'REP';
+  return (ROSTER_ROLES as readonly string[]).includes(up) ? (up as RosterRole) : 'REP';
 }
 
 export function primaryStore(p: Person): string {
@@ -125,7 +128,7 @@ export function migratePeople(raw: unknown): Person[] {
       stores: Array.isArray(p.stores) ? p.stores : p.store ? [p.store] : [],
       hourlyWeekly: p.hourlyWeekly ?? 0,
       weeklyProfit: Array.isArray(p.weeklyProfit) ? p.weeklyProfit : [],
-      team: p.team ?? '',
+      team: normalizeRole(p.role) === 'OWNER' ? '' : p.team ?? '',
       attendance: typeof p.attendance === 'number' ? p.attendance : 100,
       // Phase 4 identity/lifecycle: a pre-migration row has no status, which
       // means it is a current, active employee. employeeCode is left to be
@@ -199,7 +202,7 @@ export function effectiveAttendance(person: Person): { pct: number; tracked: boo
 // Promotion readiness — attendance uses tracked records when they exist, so
 // marking Late/Absent in the Daily Tracker feeds the road to ownership.
 export function promotionStatus(person: Person, rules: PromotionRules) {
-  const nextRole = ROLE_LADDER[ROLE_LADDER.indexOf(person.role) + 1];
+  const nextRole = person.role === 'OWNER' ? undefined : ROLE_LADDER[ROLE_LADDER.indexOf(person.role) + 1];
   const att = effectiveAttendance(person);
   if (!nextRole) return { ready: false, progress: 100, nextRole: null as string | null, label: 'Top of ladder', attendance: att };
   const recent = person.weeklyProfit.slice(-rules.weeks);
@@ -405,7 +408,7 @@ function EditEmployeeModal({ person, storeOptions, teamOptions, onSave, onClose 
           <div>
             <label className="label-base">Role</label>
             <select aria-label="Role" value={role} onChange={e => setRole(e.target.value as RosterRole)} className={selectClass}>
-              {ROLE_LADDER.map(r => <option key={r} value={r}>{ROSTER_ROLE_LABELS[r]}</option>)}
+              {ROSTER_ROLES.map(r => <option key={r} value={r}>{ROSTER_ROLE_LABELS[r]}</option>)}
             </select>
           </div>
           <div>
@@ -414,7 +417,7 @@ function EditEmployeeModal({ person, storeOptions, teamOptions, onSave, onClose 
           </div>
           <div>
             <label className="label-base">Team</label>
-            <select aria-label="Team" value={team} onChange={e => setTeam(e.target.value)} className={selectClass}>
+            <select aria-label="Team" value={role === 'OWNER' ? '' : team} disabled={role === 'OWNER'} onChange={e => setTeam(e.target.value)} className={selectClass}>
               <option value="">Unassigned</option>
               {teamOptions.map(t => <option key={t} value={t}>{t}</option>)}
               {team && !teamOptions.includes(team) && <option value={team}>{team}</option>}
@@ -518,7 +521,7 @@ function AddEmployeeModal({ storeOptions, teamOptions, onAdd, onClose }: {
           <div>
             <label className="label-base">Role</label>
             <select aria-label="Role" value={role} onChange={e => setRole(e.target.value as RosterRole)} className={selectClass}>
-              {ROLE_LADDER.map(r => <option key={r} value={r}>{ROSTER_ROLE_LABELS[r]}</option>)}
+              {ROSTER_ROLES.map(r => <option key={r} value={r}>{ROSTER_ROLE_LABELS[r]}</option>)}
             </select>
           </div>
           <div>
@@ -527,7 +530,7 @@ function AddEmployeeModal({ storeOptions, teamOptions, onAdd, onClose }: {
           </div>
           <div>
             <label className="label-base">Team</label>
-            <select aria-label="Team" value={team} onChange={e => setTeam(e.target.value)} className={selectClass}>
+            <select aria-label="Team" value={role === 'OWNER' ? '' : team} disabled={role === 'OWNER'} onChange={e => setTeam(e.target.value)} className={selectClass}>
               <option value="">Unassigned</option>
               {teamOptions.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
@@ -606,6 +609,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
       announce('This name is shared by another rep. Resolve the duplicate display names before renaming legacy records.', 'assertive');
       return;
     }
+    if ((patch.role ?? person.role) === 'OWNER') patch = { ...patch, team: '' };
     const originals = new Map<string, string>();
     try {
       const updates = new Map<string, string>();
@@ -631,9 +635,10 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
   };
 
   const assignTeam = (name: string, team: string) =>
-    setPeople(previous => previous.map(person => person.name === name ? { ...person, team } : person));
+    setPeople(previous => previous.map(person => person.name === name ? { ...person, team: person.role === 'OWNER' ? '' : team } : person));
 
   const addPerson = async (p: Omit<Person, 'id'>) => {
+    if (p.role === 'OWNER') p = { ...p, team: '' };
     // A returning employee should reclaim their old identity (and history)
     // rather than start over with a fresh code. If a retired person matches by
     // name, offer to rehire instead of creating a duplicate.
@@ -748,7 +753,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
 
   const promote = (id: string) =>
     setPeople(prev => prev.map(p => {
-      if (p.id !== id) return p;
+      if (p.id !== id || p.role === 'OWNER') return p;
       const next = ROLE_LADDER[ROLE_LADDER.indexOf(p.role) + 1];
       return next ? { ...p, role: next } : p;
     }));
@@ -897,8 +902,8 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                   <td className="py-2 pr-2">
                     <button
                       onClick={() => {
-                        const i = ROLE_LADDER.indexOf(person.role);
-                        edit(person.id, { role: ROLE_LADDER[(i + 1) % ROLE_LADDER.length] });
+                        const i = ROSTER_ROLES.indexOf(person.role);
+                        edit(person.id, { role: ROSTER_ROLES[(i + 1) % ROSTER_ROLES.length] });
                       }}
                       className={cn('px-2 py-0.5 rounded-full border text-[10px] uppercase tracking-wider transition-all hover:brightness-125', ROLE_BADGE[person.role] ?? ROLE_BADGE.REP)}
                       title="Click to cycle role"

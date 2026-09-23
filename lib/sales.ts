@@ -7,6 +7,7 @@
 import { CommissionState, DEFAULT_COMMISSION, normalizeCommission } from '@/components/dashboard/editable-sections';
 import { Person } from '@/components/dashboard/roster';
 import { seedForWorkspace } from '@/lib/workspace';
+import { canonicalPlan } from '@/lib/production-post';
 
 export interface SaleEntry {
   id: string;
@@ -17,6 +18,10 @@ export interface SaleEntry {
   qty: number;
   nextUps: number; // Next Up Anytime attached
   insurance: number; // Insurance attached
+  upgradePlan?: string;
+  upgradePlanBonus?: number;
+  convergedQty?: number;
+  convergedBonusPerBundle?: number;
 }
 
 export type Period = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'all';
@@ -124,7 +129,7 @@ export function planPayout(
   campaign?: string
 ): number {
   const all = [...commission.phonePlans, ...commission.internet, ...commission.addOns];
-  const plan = all.find(p => p.name === planName);
+  const plan = all.find(p => canonicalPlan(p.name) === canonicalPlan(planName));
   if (!plan) return 0;
 
   const b2b = isB2B(campaign);
@@ -166,6 +171,14 @@ export function entryRevenue(
   if (insurance > 0) {
     const per = planPayout(commission, 'Insurance', entry.store);
     parts.push({ label: `${insurance} × Insurance @ $${per} office`, amount: insurance * per });
+  }
+  if (canonicalPlan(entry.plan) === 'Upgrades' && entry.upgradePlan && typeof entry.upgradePlanBonus === 'number' && Number.isFinite(entry.upgradePlanBonus) && entry.upgradePlanBonus >= 0) {
+    parts.push({ label: `${qty} × ${entry.upgradePlan} upgrade supplement @ $${entry.upgradePlanBonus} office`, amount: qty * entry.upgradePlanBonus });
+  }
+  const bundleQty = Math.min(qty, Math.max(0, Math.floor(entry.convergedQty ?? 0)));
+  const bonus = entry.convergedBonusPerBundle;
+  if (/fiber/i.test(canonicalPlan(entry.plan)) && bundleQty > 0 && typeof bonus === 'number' && Number.isFinite(bonus) && bonus >= 0) {
+    parts.push({ label: `${bundleQty} × Converged fiber + wireless @ $${bonus} office`, amount: bundleQty * bonus });
   }
   const repTotal =
     qty * planPayout(commission, entry.plan, entry.store, 'rep') +

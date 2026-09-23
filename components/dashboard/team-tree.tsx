@@ -41,7 +41,8 @@ interface TeamTreeProps {
   assignTeam: (name: string, team: string) => void;
 }
 
-export function TeamTree({ people, assignTeam }: TeamTreeProps) {
+export function TeamTree({ people: roster, assignTeam }: TeamTreeProps) {
+  const people = roster.filter(person => person.role !== 'OWNER');
   const { state: teams, setState: setTeams } = useLocalState<TeamData[]>('se-teams-v2', DEFAULT_TEAMS, []);
   const [dragOver, setDragOver] = useState<string | null>(null);
 
@@ -65,7 +66,7 @@ export function TeamTree({ people, assignTeam }: TeamTreeProps) {
       e.preventDefault();
       setDragOver(null);
       const name = e.dataTransfer.getData('text/plain');
-      if (name) onDropName(name);
+      if (name && byName(name)) onDropName(name);
     },
   });
 

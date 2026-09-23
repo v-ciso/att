@@ -203,6 +203,7 @@ interface StoreRule {
 export interface CommissionState {
   tier: number; // 1..5 — payouts drop by tierDelta per tier below 5
   tierDelta: number;
+  convergedBonusOffice?: number;
   storeIndex: number;
   stores: StoreRule[];
   phonePlans: PayItem[];

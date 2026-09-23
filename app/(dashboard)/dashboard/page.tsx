@@ -46,6 +46,7 @@ import { FormGenerator } from '@/components/dashboard/form-generator';
 import { PromoArchive } from '@/components/dashboard/promo-archive';
 import { MeetingDocs } from '@/components/dashboard/meeting-docs';
 import { MeetingDDScoreboard } from '@/components/dashboard/meeting-dd-scoreboard';
+import { ProductionShare } from '@/components/dashboard/production-share';
 import { normalizeName, activePeople } from '@/lib/people';
 import { useTheme } from '@/components/white-label/theme-provider';
 
@@ -733,9 +734,9 @@ function DashboardContent() {
     const statsByName = new Map(meetingAgg.perPerson.map(p => [p.person.toLowerCase(), p]));
     return teams.map(team => {
       const memberNames = people
-        .filter(p => p.team === team.name)
+        .filter(p => p.role !== 'OWNER' && p.team === team.name)
         .map(p => p.name)
-        .concat([team.lead, team.asm].filter(n => people.some(p => p.team === team.name && p.name.toLowerCase() === n.toLowerCase())));
+        .concat([team.lead, team.asm].filter(n => people.some(p => p.role !== 'OWNER' && p.team === team.name && p.name.toLowerCase() === n.toLowerCase())));
       const unique = Array.from(new Set(memberNames.map(n => n.toLowerCase())));
       const sum = unique.reduce(
         (acc, n) => {
@@ -966,6 +967,7 @@ function DashboardContent() {
       {activeTab === 'dashboard' && (
           <div id="view-panel-dashboard" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-dashboard" tabIndex={0}>
             <MeetingDDScoreboard onOpenProfile={setProfileName} />
+            <ProductionShare sales={sales} date={pickDate || todayStr(-1)} stores={storeSel} />
             {!hasData && (
             <Card className="mb-4 p-5 border-accent-blue/30">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1472,8 +1474,8 @@ function DashboardContent() {
         const team = meetingTeams.find(t => t.name === teamDrawerName);
         if (!team) return null;
         const memberNames = Array.from(new Set(
-          people.filter(p => p.team === team.name).map(p => p.name)
-            .concat([team.lead, team.asm].filter(n => people.some(p => p.name.toLowerCase() === n.toLowerCase())))
+          people.filter(p => p.role !== 'OWNER' && p.team === team.name).map(p => p.name)
+            .concat([team.lead, team.asm].filter(n => people.some(p => p.role !== 'OWNER' && p.team === team.name && p.name.toLowerCase() === n.toLowerCase())))
         ));
         const statsByName = new Map(meetingAgg.perPerson.map(p => [p.person.toLowerCase(), p]));
         return (

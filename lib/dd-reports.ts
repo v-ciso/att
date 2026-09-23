@@ -47,8 +47,9 @@ export function parseDate(value: string): string | null {
   const year = match[1] ?? match[6];
   const month = match[2] ?? match[4];
   const day = match[3] ?? match[5];
-  const date = new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T00:00:00.000Z`);
-  return Number.isNaN(date.valueOf()) ? null : date.toISOString();
+  const iso = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  const date = new Date(`${iso}T00:00:00.000Z`);
+  return Number.isNaN(date.valueOf()) || date.toISOString().slice(0, 10) !== iso ? null : date.toISOString();
 }
 
 function splitDelimited(text: string): string[][] {
@@ -69,7 +70,8 @@ function splitDelimited(text: string): string[][] {
 
 function tableauWeeks(sourceText: string) {
   const processedMatch = sourceText.match(/Processed Week[\s\S]{0,600}?(\d{1,2}\/\d{1,2}\/20\d{2})/i);
-  const processedWeek = parseDate(processedMatch?.[1] ?? '') ?? new Date().toISOString();
+  const processedWeek = parseDate(processedMatch?.[1] ?? '');
+  if (!processedWeek) throw new Error('Processed week is missing. Re-export the report with its date header.');
   const explicitDd = sourceText.match(/(?:DD|Direct Deposit) Week(?: Ending)?[ \t]*[:\-]?[ \t]*(\d{1,2}\/\d{1,2}\/20\d{2})/i);
   if (explicitDd) return { processedWeek, ddWeek: parseDate(explicitDd[1]) ?? processedWeek };
   const dates = [...sourceText.matchAll(/\b(\d{1,2}\/\d{1,2}\/20\d{2})\b/g)].map(match => parseDate(match[1])).filter((date): date is string => Boolean(date));
@@ -81,48 +83,80 @@ function tableauWeeks(sourceText: string) {
 }
 
 function normalizeTableauByRep(grid: string[][], sourceText: string): Omit<DDParsedReport, 'hash'> {
-  const starts = grid.map((row, index) => row.some(cell => /Smart Circle/i.test(cell)) ? index : -1).filter(index => index >= 0);
+  const isAmount = (cell: string) => /^\(?\$[\d,]+(?:\.\d{2})?\)?$/.test(cell);
+  const isProduct = (cell: string) => /^(?:WIRELESS\s*-|INTERNET\s*-|Internet Bonus|Wireless Bonus|Device Bonus|AIR$)/i.test(cell);
+  const identities = grid.map((row, index) => row.some(cell => /Smart Circle/i.test(cell)) ? index : -1).filter(index => index >= 0);
+  const starts = identities.map(index => {
+    const previous = grid[index - 1]?.map(clean) ?? [];
+    return previous.length && previous.every(cell => /^\d+$/.test(cell) || isProduct(cell)) ? index - 1 : index;
+  });
   const rows: DDNormalizedRow[] = [];
+  const warnings: string[] = ['DD week inferred from report metadata; verify before confirming.'];
   for (let blockIndex = 0; blockIndex < starts.length; blockIndex++) {
     const block = grid.slice(starts[blockIndex], starts[blockIndex + 1] ?? grid.length);
     const idIndex = block.findIndex(row => row.some(cell => /^\(\d{4,}\)$/.test(clean(cell))));
-    if (idIndex < 0) continue;
-    const externalRepId = clean(block[idIndex].find(cell => /^\(\d{4,}\)$/.test(clean(cell))) ?? '').replace(/\D/g, '');
-    const smartRow = block[0];
+    if (idIndex < 0) throw new Error('A report rep has no readable carrier ID. Re-export the complete report.');
+    const externalRepId = clean(block[idIndex].find(cell => /^\(\d{4,}\)$/.test(clean(cell)))).replace(/\D/g, '');
+    const smartRow = grid[identities[blockIndex]];
     const smartIndex = smartRow.findIndex(cell => /Smart Circle/i.test(cell));
     let reportName = clean(smartRow[smartIndex - 1]);
     if (!reportName.includes(' ')) {
-      const surname = block.slice(1, idIndex).flat().find(cell => /^[A-Z][A-Za-z'’-]+$/.test(clean(cell)) && !/^(Wireless|Base|Campaign|AIR)$/i.test(clean(cell)));
+      const surname = block.slice(1, idIndex + 1).flat().find(cell => /^[A-Z][A-Za-z'’-]+$/.test(clean(cell)) && clean(cell) !== reportName && !/^(Wireless|Base|Campaign|AIR|Upgrade|BYOD)$/i.test(clean(cell)));
       if (surname) reportName = `${reportName} ${clean(surname)}`;
     }
     let description = '';
     let quantity = 0;
-    let repTotalSeen = false;
+    let awaitingTotal = false;
+    let reportedTotal: number | undefined;
+    const firstRow = rows.length;
     for (const line of block) {
       const cells = line.map(clean).filter(Boolean);
-      if (cells.some(cell => /^Rep Total$/i.test(cell))) { repTotalSeen = true; continue; }
-      const amounts = cells.filter(cell => /^\(?\$[\d,]+(?:\.\d{2})?\)?$/.test(cell));
+      const amounts = cells.filter(isAmount);
+      if (cells.some(cell => /^Rep Total$/i.test(cell))) {
+        if (amounts.length) reportedTotal = money(amounts[0]);
+        else awaitingTotal = true;
+        description = ''; quantity = 0;
+        continue;
+      }
+      if (awaitingTotal) {
+        if (amounts.length) { reportedTotal = money(amounts[0]); awaitingTotal = false; }
+        continue;
+      }
       const count = cells.find(cell => /^\d+$/.test(cell));
-      if (count && !amounts.length) quantity = Number(count);
-      const text = cells.filter(cell => !/^\(?\$[\d,]+(?:\.\d{2})?\)?$/.test(cell) && !/^\d+$/.test(cell) && !/^\(\d+\)$/.test(cell));
-      const productText = text.filter(cell => !/Smart Circle|Sorami Marketing|Sameer Khatri|CONFIDENTIAL|Last Server Update/i.test(cell)).join(' ');
-      if (productText && !/^[A-Z][A-Za-z'’-]+$/.test(productText)) description = productText;
+      if (count) quantity = Number(count);
+      for (const cell of cells) {
+        if (isProduct(cell)) description = cell;
+        else if (description && /^(?:\(Elite\)|New Line|Upgrade|BYOD|Wireless New Line|Wireless Upgrade|Bonus -|for \d)/i.test(cell)) description += ` ${cell}`;
+      }
       if (!amounts.length) continue;
-      if (repTotalSeen) { repTotalSeen = false; continue; }
       const generated = money(amounts[0]);
-      if (!generated || !description) continue;
+      const missingDescription = !description;
+      const label = description || 'Unclassified payout — clipped description';
+      const ec = /\bEC\b|enhanced commission/i.test(label);
+      const bonus = /bonus/i.test(label) && !ec;
       rows.push({
-        externalRepId, reportName, generated, commissionToIcd: generated, ecBonusToIcd: /bonus/i.test(description) ? generated : 0,
-        adjustmentToIcd: 0, bonusesToIcd: /bonus/i.test(description) ? generated : 0,
-        tier: description, orderType: /New Line/i.test(description) ? 'New Line' : /Upgrade/i.test(description) ? 'Upgrade' : /BYOD/i.test(description) ? 'BYOD' : undefined,
-        raw: { description, quantity: String(quantity || 1), amount: amounts[0], report: 'DD BY REP' },
+        externalRepId, reportName, generated,
+        commissionToIcd: bonus || ec ? 0 : generated,
+        ecBonusToIcd: ec ? generated : 0, adjustmentToIcd: 0, bonusesToIcd: bonus ? generated : 0,
+        tier: label, orderType: /New Line/i.test(label) ? 'New Line' : /Upgrade/i.test(label) ? 'Upgrade' : /BYOD/i.test(label) ? 'BYOD' : undefined,
+        raw: { description: label, quantity: quantity ? String(quantity) : '', amount: amounts[0], report: 'DD BY REP', ...(missingDescription ? { needsReview: 'Missing product description' } : {}) },
       });
-      quantity = 0;
+      if (missingDescription) warnings.push(`Carrier ${externalRepId}: ${amounts[0]} has a clipped product description; do not infer its plan or bonus.`);
+      description = ''; quantity = 0;
     }
+    const sum = rows.slice(firstRow).reduce((total, row) => total + row.generated, 0);
+    if (reportedTotal === undefined) {
+      warnings.push(`Carrier ${externalRepId}: rep total is missing. The export may be incomplete.`);
+      rows.slice(firstRow).forEach(row => { row.raw.needsReview = row.raw.needsReview || 'Missing printed rep total'; });
+    }
+    else if (Math.abs(sum - reportedTotal) > 0.01) throw new Error(`Carrier ${externalRepId}: parsed total ${sum.toFixed(2)} differs from printed total ${reportedTotal.toFixed(2)}. Re-export the full report.`);
   }
   if (!rows.length) throw new Error('No rep totals could be read from this DD BY REP export.');
-  const weeks = tableauWeeks(sourceText);
-  return { reportType: 'DD_BY_REP', ...weeks, rows, warnings: ['DD week was inferred from the report data because the Tableau filter was set to All.'] };
+  if (/Background Check Fee/i.test(sourceText)) {
+    warnings.push('Office-only background-check fees are present and are not allocated to reps. Reconcile office totals before confirming.');
+    rows.forEach(row => { row.raw.needsReview = row.raw.needsReview || 'Unreconciled office-only adjustment'; });
+  }
+  return { reportType: 'DD_BY_REP', ...tableauWeeks(sourceText), rows, warnings };
 }
 
 function normalizeTableauDetail(grid: string[][], sourceText: string): Omit<DDParsedReport, 'hash'> {
