@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Plus, Trash2, GripVertical, Network } from 'lucide-react';
-import { useLocalState, TeamData, Editable } from './editable-sections';
+import { useLocalState, TeamData, Editable, DEFAULT_TEAMS } from './editable-sections';
 import { Person, ROSTER_ROLE_LABELS } from './roster';
 
 // Org builder: drag any employee chip onto a team's Lead/ASM slot or member
@@ -16,10 +16,7 @@ const TEAM_COLORS = ['blue', 'purple', 'cyan', 'yellow'];
 
 // A person holds at most ONE lead/ASM slot across all teams — see setSlot.
 // This seed used to put Jordan Reyes on both Alpha and Beta.
-const DEFAULT_TREE_TEAMS: TeamData[] = [
-  { name: 'Team Alpha', change: '+12%', lines: 0, premium: 0, fiber: 0, progress: 78, color: 'blue', lead: 'Alex Thompson', asm: 'Jordan Reyes', members: [] },
-  { name: 'Team Beta', change: '+8%', lines: 0, premium: 0, fiber: 0, progress: 64, color: 'purple', lead: 'Mike Chen', asm: '', members: [] },
-];
+
 
 function PersonChip({ person, small }: { person: Person; small?: boolean }) {
   return (
@@ -45,7 +42,7 @@ interface TeamTreeProps {
 }
 
 export function TeamTree({ people, assignTeam }: TeamTreeProps) {
-  const { state: teams, setState: setTeams, reset } = useLocalState<TeamData[]>('se-teams-v2', DEFAULT_TREE_TEAMS, []);
+  const { state: teams, setState: setTeams } = useLocalState<TeamData[]>('se-teams-v2', DEFAULT_TEAMS, []);
   const [dragOver, setDragOver] = useState<string | null>(null);
 
   const byName = (name: string) => people.find(p => p.name.toLowerCase() === name.toLowerCase());
@@ -127,14 +124,14 @@ export function TeamTree({ people, assignTeam }: TeamTreeProps) {
 
   return (
     <div className="mt-6">
-      <div className="flex items-center justify-between mb-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-text-secondary flex items-center gap-2">
           <Network className="w-4 h-4" />
-          Team Builder <span className="text-[10px] text-text-muted font-normal">(drag people between teams — who falls under who)</span>
+          Team Builder <span className="text-[10px] text-text-muted font-normal">(choose leads here; edit each rep to assign a team)</span>
         </h3>
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={addTeam}><Plus className="w-3.5 h-3.5" /> Add Team</Button>
-          <Button variant="ghost" size="sm" onClick={reset}>↻</Button>
+
         </div>
       </div>
 
@@ -151,7 +148,7 @@ export function TeamTree({ people, assignTeam }: TeamTreeProps) {
         </p>
         <div className="flex flex-wrap gap-1.5">
           {unassigned.map(p => <PersonChip key={p.id} person={p} />)}
-          {unassigned.length === 0 && <span className="text-[10px] text-text-muted">Everyone is on a team 🎉</span>}
+          {unassigned.length === 0 && <span className="text-[10px] text-text-muted">Everyone is on a team</span>}
         </div>
       </div>
 
@@ -179,6 +176,7 @@ export function TeamTree({ people, assignTeam }: TeamTreeProps) {
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
               <Editable
+                label={`${team.name} team name`}
                 value={team.name}
                 onCommit={v => {
                   const newName = v.trim();
@@ -189,6 +187,9 @@ export function TeamTree({ people, assignTeam }: TeamTreeProps) {
                 className="font-semibold text-sm block mb-2"
               />
 
+              <div className="mb-3 flex flex-col gap-2">
+                {(['lead', 'asm'] as const).map(slot => <label key={slot} className="flex flex-col gap-1 text-sm text-text-secondary">{slot === 'lead' ? 'Lead' : 'ASM'}<select aria-label={`${team.name} ${slot}`} value={byName(team[slot]) ? team[slot] : ''} onChange={event => { if (event.target.value) setSlot(ti, slot, event.target.value); else setTeams(previous => previous.map((item, index) => index === ti ? { ...item, [slot]: '' } : item)); }} className="min-h-11 w-full min-w-0 rounded-lg border border-border-subtle bg-bg-tertiary px-2 text-sm text-text-primary"><option value="">Unassigned</option>{people.map(person => <option key={person.id} value={person.name}>{person.name}</option>)}</select></label>)}
+              </div>
               {/* ASM level */}
               <div
                 {...dropProps(`asm-${ti}`, name => setSlot(ti, 'asm', name))}

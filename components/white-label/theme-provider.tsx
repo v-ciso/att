@@ -1,6 +1,8 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { useSession } from 'next-auth/react';
+import useSWR from 'swr';
 import { DEFAULT_THEME, WhiteLabelTheme, applyTheme } from '@/lib/theme';
 
 interface ThemeContextType {
@@ -10,8 +12,14 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+const fetchTheme = (url: string) => fetch(url).then(async response => {
+  if (!response.ok) throw new Error('Could not load company branding.');
+  return response.json() as Promise<{ theme?: Partial<WhiteLabelTheme> }>;
+});
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
+  const { status } = useSession();
+  const { data: persisted } = useSWR(status === 'authenticated' ? '/api/whitelabel' : null, fetchTheme);
   const [theme, setThemeState] = useState<WhiteLabelTheme>(DEFAULT_THEME);
   const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -31,10 +39,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!isLoading && mounted) {
-      applyTheme(theme);
-      localStorage.setItem('se-theme-v1', JSON.stringify(theme));
-    }
+    if (!persisted?.theme) return;
+    setThemeState(current => ({
+      ...DEFAULT_THEME,
+      ...current,
+      ...persisted.theme,
+      featureFlags: {
+        ...DEFAULT_THEME.featureFlags,
+        ...current.featureFlags,
+        ...persisted.theme?.featureFlags,
+      },
+    }));
+  }, [persisted]);
+
+  useEffect(() => {
+    if (!isLoading && mounted) applyTheme(theme);
   }, [theme, isLoading, mounted]);
 
   const setTheme = (partial: Partial<WhiteLabelTheme>) => {

@@ -1,35 +1,73 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useSession } from 'next-auth/react';
-import { hydrateTenant, installTenantSync } from '@/lib/tenant-sync';
-import { readWorkspace } from '@/lib/workspace';
+import { ReactNode, useEffect, useState, useSyncExternalStore } from 'react';
+import { usePathname } from 'next/navigation';
+import { signOut, useSession } from 'next-auth/react';
+import useSWR from 'swr';
+import { getSyncError, hydrateTenant, stopTenantSync, subscribeSync } from '@/lib/tenant-sync';
+import { readWorkspace, reconcileWorkspace, purgeAllLiveBuckets, WORKSPACE_KEY, type Workspace } from '@/lib/workspace';
 
-// Mounted once inside the dashboard. In LIVE mode it pulls the tenant's data
-// from Postgres into the local cache before the views render their numbers, so
-// a fresh device shows the real book instead of an empty one, then keeps it
-// synced. In DEMO mode it does nothing (local-only sandbox).
-export function TenantSync() {
-  const { status } = useSession();
-  const [syncing, setSyncing] = useState(false);
+// This boundary lives ABOVE page components: their effects cannot read stale or
+// demo defaults while the signed-in company's data is still loading.
+export function TenantSync({ children }: { children: ReactNode }) {
+  const { status, data: session } = useSession();
+  const pathname = usePathname();
+  const protectedPage = /^\/(dashboard|settings|people|admin)(\/|$)/.test(pathname);
+  const needsData = protectedPage && !pathname.startsWith('/admin');
+  const tenant = session?.user?.marketOwnerId;
+  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [expired, setExpired] = useState(false);
+  const saveError = useSyncExternalStore(subscribeSync, getSyncError, () => '');
 
   useEffect(() => {
-    if (status !== 'authenticated') return;
-    if (readWorkspace().mode !== 'live') return;
-    let cancelled = false;
-    setSyncing(true);
-    hydrateTenant().finally(() => {
-      if (!cancelled) setSyncing(false);
-      installTenantSync();
-    });
-    return () => { cancelled = true; };
-  }, [status]);
+    if (!protectedPage || status === 'loading') return;
+    const expire = () => {
+      setExpired(true);
+      stopTenantSync();
+      purgeAllLiveBuckets();
+      void signOut({ redirect: false }).then(() => window.location.assign('/login'));
+    };
+    if (!session?.user?.id || !session.sessionExpiresAt || session.sessionExpiresAt <= Date.now()) {
+      expire();
+      return;
+    }
+    setExpired(false);
+    const deadline = session.sessionExpiresAt;
+    const check = () => { if (Date.now() >= deadline) expire(); };
+    const timer = setTimeout(expire, deadline - Date.now());
+    window.addEventListener('focus', check);
+    document.addEventListener('visibilitychange', check);
+    return () => { clearTimeout(timer); window.removeEventListener('focus', check); document.removeEventListener('visibilitychange', check); };
+  }, [protectedPage, status, session?.user?.id, session?.sessionExpiresAt]);
 
-  if (!syncing) return null;
-  return (
-    <div className="fixed bottom-4 right-4 z-[100] flex items-center gap-2 px-3 py-2 rounded-xl glass border border-border-subtle text-xs text-text-secondary shadow-glass">
-      <span className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--brand)', borderTopColor: 'transparent' }} />
-      Syncing your data…
-    </div>
+  useEffect(() => {
+    if (!needsData || !tenant) return;
+    const current = readWorkspace();
+    const explicitDemo = session?.user?.isSuperAdmin && current.mode === 'demo' && window.localStorage.getItem(WORKSPACE_KEY) !== null;
+    if (!explicitDemo && reconcileWorkspace(tenant)) return;
+    setWorkspace(readWorkspace());
+    const checkWorkspace = (event: StorageEvent) => {
+      if (event.key === WORKSPACE_KEY) { stopTenantSync(); window.location.reload(); }
+    };
+    window.addEventListener('storage', checkWorkspace);
+    return () => window.removeEventListener('storage', checkWorkspace);
+  }, [needsData, tenant, session?.user?.isSuperAdmin]);
+
+  const readyToLoad = needsData && workspace?.mode === 'live' && workspace.scope === tenant;
+  const { data: loaded, error, mutate } = useSWR(
+    readyToLoad ? ['tenant-bootstrap', tenant] : null,
+    ([, id]) => hydrateTenant(id!),
+    { refreshInterval: 15_000, revalidateOnFocus: true, shouldRetryOnError: false, keepPreviousData: false },
   );
+
+  if (!protectedPage) return <>{children}</>;
+  if (expired) return <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-bg-primary text-text-primary"><p>Your one-hour session has ended.</p><a href="/login" className="min-h-11 rounded-lg border border-border-subtle px-4 py-2 text-sm">Sign in again</a></main>;
+  if (status === 'loading' || !session?.user?.id || (needsData && !workspace)) return <Loading />;
+  if (saveError || error) return <main className="flex min-h-dvh flex-col items-center justify-center bg-bg-primary px-6 text-text-primary"><div className="flex max-w-lg flex-col gap-4"><h1 className="text-xl font-semibold">Live data needs attention</h1><p role="alert" className="text-sm leading-6 text-text-secondary">{saveError || error.message}</p><p className="text-sm leading-6 text-text-secondary">No other company or demo data is shown. Reloading discards unsaved edits on this device.</p><button className="min-h-11 rounded-lg bg-bg-tertiary px-4 text-text-primary" onClick={() => saveError ? window.location.reload() : void mutate()}>Reload latest data</button><button className="min-h-11 rounded-lg border border-border-subtle px-4 text-text-secondary" onClick={() => { stopTenantSync(); purgeAllLiveBuckets(); void signOut({ redirect: false }).then(() => window.location.assign('/login')); }}>Sign out</button></div></main>;
+  if (readyToLoad && !loaded) return <Loading />;
+  return <>{children}</>;
+}
+
+function Loading() {
+  return <main className="flex min-h-dvh items-center justify-center bg-bg-primary text-text-secondary"><p role="status" className="text-sm">Loading your workspace…</p></main>;
 }

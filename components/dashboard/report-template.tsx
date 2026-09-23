@@ -3,7 +3,7 @@
 import { LeaderboardEntry } from './dashboard-components';
 import { DEFAULT_PNL, PnlState, roadtripTotals } from './editable-sections';
 import { loadPeople, loadPromoRules, promotionStatus, ROSTER_ROLE_LABELS } from './roster';
-import { loadCommission } from '@/lib/sales';
+import { useTheme } from '@/components/white-label/theme-provider';
 
 // Branded PDF report. Rendered off-screen only during export and captured by
 // html2pdf/html2canvas — so everything uses plain inline styles (no glass
@@ -48,23 +48,20 @@ export interface ReportSections {
   kpis: boolean;
   leaderboard: boolean;
   pnl: boolean;
-  commission: boolean;
   roster: boolean;
 }
 
-export const ALL_SECTIONS: ReportSections = { kpis: true, leaderboard: true, pnl: true, commission: true, roster: true };
+export const ALL_SECTIONS: ReportSections = { kpis: true, leaderboard: true, pnl: true, roster: true };
 
 export const SECTION_LABELS: Record<keyof ReportSections, string> = {
   kpis: 'KPI summary',
   leaderboard: 'Leaderboard',
   pnl: 'Profit & Loss',
-  commission: 'Payout structure',
   roster: 'Roster & roadmap',
 };
 
 export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leaderboard: LeaderboardEntry[]; sections?: ReportSections }) {
-  const theme = load<{ companyName?: string; primaryColor?: string }>('se-theme-v1', {});
-  const commission = loadCommission();
+  const { theme } = useTheme();
   const pnl = load<PnlState>('se-pnl-v1', DEFAULT_PNL);
   const people = loadPeople();
   const promoRules = loadPromoRules();
@@ -84,14 +81,12 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
   const margin = totalRevenue > 0 ? ((net / totalRevenue) * 100).toFixed(1) : '0.0';
 
   const totalLines = leaderboard.reduce((a, b) => a + b.lines, 0);
-  const totalCommission = leaderboard.reduce((a, b) => a + b.commission, 0);
-  const store = commission.stores[commission.storeIndex] ?? commission.stores[0];
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
   const kpis = [
     { label: 'Total Lines', value: String(totalLines) },
-    { label: 'Team Commission', value: fmt(totalCommission) },
+    { label: 'Active Reps', value: String(leaderboard.length) },
     { label: 'Net Profit', value: fmt(net) },
     { label: 'Margin', value: `${margin}%` },
   ];
@@ -100,22 +95,35 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
     <div id="pdf-report" style={{ width: '100%', maxWidth: 780, margin: '0 auto', background: '#E9ECF1', fontFamily: 'Inter, Arial, sans-serif', color: INK }}>
       {/* Header band */}
       <div style={{ background: '#000000', padding: '20px 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <p style={{ color: '#FFFFFF', fontSize: 20, fontWeight: 800, margin: 0, letterSpacing: '-0.01em' }}>{companyName}</p>
-          <p style={{ color: '#9CA3AF', fontSize: 10, margin: '2px 0 0', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-            Performance Report · AT&amp;T Retail
-          </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {theme.logoUrl ? (
+            <img
+              src={theme.logoUrl}
+              alt={`${companyName} logo`}
+              style={{ width: 34, height: 34, objectFit: 'contain' }}
+            />
+          ) : null}
+          <div>
+            <p style={{ color: '#FFFFFF', fontSize: 20, fontWeight: 800, margin: 0, letterSpacing: '0.08em' }}>{companyName.toUpperCase()}</p>
+            <p style={{ color: '#D8AE4B', fontSize: 8, margin: '2px 0 0', textTransform: 'uppercase', letterSpacing: '0.24em' }}>
+              Marketing · Performance Report
+            </p>
+          </div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <p style={{ color: '#FFFFFF', fontSize: 11, margin: 0 }}>{today}</p>
           <p style={{ color: '#9CA3AF', fontSize: 10, margin: '2px 0 0' }}>
-            Tier {commission.tier} · {store?.name ?? '—'}
+            Office operations record
           </p>
         </div>
       </div>
       <div style={{ height: 4, background: `linear-gradient(90deg, ${accent}, #A855F7, #06B6D4)` }} />
 
-      <div style={{ padding: '16px 28px 24px' }}>
+      <div style={{ padding: '16px 28px 24px', position: 'relative', overflow: 'hidden' }}>
+        <div aria-hidden="true" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transform: 'rotate(-28deg)', color: '#111827', opacity: 0.035, fontSize: 58, fontWeight: 900, letterSpacing: '0.12em', pointerEvents: 'none', whiteSpace: 'nowrap' }}>
+          POWERED BY KGVINC
+        </div>
+        <div style={{ position: 'relative' }}>
         {/* KPI row */}
         {sections.kpis && (
         <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '5px 0', marginTop: 6, tableLayout: 'fixed' }}>
@@ -144,11 +152,10 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
           </colgroup>
           <thead>
             <tr>
-              <th style={th}>#</th><th style={th}>Rep / Team</th><th style={th}>Store</th>
-              <th style={{ ...th, textAlign: 'right' }}>Lines</th>
-              <th style={{ ...th, textAlign: 'right' }}>Premium</th>
-              <th style={{ ...th, textAlign: 'right' }}>Fiber</th>
-              <th style={{ ...th, textAlign: 'right' }}>Commission</th>
+              <th scope="col" style={th}>#</th><th scope="col" style={th}>Rep / Team</th><th scope="col" style={th}>Store</th>
+              <th scope="col" style={{ ...th, textAlign: 'right' }}>Lines</th>
+              <th scope="col" style={{ ...th, textAlign: 'right' }}>Premium</th>
+              <th scope="col" style={{ ...th, textAlign: 'right' }}>Fiber</th>
             </tr>
           </thead>
           <tbody>
@@ -160,7 +167,6 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
                 <td style={{ ...td, textAlign: 'right' }}>{e.lines}</td>
                 <td style={{ ...td, textAlign: 'right' }}>{e.premium}</td>
                 <td style={{ ...td, textAlign: 'right' }}>{e.fiber}</td>
-                <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: '#047857' }}>{fmt(e.commission)}</td>
               </tr>
             ))}
           </tbody>
@@ -207,26 +213,6 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
 
         </>)}
 
-        {/* Commission structure */}
-        {sections.commission && (<>
-        <SectionTitle>Payout Structure — Tier {commission.tier} · {store?.name}</SectionTitle>
-        <div style={{ display: 'flex', gap: 16 }}>
-          {([['Phone Lines', commission.phonePlans], ['Internet', commission.internet], ['Add-Ons', commission.addOns]] as const).map(([title, items]) => (
-            <div key={title} style={{ flex: 1 }}>
-              <p style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 4px' }}>{title}</p>
-              {items.map(p => (
-                <div key={p.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 10.5, borderBottom: `1px solid ${LINE}` }}>
-                  <span>{p.name}</span>
-                  <span style={{ fontWeight: 700 }}>
-                    {fmt(p.payout)} <span style={{ fontWeight: 500, color: MUTED }}>· rep {fmt(p.rep ?? 0)}</span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-
-        </>)}
 
         {/* Roster & leadership roadmap */}
         {sections.roster && (<>
@@ -242,10 +228,10 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
           </colgroup>
           <thead>
             <tr>
-              <th style={th}>Employee</th><th style={th}>Role</th><th style={th}>Store</th><th style={th}>Team</th>
-              <th style={{ ...th, textAlign: 'right' }}>Wk Profit</th>
-              <th style={{ ...th, textAlign: 'right' }}>Attend.</th>
-              <th style={th}>Roadmap</th>
+              <th scope="col" style={th}>Employee</th><th scope="col" style={th}>Role</th><th scope="col" style={th}>Store</th><th scope="col" style={th}>Team</th>
+              <th scope="col" style={{ ...th, textAlign: 'right' }}>Wk Profit</th>
+              <th scope="col" style={{ ...th, textAlign: 'right' }}>Attend.</th>
+              <th scope="col" style={th}>Roadmap</th>
             </tr>
           </thead>
           <tbody>
@@ -271,7 +257,8 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
         {/* Footer */}
         <div style={{ marginTop: 22, paddingTop: 10, borderTop: `1px solid ${LINE}`, display: 'flex', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 9, color: MUTED }}>Generated {new Date().toLocaleString('en-US')}</span>
-          <span style={{ fontSize: 9, color: MUTED }}>{companyName} · Powered by Sales Engine</span>
+          <span style={{ fontSize: 9, color: MUTED }}>{companyName} · Powered by KGVINC</span>
+        </div>
         </div>
       </div>
     </div>

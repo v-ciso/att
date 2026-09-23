@@ -3,12 +3,23 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@next-auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db';
+import { audit, clientIp } from '@/lib/audit';
+import {
+  checkLoginThrottle,
+  clearLoginFailures,
+  normaliseEmail,
+  pruneLoginAttempts,
+  recordLoginAttempt,
+} from '@/lib/rate-limit';
 import { verifySupabasePassword } from '@/lib/supabase-admin';
 import { isSuperAdminEmail } from '@/lib/super-admins';
+import { authSecret } from '@/lib/auth-secret';
+import { SESSION_VERSION, SESSION_MAX_AGE, sessionIsCurrent } from '@/lib/session-version';
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
-  session: { strategy: 'jwt' },
+  // The fixed deadline below prevents NextAuth's rolling refresh extending a login.
+  session: { strategy: 'jwt', maxAge: SESSION_MAX_AGE },
   pages: { signIn: '/login' },
   providers: [
     CredentialsProvider({
@@ -17,18 +28,61 @@ export const authOptions: NextAuthOptions = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
 
+        // Address and client of the caller, for throttling and the audit rows.
+        // clientIp handles NextAuth's plain-object headers as well as a real
+        // Headers instance, so both paths record the same thing.
+        const ip = clientIp(req as unknown as Request);
+        const hdrs = (req as { headers?: Record<string, string> } | undefined)?.headers;
+        const userAgent = hdrs?.['user-agent'] ?? null;
+
+        // Refuse before touching the password when this email or address has
+        // already burned through its budget. Checked first so a locked-out
+        // attacker cannot keep using us as a password oracle.
+        const verdict = await checkLoginThrottle(credentials.email, ip);
+        if (!verdict.allowed) {
+          await audit({
+            action: 'auth.locked_out',
+            actor: { email: normaliseEmail(credentials.email), role: 'UNKNOWN' },
+            meta: { reason: verdict.reason, retryAfterMinutes: verdict.retryAfterMinutes },
+            ip,
+            userAgent,
+          });
+          return null;
+        }
+
+        // Emails are stored lowercased; normalise the lookup so a rep typing
+        // their address with a capital letter is not told their password is
+        // wrong.
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
+          where: { email: normaliseEmail(credentials.email) },
           include: { marketOwner: true },
         });
-        if (!user) return null;
+        if (!user) {
+          await recordLoginAttempt(credentials.email, ip, false);
+          return null;
+        }
 
         // A suspended user, or a user under a suspended company, cannot sign in
         // — even with the right password. The row survives so history is kept.
-        if (user.disabled || user.marketOwner?.disabled) return null;
+        if (user.disabled || user.marketOwner?.disabled) {
+          await recordLoginAttempt(credentials.email, ip, false);
+          await audit({
+            action: 'auth.login_failed',
+            actor: {
+              id: user.id,
+              email: user.email,
+              role: user.role,
+              marketOwnerId: user.marketOwnerId,
+            },
+            meta: { reason: user.disabled ? 'user_disabled' : 'company_disabled' },
+            ip,
+            userAgent,
+          });
+          return null;
+        }
 
         // Dual path. Accounts provisioned through the admin console live in
         // Supabase Auth (authId set) and are verified there — that is what makes
@@ -42,7 +96,40 @@ export const authOptions: NextAuthOptions = {
         } else if (user.passwordHash) {
           ok = await bcrypt.compare(credentials.password, user.passwordHash);
         }
-        if (!ok) return null;
+        if (!ok) {
+          await recordLoginAttempt(credentials.email, ip, false);
+          await audit({
+            action: 'auth.login_failed',
+            actor: {
+              id: user.id,
+              email: user.email,
+              role: user.role,
+              marketOwnerId: user.marketOwnerId,
+            },
+            meta: { reason: 'bad_password' },
+            ip,
+            userAgent,
+          });
+          return null;
+        }
+
+        // Genuine sign-in: wipe the strikes so an earlier fumble does not
+        // follow them around, and opportunistically prune the old rows.
+        await recordLoginAttempt(credentials.email, ip, true);
+        await clearLoginFailures(credentials.email);
+        void pruneLoginAttempts();
+        await audit({
+          action: 'auth.login',
+          actor: {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            marketOwnerId: user.marketOwnerId,
+          },
+          meta: { method: user.authId ? 'supabase' : 'bcrypt' },
+          ip,
+          userAgent,
+        });
 
         return {
           id: user.id,
@@ -69,10 +156,17 @@ export const authOptions: NextAuthOptions = {
         // readable) and stamp it on the token, so the browser never has to
         // re-derive it from an email that may not survive the session round-trip.
         token.isSuperAdmin = isSuperAdminEmail(user.email);
+        // Version every fresh session; proxy.ts refuses tokens without the
+        // current value, which is how pre-2h-ceiling sessions get retired.
+        token.sv = SESSION_VERSION;
+        token.sessionExpiresAt = Date.now() + SESSION_MAX_AGE * 1000;
       }
       return token;
     },
     async session({ session, token }) {
+      if (!sessionIsCurrent(token)) return { expires: new Date(0).toISOString() } as typeof session;
+      session.expires = new Date(token.sessionExpiresAt!).toISOString();
+      session.sessionExpiresAt = token.sessionExpiresAt;
       if (token) {
         session.user = {
           ...session.user,
@@ -88,22 +182,10 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
+  // Shared with middleware.ts via lib/auth-secret.ts so both sides always
+  // agree on the signing key.
   secret: authSecret(),
 };
-
-// This secret signs the session JWT. A known/shared value means anyone can mint
-// an OWNER session, so production refuses to boot without a real one rather
-// than falling back to a guessable default.
-function authSecret(): string {
-  const secret = process.env.NEXTAUTH_SECRET;
-  if (secret && secret.length >= 32 && !secret.startsWith('demo-')) return secret;
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error(
-      'NEXTAUTH_SECRET is missing or insecure. Generate one with: openssl rand -base64 32'
-    );
-  }
-  return 'dev-only-secret-not-used-in-production-builds';
-}
 
 export async function auth() {
   return getServerSession(authOptions);

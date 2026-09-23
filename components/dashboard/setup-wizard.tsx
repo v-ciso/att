@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Plus, Trash2, Store as StoreIcon, Users, Layers, Check } from 'lucide-react';
 import { RETAILERS } from '@/lib/shifts';
+import { useModalA11y } from '@/hooks/use-modal-a11y';
 import {
   Person, RosterRole, ROLE_LADDER, ROSTER_ROLE_LABELS, PEOPLE_KEY,
 } from './roster';
@@ -36,6 +37,7 @@ const STEPS = [
 ] as const;
 
 export function SetupWizard({ onDone }: { onDone: () => void }) {
+  const panelRef = useModalA11y<HTMLDivElement>();
   const [step, setStep] = useState(0);
   const [stores, setStores] = useState<DraftStore[]>([{ retailer: 'Costco', number: '' }]);
   const [teams, setTeams] = useState<string[]>([]);
@@ -102,10 +104,23 @@ export function SetupWizard({ onDone }: { onDone: () => void }) {
     namedPeople.length > 0;
 
   const body = (
-    <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label="Set up your market">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
-      <div className="relative w-full sm:max-w-2xl max-h-[92vh] overflow-y-auto glass border border-border-strong rounded-t-2xl sm:rounded-2xl bg-bg-secondary/95 p-5 sm:p-7 animate-scale-in">
-        <h2 className="text-xl sm:text-2xl font-bold neon-brand">Let&apos;s set up your market</h2>
+    <div
+      className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="setup-wizard-title"
+    >
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" aria-hidden="true" />
+      {/* Focus is trapped here so keyboard users can't tab into the dashboard
+          behind the overlay. Escape is intentionally NOT wired to dismiss:
+          "Skip" is the explicit opt-out, so a stray Escape can't silently
+          abandon first-run setup. */}
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className="relative w-full sm:max-w-2xl max-h-[92vh] overflow-y-auto glass border border-border-strong rounded-t-2xl sm:rounded-2xl bg-bg-secondary/95 p-5 sm:p-7 animate-scale-in focus:outline-none"
+      >
+        <h2 id="setup-wizard-title" className="text-xl sm:text-2xl font-bold neon-brand">Let&apos;s set up your market</h2>
         <p className="text-xs text-text-secondary mt-1">
           Three quick questions. You can change any of it later — nothing here is locked in.
         </p>

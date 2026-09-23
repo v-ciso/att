@@ -20,10 +20,15 @@ module.exports = {
           subtle: 'rgba(255,255,255,0.08)',
           strong: 'rgba(255,255,255,0.15)',
         },
+        // Contrast-checked against the three surface colours above.
+        // `muted` was #6B7280, which is only 3.84:1 on bg-tertiary — below the
+        // WCAG AA 4.5:1 floor for the small text it was mostly used for
+        // (timestamps, hints, helper copy). #9199A5 is 6.46:1 on the darkest
+        // card and still reads as clearly secondary to `secondary`.
         text: {
-          primary: '#FFFFFF',
-          secondary: '#9CA3AF',
-          muted: '#6B7280',
+          primary: '#FFFFFF',   // 21:1  on black
+          secondary: '#9CA3AF', // 7.32:1 on bg-tertiary
+          muted: '#9199A5',     // 6.46:1 on bg-tertiary
           inverse: '#000000',
         },
         accent: {

@@ -1,100 +1,131 @@
-import { readWorkspace, storagePrefix } from '@/lib/workspace';
+import { readWorkspace, storagePrefix, bucketBelongsTo, stampBucketOwner } from '@/lib/workspace';
 
-// Bridges the app's localStorage-backed state to the per-tenant Postgres store.
-//
-// The app keeps reading/writing localStorage synchronously (no rewrite of the
-// ~15 feature components). localStorage is now a per-device CACHE; the server
-// is the source of truth. On a fresh device we hydrate the cache from the
-// server, so the user's real book appears. On every edit we push the changed
-// keys back. DEMO mode never touches the server.
-
+// Existing feature components use a namespaced cache; Postgres is authoritative.
 const KEYS = [
   'se-sales-v1', 'se-people-v1', 'se-teams-v2', 'se-commission-v2', 'se-pnl-v1',
   'se-attendance-v1', 'se-lateouts-v1', 'se-commit-v1', 'se-schedule-v1',
   'se-goals-v1', 'se-competitions-v1', 'se-promo-rules-v1', 'se-campaign-v1',
   'se-theme-v1', 'se-store-closed-v1', 'se-mtg-v1', 'se-competitions-archive-v1',
 ];
-
 let installed = false;
 let hydrating = false;
+let activeTenant: string | null = null;
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
+let pushing: Promise<void> | null = null;
+let generation = 0;
+let revision = 0;
+const baseline = new Map<string, string | null>();
+const versions = new Map<string, string | null>();
+let syncError = '';
+const listeners = new Set<() => void>();
+export const subscribeSync = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
+export const getSyncError = () => syncError;
+function reportError(message: string) { syncError = message; listeners.forEach(listener => listener()); }
 
-// Read/write the raw, workspace-prefixed keys directly, bypassing the shim, so
-// hydration writes never re-trigger our own push listener in a loop.
-function rawGet(prefix: string, key: string): string | null {
-  try { return window.localStorage.getItem(prefix + key); } catch { return null; }
-}
-function rawSet(prefix: string, key: string, value: string) {
-  try { window.localStorage.setItem(prefix + key, value); } catch { /* quota */ }
-}
-
-async function pushAll(prefix: string) {
-  const items: Array<{ key: string; value: unknown }> = [];
-  for (const key of KEYS) {
-    const raw = rawGet(prefix, key);
-    if (raw == null) continue;
-    try { items.push({ key, value: JSON.parse(raw) }); } catch { /* skip corrupt */ }
-  }
-  if (!items.length) return;
-  await fetch('/api/tenant-data', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ items }),
-  }).catch(() => { /* offline — the next edit retries */ });
-}
-
-/**
- * Called once when a LIVE dashboard mounts. Pulls the tenant's data from the
- * server into the local cache. If the server is empty but the browser already
- * has data (an existing account being migrated), it seeds the server instead —
- * so nobody loses the book they built before the migration.
- */
-export async function hydrateTenant(): Promise<void> {
-  if (typeof window === 'undefined') return;
+function rawGet(prefix: string, key: string) { return window.localStorage.getItem(prefix + key); }
+function ownsWorkspace(tenant: string) {
   const ws = readWorkspace();
-  if (ws.mode !== 'live') return; // demo stays local-only
-  const prefix = storagePrefix(ws);
+  return ws.mode === 'live' && ws.scope === tenant && activeTenant === tenant;
+}
+function changedItems(tenant: string) {
+  const prefix = storagePrefix({ mode: 'live', scope: tenant });
+  return KEYS.flatMap(key => {
+    const raw = rawGet(prefix, key);
+    if (raw === null || raw === baseline.get(key)) return [];
+    return [{ key, value: JSON.parse(raw) as unknown, expectedUpdatedAt: versions.get(key) ?? null, raw }];
+  });
+}
 
+export function stopTenantSync() {
+  generation++;
+  activeTenant = null;
+  if (pushTimer) clearTimeout(pushTimer);
+  pushTimer = null;
+  baseline.clear();
+  versions.clear();
+  reportError('');
+}
+
+export async function flushTenantSync(): Promise<void> {
+  if (pushTimer) clearTimeout(pushTimer);
+  if (pushing) await pushing;
+  const tenant = activeTenant;
+  if (!tenant || !ownsWorkspace(tenant)) return;
+  if (syncError) throw new Error(syncError);
+  const prefix = storagePrefix({ mode: 'live', scope: tenant });
+  if (!bucketBelongsTo(prefix, tenant)) throw new Error('Workspace ownership changed. Reload before editing.');
+  const items = changedItems(tenant);
+  if (!items.length) return;
+  const currentGeneration = generation;
+  pushing = (async () => {
+    try {
+      const response = await fetch('/api/tenant-data', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-Tenant-Id': tenant },
+        body: JSON.stringify({ items: items.map(({ raw: _raw, ...item }) => item) }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Changes could not be saved.');
+      if (currentGeneration !== generation || !ownsWorkspace(tenant)) return;
+      revision++;
+      for (const item of items) {
+        baseline.set(item.key, item.raw);
+        versions.set(item.key, body.versions[item.key]);
+      }
+      reportError('');
+    } catch (error) {
+      if (currentGeneration === generation) reportError(error instanceof Error ? error.message : 'Could not save changes.');
+      throw error;
+    }
+  })();
+  try { await pushing; } finally { pushing = null; }
+  if (currentGeneration === generation && ownsWorkspace(tenant) && changedItems(tenant).length) await flushTenantSync();
+}
+
+/** Read-only bootstrap. Old caches can never seed an empty company. */
+export async function hydrateTenant(tenant: string): Promise<boolean> {
+  const ws = readWorkspace();
+  if (ws.mode !== 'live' || ws.scope !== tenant) throw new Error('Workspace changed. Reload to continue.');
+  if (pushing || syncError) return true;
+  const refreshing = activeTenant === tenant;
+  const startedRevision = revision;
+  const currentGeneration = generation;
+  const prefix = storagePrefix(ws);
+  const response = await fetch('/api/tenant-data', { cache: 'no-store', headers: { 'X-Tenant-Id': tenant } });
+  if (!response.ok) throw new Error(response.status === 401 ? 'Your session expired. Sign in again.' : 'Unable to load live data. No cached data was used.');
+  const { data, versions: serverVersions } = await response.json() as { data: Record<string, unknown>; versions: Record<string, string> };
+  if (currentGeneration !== generation || readWorkspace().scope !== tenant || readWorkspace().mode !== 'live') throw new Error('Workspace changed.');
+  if (pushing || startedRevision !== revision) return true;
   hydrating = true;
   try {
-    const res = await fetch('/api/tenant-data');
-    if (!res.ok) return; // not signed in / no tenant — stay on local cache
-    const { data } = (await res.json()) as { data: Record<string, unknown> };
-    const serverKeys = Object.keys(data ?? {});
-
-    if (serverKeys.length === 0) {
-      // First run for this tenant: seed the server from whatever is local.
-      await pushAll(prefix);
-    } else {
-      // Server wins per key it holds; local-only keys are pushed up so a
-      // half-synced browser doesn't lose anything.
-      for (const key of KEYS) {
-        if (key in data) rawSet(prefix, key, JSON.stringify(data[key]));
-      }
-      const localOnly = KEYS.filter(k => !(k in data) && rawGet(prefix, k) != null);
-      if (localOnly.length) await pushAll(prefix);
+    for (const key of KEYS) {
+      if (refreshing && rawGet(prefix, key) !== baseline.get(key)) continue;
+      const raw = key in data ? JSON.stringify(data[key]) : null;
+      if (raw === null) window.localStorage.removeItem(prefix + key);
+      else window.localStorage.setItem(prefix + key, raw);
+      baseline.set(key, raw);
+      versions.set(key, serverVersions[key] ?? null);
     }
-    // Tell every view to re-read from the freshly hydrated cache.
+    stampBucketOwner(prefix, tenant);
+    activeTenant = tenant;
+    reportError('');
     window.dispatchEvent(new Event('se:data'));
-  } finally {
-    hydrating = false;
-  }
+  } finally { hydrating = false; }
+  installTenantSync();
+  return true;
 }
 
-/** Installs the debounced push listener. Idempotent. */
-export function installTenantSync(): void {
+export function installTenantSync() {
   if (installed || typeof window === 'undefined') return;
   installed = true;
-
   window.addEventListener('se:data', () => {
-    if (hydrating) return; // our own hydration writes must not echo back
-    const ws = readWorkspace();
-    if (ws.mode !== 'live') return;
-    const prefix = storagePrefix(ws);
+    if (hydrating || !activeTenant || !ownsWorkspace(activeTenant) || syncError) return;
     if (pushTimer) clearTimeout(pushTimer);
-    // ponytail: debounce, last-write-wins per key. No offline conflict merge —
-    // acceptable while a company is one or few concurrent editors; revisit with
-    // per-key version stamps if simultaneous editing becomes common.
-    pushTimer = setTimeout(() => { pushAll(prefix); }, 1500);
+    pushTimer = setTimeout(() => { void flushTenantSync().catch(() => {}); }, 300);
+  });
+  window.addEventListener('beforeunload', event => {
+    if (activeTenant && ownsWorkspace(activeTenant) && (pushing || changedItems(activeTenant).length)) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
   });
 }

@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import {
-  Building2, Plus, Users, Power, Trash2, Copy, Check, ShieldCheck, ChevronDown, ChevronRight, KeyRound, Upload,
+  Building2, Plus, Users, Power, Trash2, Copy, Check, ShieldCheck, ChevronDown, ChevronRight, KeyRound, Upload, Pencil, Info,
 } from 'lucide-react';
+import { useConfirm } from '@/hooks/use-confirm';
 
 interface AdminUser {
   id: string; email: string; name: string; role: string; disabled: boolean; authBackend: string;
@@ -18,6 +19,18 @@ interface Company {
 }
 
 const ROLES = ['MANAGER', 'VIEWER', 'ASM', 'LEAD', 'REP', 'INTERN'];
+
+// What each assignable role actually unlocks, in plain words, kept in sync
+// with ROLE_CAPS in lib/permissions.ts. Shown next to the role picker so the
+// admin doesn't have to guess (VIEWER vs REP was a recurring question).
+const ROLE_MEANINGS: [string, string][] = [
+  ['MANAGER', 'Edits roster, schedule, data, docs and competitions. Commission & P&L are read-only; branding and seats stay off-limits.'],
+  ['ASM', 'Edits their own team\u2019s roster and daily data. Sees commission & P&L read-only.'],
+  ['LEAD', 'Edits own team\u2019s data; adding team members must be granted per-lead.'],
+  ['VIEWER', 'Read-only: sees commission, P&L, competitions and docs. Changes nothing.'],
+  ['REP', 'Sees documents shared with them (training, promos). No dashboard editing.'],
+  ['INTERN', 'Same access as REP \u2014 receives training and compliance material.'],
+];
 
 export function AdminConsole({ adminEmail }: { adminEmail: string }) {
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -117,6 +130,7 @@ export function AdminConsole({ adminEmail }: { adminEmail: string }) {
                     </div>
                   </button>
                   <div className="flex items-center gap-2">
+                    <CompanyEditor company={c} onSaved={load} />
                     <SeatEditor company={c} onSaved={load} />
                     <button
                       onClick={() => toggleCompany(c)}
@@ -274,6 +288,64 @@ function TenantStores({ company }: { company: Company }) {
   );
 }
 
+// Fixes the "created with the wrong campaign, can't recreate — name already
+// exists" dead end: rename or re-campaign the company in place. Campaign
+// changes take effect on the customer's next sign-in / data pull; their
+// commission rates are left untouched on purpose.
+function CompanyEditor({ company, onSaved }: { company: Company; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(company.name);
+  const [campaign, setCampaign] = useState(company.campaign.includes('B2B') ? 'b2b' : 'retail');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const save = async () => {
+    setBusy(true); setErr('');
+    const res = await fetch('/api/admin/companies', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: company.id, name: name.trim() || undefined, campaign }),
+    });
+    setBusy(false);
+    if (!res.ok) { setErr((await res.json()).error ?? 'Failed'); return; }
+    setEditing(false);
+    onSaved();
+  };
+
+  if (!editing) {
+    return (
+      <button
+        onClick={() => setEditing(true)}
+        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] text-text-muted hover:text-white hover:bg-white/5 transition-colors"
+        title="Rename this company or switch its campaign (Retail ↔ B2B)"
+      >
+        <Pencil className="w-3 h-3" /> Edit
+      </button>
+    );
+  }
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <input
+        value={name}
+        onChange={e => setName(e.target.value)}
+        aria-label="Company name"
+        className="w-36 bg-bg-tertiary border border-border-subtle rounded px-2 py-1 text-[11px] focus:outline-none"
+      />
+      <select
+        value={campaign}
+        onChange={e => setCampaign(e.target.value)}
+        aria-label="Campaign"
+        className="bg-bg-tertiary border border-border-subtle rounded px-1.5 py-1 text-[11px] focus:outline-none"
+      >
+        <option value="retail">Retail EDM</option>
+        <option value="b2b">B2B (50% split)</option>
+      </select>
+      <button onClick={save} disabled={busy} className="px-1.5 py-1 rounded text-[11px] text-accent-green hover:bg-accent-green/10">save</button>
+      <button onClick={() => { setEditing(false); setName(company.name); setErr(''); }} className="px-1 text-[11px] text-text-muted hover:text-white">✕</button>
+      {err && <span role="alert" className="text-[10px] text-accent-red w-full">{err}</span>}
+    </span>
+  );
+}
+
 function SeatEditor({ company, onSaved }: { company: Company; onSaved: () => void }) {
   const [editing, setEditing] = useState(false);
   const [seats, setSeats] = useState(String(company.seats));
@@ -323,6 +395,7 @@ function CompanyUsers({ company, onChange, onBanner }: {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const atCapacity = company.users.length >= company.seats;
+  const { confirm, confirmDialog } = useConfirm();
 
   const addUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -355,7 +428,15 @@ function CompanyUsers({ company, onChange, onBanner }: {
   };
 
   const removeUser = async (u: AdminUser) => {
-    if (!confirm(`Remove ${u.email}? Their login is deleted; the company keeps their production history.`)) return;
+    // Deleting a login is irreversible and locks a real person out of the tool.
+    // Require the email to be typed so it cannot happen on a misclick.
+    if (!(await confirm({
+      title: `Remove ${u.email}?`,
+      description: 'Their login is deleted immediately and they lose access to the tool. The company keeps their production history, roster entry and attendance record.',
+      confirmLabel: 'Remove login',
+      destructive: true,
+      requireTypedConfirmation: u.email,
+    }))) return;
     const res = await fetch('/api/admin/users', {
       method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: u.id }),
     });
@@ -364,7 +445,11 @@ function CompanyUsers({ company, onChange, onBanner }: {
   };
 
   const resetPw = async (u: AdminUser) => {
-    if (!confirm(`Issue a new temporary password for ${u.email}? Their old one stops working.`)) return;
+    if (!(await confirm({
+      title: `Issue a new temporary password for ${u.email}?`,
+      description: 'Their current password stops working immediately. You will be shown the new temporary password once — make sure you can pass it to them.',
+      confirmLabel: 'Reset password',
+    }))) return;
     const res = await fetch('/api/admin/users', {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: u.id }),
     });
@@ -394,9 +479,19 @@ function CompanyUsers({ company, onChange, onBanner }: {
             <span className="flex items-center gap-2 min-w-0">
               <span className="font-medium truncate">{u.email}</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-text-muted">{u.role}</span>
-              {u.authBackend === 'supabase' && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-green/15 text-accent-green flex items-center gap-1" title="Managed in Supabase Auth — OAuth/MFA available from the Supabase console">
-                  <KeyRound className="w-2.5 h-2.5" /> Supabase
+              {u.authBackend === 'supabase' ? (
+                <span
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-accent-green/15 text-accent-green flex items-center gap-1"
+                  title="Sign-in is handled by Supabase Auth: hashed + salted password, rate-limited attempts, recoverable via email. Reset pw here still works."
+                >
+                  <KeyRound className="w-2.5 h-2.5" /> Secured login
+                </span>
+              ) : (
+                <span
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-text-muted"
+                  title="Local bcrypt credential (older account). Still hashed + salted and fully supported; Reset pw rotates it. New accounts are created in Supabase Auth."
+                >
+                  legacy login
                 </span>
               )}
             </span>
@@ -421,10 +516,25 @@ function CompanyUsers({ company, onChange, onBanner }: {
           <Input value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="temp pw (optional)" />
           <div className="sm:col-span-4 flex items-center gap-2">
             <Button type="submit" size="sm" loading={busy} disabled={busy}>Add</Button>
-            {err && <span className="text-xs text-accent-red">{err}</span>}
+            {err && <span role="alert" className="text-xs text-accent-red">{err}</span>}
+          </div>
+          <div className="sm:col-span-4 rounded-lg bg-white/[0.03] border border-border-subtle p-2.5">
+            <p className="text-[10px] font-semibold text-text-secondary flex items-center gap-1 mb-1.5">
+              <Info className="w-3 h-3" /> What each role can do
+            </p>
+            <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1">
+              {ROLE_MEANINGS.map(([role, meaning]) => (
+                <div key={role} className="flex gap-1.5 text-[10px] leading-relaxed">
+                  <dt className="font-mono font-semibold text-text-secondary flex-none w-16">{role}</dt>
+                  <dd className="text-text-muted">{meaning}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         </form>
       )}
+
+      {confirmDialog}
     </div>
   );
 }

@@ -4,20 +4,29 @@ import {
   Trophy,
   Presentation,
   Receipt,
-  DollarSign,
   Settings,
   Users,
   ClipboardList,
   Award,
   CalendarCheck,
   FileSpreadsheet,
+  Trash2,
 } from 'lucide-react';
+
+import type { Capability } from '@/lib/permissions';
 
 export interface NavItem {
   name: string;
   href: string;
   tab?: string;
   icon: React.ComponentType<{ className?: string }>;
+  /**
+   * Capability required to see this entry. Declared here rather than derived
+   * from `tab` because Settings is a standalone page with no tab value, and
+   * giving it one would break isNavItemActive's `pathname === '/dashboard'`
+   * check. Entries without a capability are visible to every signed-in seat.
+   */
+  capability?: Capability;
 }
 
 // All feature areas live as tabs inside /dashboard; Settings is its own page.
@@ -30,10 +39,10 @@ export const navigation: NavItem[] = [
   { name: 'Schedule', href: '/dashboard?tab=schedule', tab: 'schedule', icon: CalendarCheck },
   { name: 'Attendance', href: '/dashboard?tab=attendance', tab: 'attendance', icon: ClipboardCheck },
   { name: 'Competition', href: '/dashboard?tab=competition', tab: 'competition', icon: Award },
-  { name: 'P&L', href: '/dashboard?tab=pnl', tab: 'pnl', icon: Receipt },
-  { name: 'Commission', href: '/dashboard?tab=commission', tab: 'commission', icon: DollarSign },
-  { name: 'Import Report', href: '/dashboard?tab=import', tab: 'import', icon: FileSpreadsheet },
-  { name: 'Settings', href: '/settings', icon: Settings },
+  { name: 'P&L', href: '/dashboard?tab=pnl', tab: 'pnl', icon: Receipt, capability: 'pnl.view' },
+  { name: 'DD Reports', href: '/dashboard?tab=import', tab: 'import', icon: FileSpreadsheet, capability: 'import.use' },
+  { name: 'Recycle Bin', href: '/dashboard?tab=recycle', tab: 'recycle', icon: Trash2, capability: 'company.recycleBin' },
+  { name: 'Settings', href: '/settings', icon: Settings, capability: 'settings.view' },
 ];
 
 export function isNavItemActive(item: NavItem, pathname: string, currentTab: string | null): boolean {

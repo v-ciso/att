@@ -1,15 +1,28 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocalState, Editable, parseNum } from './editable-sections';
+import { useLocalState, Editable, parseNum, loadTeams } from './editable-sections';
 import { cn, formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Trash2, TrendingUp, Award, UserPlus, Pencil, ChevronDown, Plus, Store as StoreIcon } from 'lucide-react';
+import { Trash2, TrendingUp, Award, UserPlus, Pencil, ChevronDown, Plus, Store as StoreIcon, Archive, UserMinus, RotateCcw } from 'lucide-react';
+import { useSession } from 'next-auth/react';
 import { TeamTree } from './team-tree';
-import { notifyDataChanged, loadCommission } from '@/lib/sales';
+import { notifyDataChanged, loadCommission, markStatus, ATTENDANCE_KEY, type AttendanceBook } from '@/lib/sales';
 import { RETAILERS } from '@/lib/shifts';
-import { seedForWorkspace } from '@/lib/workspace';
+import { seedForWorkspace, readWorkspace } from '@/lib/workspace';
+import { localArchiveAdd } from '@/lib/local-archive';
+import { useConfirm } from '@/hooks/use-confirm';
+import { useAnnounce } from '@/components/a11y/announcer';
+import {
+  activePeople, isActive, personStatus, assignEmployeeCodes, findRehireCandidate, normalizeName, PERSON_REFERENCE_KEYS, renamePersonBook,
+} from '@/lib/people';
+import { archiveEntity } from '@/lib/archive-client';
+import { useModalA11y } from '@/hooks/use-modal-a11y';
+import { useActor } from '@/lib/use-actor';
+import { can } from '@/lib/permissions';
 
 // ---------------------------------------------------------------------------
 // People — the single roster every view joins against. A person can work one
@@ -33,6 +46,8 @@ const ROLE_BADGE: Record<RosterRole, string> = {
   ASM: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/20',
 };
 
+export type PersonStatus = 'active' | 'retired' | 'archived';
+
 export interface Person {
   id: string;
   name: string;
@@ -42,6 +57,21 @@ export interface Person {
   weeklyProfit: number[];
   attendance: number; // manual fallback % (tracked records win when present)
   hourlyWeekly?: number; // guaranteed weekly hourly pay; rep is paid MAX(commission, hourly). 0 = commission-only
+  email?: string; // contact email for offer letters, write-ups, and other HR paperwork
+  // --- Identity + lifecycle (Phase 4) ---------------------------------------
+  // Stable, immutable, human-readable id (e.g. "SOR-0007"). Assigned once at
+  // migration/hire and never reused, so history (sales, attendance, comps) can
+  // key off it even after a rename. Optional on the type for back-compat with
+  // pre-migration blobs; migratePeople() backfills it.
+  employeeCode?: string;
+  // active = on the roster; retired = kept for history but out of scheduling /
+  // attendance / active leaderboards; archived = removed to the recycle bin.
+  // Absent means active (pre-migration rows).
+  status?: PersonStatus;
+  hiredAt?: string; // ISO date
+  retiredAt?: string; // ISO date, set when retired
+  retiredReason?: string;
+  rehiredAt?: string[]; // ISO dates, one per rehire, so tenure history survives
 }
 
 export interface PromotionRules {
@@ -69,8 +99,41 @@ export const DEFAULT_PEOPLE: Person[] = [
   { id: 'p7', name: 'Dana White', role: 'INTERN', stores: ['Target 2450'], team: '', weeklyProfit: [2100, 1900], attendance: 85 },
 ];
 
+// Roles arrive from localStorage, CSV imports, and older app versions, so the
+// stored value can be anything. Coerce it to a ladder role once, at the edge,
+// rather than letting a bad string travel into promotion math and badges.
+export function normalizeRole(role: unknown): RosterRole {
+  const up = String(role ?? '').trim().toUpperCase();
+  return (ROLE_LADDER as readonly string[]).includes(up) ? (up as RosterRole) : 'REP';
+}
+
 export function primaryStore(p: Person): string {
-  return p.stores[0] ?? 'Costco';
+  return p.stores[0] ?? 'Unassigned';
+}
+
+// The single shape-fixer for stored roster data. Every reader — loadPeople and
+// the roster grid's own useLocalState — runs this, so no view can render a
+// half-migrated person (missing `stores[]`, legacy `store`, unknown role).
+export function migratePeople(raw: unknown): Person[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as Array<Person & { store?: string }>)
+    .filter(p => p && typeof p === 'object')
+    .map(p => ({
+      ...p,
+      role: normalizeRole(p.role),
+      // Migrate single `store` → `stores[]`
+      stores: Array.isArray(p.stores) ? p.stores : p.store ? [p.store] : [],
+      hourlyWeekly: p.hourlyWeekly ?? 0,
+      weeklyProfit: Array.isArray(p.weeklyProfit) ? p.weeklyProfit : [],
+      team: p.team ?? '',
+      attendance: typeof p.attendance === 'number' ? p.attendance : 100,
+      // Phase 4 identity/lifecycle: a pre-migration row has no status, which
+      // means it is a current, active employee. employeeCode is left to be
+      // backfilled by RosterManager, which knows the company name for the
+      // prefix; the rehiredAt log defaults to empty.
+      status: (p.status as Person['status']) ?? 'active',
+      rehiredAt: Array.isArray(p.rehiredAt) ? p.rehiredAt : [],
+    }));
 }
 
 export function loadPeople(): Person[] {
@@ -81,13 +144,7 @@ export function loadPeople(): Person[] {
   try {
     const saved = localStorage.getItem(PEOPLE_KEY);
     if (!saved) return seedForWorkspace(DEFAULT_PEOPLE, []);
-    const raw = JSON.parse(saved) as Array<Person & { store?: string }>;
-    // Migrate single `store` → `stores[]`
-    return raw.map(p => ({
-      ...p,
-      stores: p.stores?.length ? p.stores : [p.store ?? 'Costco'],
-      hourlyWeekly: p.hourlyWeekly ?? 0,
-    }));
+    return migratePeople(JSON.parse(saved));
   } catch {
     return seedForWorkspace(DEFAULT_PEOPLE, []);
   }
@@ -108,13 +165,21 @@ export function loadPromoRules(): PromotionRules {
 export function attendanceFromRecords(name: string): number | null {
   if (typeof window === 'undefined') return null;
   try {
-    const book = JSON.parse(localStorage.getItem('se-attendance-v1') || '{}') as Record<string, Record<string, 'P' | 'L' | 'A'>>;
+    const book = JSON.parse(localStorage.getItem(ATTENDANCE_KEY) || '{}') as AttendanceBook;
     const cutoff = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
     let score = 0, days = 0;
     for (const [date, marks] of Object.entries(book)) {
       if (date < cutoff) continue;
-      const status = marks[name];
+      // Read through markStatus. This used to index the raw value behind a
+      // hardcoded 'P'|'L'|'A' cast, so once marks gained an audit trail an object
+      // mark counted as a day but scored zero — quietly dragging every rep's
+      // attendance percentage down. A cast is not a check; TypeScript could not
+      // catch this one.
+      const status = markStatus(marks[name]);
       if (!status) continue;
+      // Excused days are outside the score, matching the Attendance grid rather
+      // than penalising an approved absence.
+      if (status === 'E') continue;
       days++;
       if (status === 'P') score += 1;
       else if (status === 'L') score += 0.5;
@@ -166,7 +231,7 @@ function StoresPicker({ value, options, onChange, label }: { value: string[]; op
   const toggle = () => {
     if (!open && btnRef.current) {
       const r = btnRef.current.getBoundingClientRect();
-      setPos({ top: r.bottom + 4, left: r.left });
+      setPos({ top: Math.min(r.bottom + 4, window.innerHeight - 272), left: Math.max(8, Math.min(r.left, window.innerWidth - 200)) });
     }
     setOpen(o => !o);
   };
@@ -219,13 +284,10 @@ interface StoreRule { name: string; multiplier: number }
 function StoresManager() {
   const [stores, setStores] = useState<StoreRule[]>([]);
   useEffect(() => {
-    try {
-      const c = JSON.parse(localStorage.getItem('se-commission-v2') || 'null');
-      setStores(c?.stores?.length ? c.stores : [
-        { name: 'Costco 1018', multiplier: 1 }, { name: 'Costco 1020', multiplier: 1 },
-        { name: 'Target 2450', multiplier: 1 }, { name: "BJ's 610", multiplier: 1 },
-      ]);
-    } catch { /* defaults */ }
+    const read = () => setStores(loadCommission().stores);
+    read();
+    window.addEventListener('se:data', read);
+    return () => window.removeEventListener('se:data', read);
   }, []);
 
   const persist = (next: StoreRule[]) => {
@@ -264,16 +326,16 @@ function StoresManager() {
           <select value={retailer} onChange={e => setRetailer(e.target.value)} className="bg-bg-tertiary border border-border-subtle rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none" aria-label="Retailer">
             {RETAILERS.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
-          <input value={num} onChange={e => setNum(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') add(); }} placeholder="Store #" className="w-20 bg-bg-tertiary border border-border-subtle rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none" aria-label="Store number" />
+          <input value={num} onChange={e => setNum(e.target.value)} onKeyDown={e => { if (e.nativeEvent.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') add(); }} placeholder="Store #" className="w-20 bg-bg-tertiary border border-border-subtle rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none" aria-label="Store number" />
           <Button size="sm" onClick={add}><Plus className="w-3.5 h-3.5" /> Add</Button>
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
         {stores.map((s, i) => (
           <div key={i} className="group flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 border border-border-subtle text-xs">
-            <Editable value={s.name} onCommit={(v) => rename(i, v)} className="font-medium" />
+            <Editable label={`Store ${i + 1} name`} value={s.name} onCommit={(v) => rename(i, v)} className="font-medium" />
             <span className="text-text-muted">
-              ×<Editable value={String(s.multiplier)} onCommit={(v) => setMult(i, parseNum(v))} />
+              ×<Editable label={`${s.name} payout multiplier`} value={String(s.multiplier)} onCommit={(v) => setMult(i, parseNum(v))} />
             </span>
             {stores.length > 1 && (
               <button onClick={() => remove(i)} className="text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red transition-all" aria-label={`Remove ${s.name}`}>
@@ -304,12 +366,11 @@ function EditEmployeeModal({ person, storeOptions, teamOptions, onSave, onClose 
   const [team, setTeam] = useState(person.team ?? '');
   const [hourly, setHourly] = useState(String(person.hourlyWeekly ?? 0));
   const [attendance, setAttendance] = useState(String(person.attendance ?? 100));
+  const [hiredAt, setHiredAt] = useState(person.hiredAt ?? '');
+  const [email, setEmail] = useState(person.email ?? '');
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // Escape closes, focus is trapped inside, and returns to the trigger on close.
+  const panelRef = useModalA11y<HTMLDivElement>(onClose);
 
   const selectClass = 'w-full bg-bg-tertiary border border-border-subtle rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-accent-blue/50';
 
@@ -321,13 +382,17 @@ function EditEmployeeModal({ person, storeOptions, teamOptions, onSave, onClose 
       team,
       hourlyWeekly: Math.max(0, parseNum(hourly)),
       attendance: Math.min(100, Math.max(0, parseNum(attendance))),
+      // Blank clears the date rather than writing an empty string, so the
+      // lifetime panel can tell "no hire date on file" from a real one.
+      hiredAt: hiredAt || undefined,
+      email: email.trim() || undefined,
     });
   };
 
   return createPortal(
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-label={`Edit ${person.name}`}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:max-w-sm max-h-[90vh] overflow-y-auto glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div ref={panelRef} tabIndex={-1} className="relative w-full sm:max-w-sm max-h-[90vh] overflow-y-auto glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 focus:outline-none">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold flex items-center gap-2"><Pencil className="w-4 h-4" style={{ color: 'var(--brand)' }} /> Edit {person.name}</h3>
           <button onClick={onClose} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
@@ -335,11 +400,11 @@ function EditEmployeeModal({ person, storeOptions, teamOptions, onSave, onClose 
         <div className="space-y-3">
           <div>
             <label className="label-base">Name</label>
-            <input autoFocus value={name} onChange={e => setName(e.target.value)} className={selectClass} />
+            <input aria-label="Employee name" autoFocus value={name} onChange={e => setName(e.target.value)} className={selectClass} />
           </div>
           <div>
             <label className="label-base">Role</label>
-            <select value={role} onChange={e => setRole(e.target.value as RosterRole)} className={selectClass}>
+            <select aria-label="Role" value={role} onChange={e => setRole(e.target.value as RosterRole)} className={selectClass}>
               {ROLE_LADDER.map(r => <option key={r} value={r}>{ROSTER_ROLE_LABELS[r]}</option>)}
             </select>
           </div>
@@ -349,7 +414,7 @@ function EditEmployeeModal({ person, storeOptions, teamOptions, onSave, onClose 
           </div>
           <div>
             <label className="label-base">Team</label>
-            <select value={team} onChange={e => setTeam(e.target.value)} className={selectClass}>
+            <select aria-label="Team" value={team} onChange={e => setTeam(e.target.value)} className={selectClass}>
               <option value="">Unassigned</option>
               {teamOptions.map(t => <option key={t} value={t}>{t}</option>)}
               {team && !teamOptions.includes(team) && <option value={team}>{team}</option>}
@@ -358,14 +423,38 @@ function EditEmployeeModal({ person, storeOptions, teamOptions, onSave, onClose 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label-base">Hourly / week ($)</label>
-              <input type="number" min={0} value={hourly} onChange={e => setHourly(e.target.value)} className={selectClass} />
+              <input aria-label="Hourly pay per week in dollars" type="number" min={0} value={hourly} onChange={e => setHourly(e.target.value)} className={selectClass} />
             </div>
             <div>
               <label className="label-base">Attendance (%)</label>
-              <input type="number" min={0} max={100} value={attendance} onChange={e => setAttendance(e.target.value)} className={selectClass} />
+              <input aria-label="Attendance percent" type="number" min={0} max={100} value={attendance} onChange={e => setAttendance(e.target.value)} className={selectClass} />
             </div>
           </div>
           <p className="text-[10px] text-text-muted">Attendance here is the manual fallback — real Daily-Tracker marks override it.</p>
+          <div>
+            <label className="label-base">Hire date</label>
+            <input
+              aria-label="Hire date"
+              type="date"
+              value={hiredAt}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={e => setHiredAt(e.target.value)}
+              className={selectClass}
+            />
+            <p className="text-[10px] text-text-muted mt-1">Drives tenure on their profile. Leave blank if you don&apos;t know it.</p>
+          </div>
+          <div>
+            <label className="label-base">Email</label>
+            <input
+              aria-label="Employee email"
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="person@example.com"
+              className={selectClass}
+            />
+            <p className="text-[10px] text-text-muted mt-1">Used on generated paperwork (offer letters, write-ups) and shown on their profile.</p>
+          </div>
           <Button className="w-full" onClick={save}>Save changes</Button>
         </div>
       </div>
@@ -384,16 +473,22 @@ function AddEmployeeModal({ storeOptions, teamOptions, onAdd, onClose }: {
   const [role, setRole] = useState<RosterRole>('INTERN');
   const [stores, setStores] = useState<string[]>(storeOptions.slice(0, 1));
   const [team, setTeam] = useState('');
+  const [email, setEmail] = useState('');
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // Escape closes, focus is trapped inside, and returns to the trigger on close.
+  const panelRef = useModalA11y<HTMLDivElement>(onClose);
 
   const submit = () => {
     if (!name.trim()) return;
-    onAdd({ name: name.trim(), role, stores: stores.length ? stores : [storeOptions[0] ?? 'Costco'], team, weeklyProfit: [0, 0], attendance: 100 });
+    onAdd({
+      name: name.trim(),
+      role,
+      stores: stores.length ? stores : storeOptions.slice(0, 1),
+      team,
+      weeklyProfit: [0, 0],
+      attendance: 100,
+      email: email.trim() || undefined,
+    });
     onClose();
   };
 
@@ -401,8 +496,8 @@ function AddEmployeeModal({ storeOptions, teamOptions, onAdd, onClose }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Add employee">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-sm glass border border-border-strong rounded-2xl p-6 animate-scale-in bg-bg-secondary/95">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div ref={panelRef} tabIndex={-1} className="relative w-full max-w-sm glass border border-border-strong rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 focus:outline-none">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold flex items-center gap-2"><UserPlus className="w-5 h-5 text-accent-green" /> Add Employee</h3>
           <button onClick={onClose} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
@@ -411,6 +506,7 @@ function AddEmployeeModal({ storeOptions, teamOptions, onAdd, onClose }: {
           <div>
             <label className="label-base">Name</label>
             <input
+              aria-label="Employee name"
               autoFocus
               value={name}
               onChange={e => setName(e.target.value)}
@@ -421,7 +517,7 @@ function AddEmployeeModal({ storeOptions, teamOptions, onAdd, onClose }: {
           </div>
           <div>
             <label className="label-base">Role</label>
-            <select value={role} onChange={e => setRole(e.target.value as RosterRole)} className={selectClass}>
+            <select aria-label="Role" value={role} onChange={e => setRole(e.target.value as RosterRole)} className={selectClass}>
               {ROLE_LADDER.map(r => <option key={r} value={r}>{ROSTER_ROLE_LABELS[r]}</option>)}
             </select>
           </div>
@@ -431,10 +527,21 @@ function AddEmployeeModal({ storeOptions, teamOptions, onAdd, onClose }: {
           </div>
           <div>
             <label className="label-base">Team</label>
-            <select value={team} onChange={e => setTeam(e.target.value)} className={selectClass}>
+            <select aria-label="Team" value={team} onChange={e => setTeam(e.target.value)} className={selectClass}>
               <option value="">Unassigned</option>
               {teamOptions.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
+          </div>
+          <div>
+            <label className="label-base">Email (optional)</label>
+            <input
+              aria-label="Employee email"
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="person@example.com"
+              className={selectClass}
+            />
           </div>
           <Button className="w-full" onClick={submit} disabled={!name.trim()}>Add to roster</Button>
         </div>
@@ -444,40 +551,199 @@ function AddEmployeeModal({ storeOptions, teamOptions, onAdd, onClose }: {
 }
 
 export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string) => void }) {
-  const { state: people, setState: setPeople, reset: resetPeople } = useLocalState<Person[]>(PEOPLE_KEY, DEFAULT_PEOPLE, []);
+  const { state: people, setState: setPeople, reset: resetPeople } = useLocalState<Person[]>(PEOPLE_KEY, DEFAULT_PEOPLE, [], migratePeople);
   const { state: rules, setState: setRules, reset: resetRules } = useLocalState<PromotionRules>(PROMO_RULES_KEY, DEFAULT_PROMO_RULES);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editModalId, setEditModalId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const { confirm, confirmDialog } = useConfirm();
+  const announce = useAnnounce();
+  const { data: session } = useSession();
+  const companyName = session?.user?.companyName;
+  // Retire/archive are manager+owner lifecycle actions per the role matrix; the
+  // server re-checks roster.manage on archive, this just hides controls a seat
+  // could not use. useActor is hydration-safe and falls back to a permissive
+  // actor pre-mount, so nothing flickers away from the server render.
+  const actor = useActor();
+  const canManage = can(actor, 'roster.manage');
+  // Retired people are kept for history but hidden from the day-to-day roster
+  // until the manager asks to see them.
+  const [showRetired, setShowRetired] = useState(false);
+
+  // Identity backfill: give every person a stable, company-prefixed employeeCode.
+  // Deliberately NOT a run-once ref — the roster is first populated with demo
+  // placeholder rows (companyName still undefined), and only a moment later
+  // swapped for the real workspace data once the session and tenant sync land. A
+  // one-shot guard latched on the placeholder and never coded the real people.
+  // Instead we simply assign whenever someone is missing a code; assignEmployee-
+  // Codes is idempotent, so once everyone has one this becomes a no-op and can't
+  // loop. Waiting for companyName keeps the prefix correct (DEM-0001, not EMP-).
+  useEffect(() => {
+    if (!people.length || !companyName) return;
+    if (!people.some(p => !p.employeeCode)) return;
+    setPeople(prev => assignEmployeeCodes(prev, companyName));
+  }, [people, companyName, setPeople]);
 
   // Store options come from the Commission Engine's store list
-  const [storeOptions, setStoreOptions] = useState<string[]>(['Costco 1018', 'Costco 1020', 'Target 2450', "BJ's 610"]);
+  const [storeOptions, setStoreOptions] = useState<string[]>([]);
   const [teamOptions, setTeamOptions] = useState<string[]>([]);
   useEffect(() => {
-    try {
-      const c = JSON.parse(localStorage.getItem('se-commission-v2') || 'null');
-      if (c?.stores?.length) setStoreOptions(c.stores.map((s: { name: string }) => s.name));
-    } catch { /* keep defaults */ }
-    try {
-      const teams = JSON.parse(localStorage.getItem('se-teams-v2') || '[]');
-      setTeamOptions(teams.map((t: { name: string }) => t.name));
-    } catch { /* none */ }
+    const read = () => {
+      setStoreOptions(loadCommission().stores.map(store => store.name));
+      setTeamOptions(loadTeams().map(team => team.name));
+    };
+    read();
+    window.addEventListener('se:data', read);
+    return () => window.removeEventListener('se:data', read);
   }, []);
 
-  const edit = (id: string, patch: Partial<Person>) =>
-    setPeople(prev => prev.map(p => (p.id === id ? { ...p, ...patch } : p)));
+  const edit = (id: string, patch: Partial<Person>) => {
+    const person = people.find(item => item.id === id);
+    if (!person) return;
+    const newName = patch.name?.trim() || person.name;
+    const renaming = newName !== person.name;
+    if (renaming && people.some(item => item.id !== id && (normalizeName(item.name) === normalizeName(person.name) || normalizeName(item.name) === normalizeName(newName)))) {
+      announce('This name is shared by another rep. Resolve the duplicate display names before renaming legacy records.', 'assertive');
+      return;
+    }
+    const originals = new Map<string, string>();
+    try {
+      const updates = new Map<string, string>();
+      for (const key of PERSON_REFERENCE_KEYS) {
+        const raw = localStorage.getItem(key);
+        if (raw === null) continue;
+        originals.set(key, raw);
+        let value = JSON.parse(raw);
+        if (renaming) value = renamePersonBook(value, person.name, newName);
+        if (key === 'se-teams-v2' && patch.team !== undefined && Array.isArray(value)) {
+          value = value.map(team => team.name === patch.team ? team : { ...team, lead: team.lead === newName ? '' : team.lead, asm: team.asm === newName ? '' : team.asm });
+        }
+        const next = JSON.stringify(value);
+        if (next !== raw) updates.set(key, next);
+      }
+      for (const [key, value] of updates) localStorage.setItem(key, value);
+      setPeople(previous => previous.map(item => item.id === id ? { ...item, ...patch, name: newName } : item));
+      notifyDataChanged();
+    } catch (error) {
+      for (const [key, value] of originals) localStorage.setItem(key, value);
+      announce(error instanceof Error ? error.message : 'Could not update the shared records.', 'assertive');
+    }
+  };
 
   const assignTeam = (name: string, team: string) =>
-    setPeople(prev => prev.map(p => (p.name.toLowerCase() === name.toLowerCase() ? { ...p, team } : p)));
+    setPeople(previous => previous.map(person => person.name === name ? { ...person, team } : person));
 
-  const addPerson = (p: Omit<Person, 'id'>) =>
-    setPeople(prev => [...prev, { ...p, id: `p${Date.now()}-${personCounter++}` }]);
+  const addPerson = async (p: Omit<Person, 'id'>) => {
+    // A returning employee should reclaim their old identity (and history)
+    // rather than start over with a fresh code. If a retired person matches by
+    // name, offer to rehire instead of creating a duplicate.
+    const rehire = findRehireCandidate(people, p.name);
+    if (rehire) {
+      const ok = await confirm({
+        title: `Rehire ${rehire.name}?`,
+        description: `${rehire.name} (${rehire.employeeCode ?? 'no code'}) was retired${rehire.retiredAt ? ` on ${rehire.retiredAt}` : ''}. Rehiring keeps their employee code and full history. Choose Add as new to create a separate record instead.`,
+        confirmLabel: 'Rehire',
+        cancelLabel: 'Add as new',
+      });
+      if (ok) {
+        setPeople(prev => prev.map(x => x.id === rehire.id ? {
+          ...x, ...p, id: x.id, employeeCode: x.employeeCode,
+          status: 'active', retiredAt: undefined, retiredReason: undefined,
+          rehiredAt: [...(x.rehiredAt ?? []), new Date().toISOString().slice(0, 10)],
+        } : x));
+        announce(`${rehire.name} rehired.`);
+        return;
+      }
+    }
+    setPeople(prev => [...prev, {
+      ...p,
+      id: `p${Date.now()}-${personCounter++}`,
+      employeeCode: p.employeeCode || undefined, // backfill effect assigns if blank
+      status: 'active',
+      hiredAt: p.hiredAt || new Date().toISOString().slice(0, 10),
+    }]);
+    announce(`${p.name} added to the roster.`);
+  };
 
-  const removePerson = (id: string) => {
+  // Retire: keep the person and all their history, but pull them out of
+  // scheduling / attendance / active leaderboards. Fully reversible.
+  const retirePerson = async (id: string) => {
     const p = people.find(x => x.id === id);
-    // A person carries sales/attendance history — confirm before erasing them.
-    if (p && !window.confirm(`Remove ${p.name} from the roster? Their name stays on any sales already logged, but they'll be gone from scheduling and attendance.`)) return;
+    if (!p) return;
+    const ok = await confirm({
+      title: `Retire ${p.name}?`,
+      description: 'They stay in reports and history but leave the active roster, schedules and attendance. You can reactivate or rehire them any time.',
+      confirmLabel: 'Retire',
+    });
+    if (!ok) return;
+    setPeople(prev => prev.map(x => x.id === id
+      ? { ...x, status: 'retired', retiredAt: new Date().toISOString().slice(0, 10) }
+      : x));
+    announce(`${p.name} retired.`);
+  };
+
+  const reactivatePerson = (id: string) => {
+    const p = people.find(x => x.id === id);
+    if (!p) return;
+    setPeople(prev => prev.map(x => x.id === id
+      ? { ...x, status: 'active', retiredAt: undefined, retiredReason: undefined,
+          rehiredAt: [...(x.rehiredAt ?? []), new Date().toISOString().slice(0, 10)] }
+      : x));
+    announce(`${p.name} reactivated.`);
+  };
+
+  // Archive: remove from the roster blob entirely, but record a durable,
+  // restorable snapshot in the company recycle bin (DataArchive) first. Nothing
+  // is ever hard-deleted from the UI.
+  const archivePerson = async (id: string) => {
+    const p = people.find(x => x.id === id);
+    if (!p) return;
+    const ok = await confirm({
+      title: `Archive ${p.name}?`,
+      description: 'They will be removed from the roster and moved to the recycle bin, where an owner can restore them. Sales already logged keep their name.',
+      confirmLabel: 'Archive',
+      destructive: true,
+    });
+    if (!ok) return;
+    // Demo workspace: the server DataArchive is the REAL company's bin, and it
+    // cannot tell which browser bucket the archive came from. A sample rep
+    // archived while playing in Demo must never land next to real employees in
+    // a legal-retention surface, so demo archives go to the local demo bin
+    // (an se-* key the workspace shim prefixes into the demo: bucket).
+    if (readWorkspace().mode === 'demo') {
+      localArchiveAdd({
+        kind: 'PERSON',
+        refId: p.id,
+        label: `${p.name}${p.employeeCode ? ` (${p.employeeCode})` : ''}`,
+        payload: p,
+      });
+      setPeople(prev => prev.filter(x => x.id !== id));
+      announce(`${p.name} archived to the demo recycle bin.`);
+      return;
+    }
+    // Persist to the recycle bin FIRST and only remove from the roster if that
+    // succeeded. archiveEntity resolves to null (never throws) on any non-2xx,
+    // so a failed save must not orphan the person — otherwise they would vanish
+    // from the roster with no recoverable copy anywhere. Retire (reversible,
+    // local) remains the safe path when archiving is unavailable.
+    const saved = await archiveEntity({
+      kind: 'PERSON',
+      refId: p.id,
+      label: `${p.name}${p.employeeCode ? ` (${p.employeeCode})` : ''}`,
+      payload: p,
+    });
+    if (!saved) {
+      announce(`Could not archive ${p.name}. They are still on the roster.`);
+      await confirm({
+        title: 'Archive failed',
+        description: `${p.name} could not be moved to the recycle bin, so they are still on the roster. You may not have permission to archive, or the connection dropped. Try again, or retire them instead.`,
+        confirmLabel: 'OK',
+        hideCancel: true,
+      });
+      return;
+    }
     setPeople(prev => prev.filter(x => x.id !== id));
+    announce(`${p.name} archived to the recycle bin.`);
   };
 
   const promote = (id: string) =>
@@ -492,66 +758,106 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
       ? { ...p, weeklyProfit: p.weeklyProfit.map((w, i) => (i === weekIndex ? parseNum(value) : w)) }
       : p));
 
+  // The roster shows active people by default; retired ones fold in behind a
+  // toggle so history stays reachable without cluttering the day-to-day view.
+  const retiredCount = people.filter(p => personStatus(p) === 'retired').length;
+  const visiblePeople = showRetired ? people : activePeople(people);
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-        <h2 className="text-xl font-bold neon-brand">Roster &amp; Promotions</h2>
+        <h2 className="text-xl font-bold neon-brand">Roster</h2>
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={() => setShowAdd(true)}><UserPlus className="w-3.5 h-3.5" /> Add Employee</Button>
-          <Button variant="ghost" size="sm" onClick={() => { resetPeople(); resetRules(); }}>↻ Reset</Button>
+          {retiredCount > 0 && (
+            <Button
+              variant={showRetired ? 'primary' : 'ghost'}
+              size="sm"
+              aria-pressed={showRetired}
+              onClick={() => setShowRetired(v => !v)}
+            >
+              {showRetired ? 'Hide' : 'Show'} retired ({retiredCount})
+            </Button>
+          )}
+          {/* Reset wipes the entire roster — never a single unguarded click. */}
+          {readWorkspace().mode === 'demo' && <Button
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              if (!(await confirm({
+                title: 'Reset roster and promotion rules?',
+                description: 'This clears every person on the roster and restores the default promotion rules. Sales already logged keep the rep names attached, but scheduling and attendance assignments are lost.',
+                confirmLabel: 'Reset roster',
+                destructive: true,
+              }))) return;
+              resetPeople();
+              resetRules();
+            }}
+          >
+            Reset demo roster
+          </Button>}
         </div>
       </div>
 
       {/* Stores live here now (not the Commission tab) */}
-      <StoresManager />
+      <details className="mb-4 rounded-xl border border-border-subtle bg-bg-secondary text-text-primary"><summary className="min-h-11 cursor-pointer px-4 py-3 text-sm font-medium">Manage stores · {storeOptions.length} configured</summary><StoresManager /></details>
 
       {/* Promotion rules — the leadership roadmap criteria, all editable */}
-      <div className="p-4 rounded-xl glass border border-accent-green/20 mb-4">
+      <details className="mb-4 rounded-xl border border-border-subtle bg-bg-secondary p-4 text-text-primary"><summary className="min-h-11 cursor-pointer text-sm font-medium">Promotion settings</summary>
         <h4 className="font-semibold text-sm mb-1 flex items-center gap-2 text-accent-green">
           <Award className="w-4 h-4" /> Leadership Roadmap Rules
         </h4>
         <p className="text-xs text-text-secondary">
           An employee is promotion-ready when they hit{' '}
           <span className="text-accent-green font-semibold">
-            $<Editable value={String(rules.profitPerWeek)} onCommit={(v) => setRules(r => ({ ...r, profitPerWeek: parseNum(v) }))} />
+            $<Editable label="Promotion rule: profit required per week" value={String(rules.profitPerWeek)} onCommit={(v) => setRules(r => ({ ...r, profitPerWeek: parseNum(v) }))} />
           </span>{' '}
           profit per week for{' '}
           <span className="text-accent-green font-semibold">
-            <Editable value={String(rules.weeks)} onCommit={(v) => setRules(r => ({ ...r, weeks: Math.max(1, parseNum(v)) }))} />
+            <Editable label="Promotion rule: consecutive weeks required" value={String(rules.weeks)} onCommit={(v) => setRules(r => ({ ...r, weeks: Math.max(1, parseNum(v)) }))} />
           </span>{' '}
           straight week(s) with at least{' '}
           <span className="text-accent-green font-semibold">
-            <Editable value={String(rules.minAttendance)} onCommit={(v) => setRules(r => ({ ...r, minAttendance: parseNum(v) }))} />%
+            <Editable label="Promotion rule: minimum attendance percent" value={String(rules.minAttendance)} onCommit={(v) => setRules(r => ({ ...r, minAttendance: parseNum(v) }))} />%
           </span>{' '}
           attendance. Attendance marked in the Daily Tracker counts automatically (Present 100% · Late 50% · Absent 0%).
         </p>
-      </div>
+      </details>
 
+      <div className="flex flex-col gap-3 lg:hidden">
+        {visiblePeople.map(person => <article key={person.id} className="rounded-xl border border-border-subtle bg-bg-secondary p-4 text-text-primary">
+          <div className="flex items-start justify-between gap-3"><div className="min-w-0"><button type="button" onClick={() => onOpenProfile(person.name)} className="min-h-11 break-words text-left text-base font-semibold">{person.name}</button><p className="text-sm text-text-muted">{ROSTER_ROLE_LABELS[person.role]} · {person.employeeCode ?? 'Profile pending'}</p></div><button type="button" onClick={() => setEditModalId(person.id)} className="min-h-11 min-w-11 rounded-lg border border-border-subtle bg-bg-tertiary px-3 text-sm" aria-label={`Edit ${person.name}`}>Edit</button></div>
+          <dl className="mt-3 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-text-muted">Store</dt><dd className="break-words">{person.stores.join(', ') || 'Unassigned'}</dd></div><div><dt className="text-text-muted">Team</dt><dd className="break-words">{person.team || 'Unassigned'}</dd></div><div><dt className="text-text-muted">Attendance</dt><dd>{effectiveAttendance(person).pct}%</dd></div><div><dt className="text-text-muted">Status</dt><dd className="capitalize">{personStatus(person)}</dd></div></dl>
+          <div className="mt-3 flex flex-wrap gap-2">{person.employeeCode && <Link href={`/people/${encodeURIComponent(person.employeeCode)}`} className="inline-flex min-h-11 items-center rounded-lg border border-border-subtle px-3 text-sm">Full profile</Link>}{canManage && <><button type="button" className="min-h-11 rounded-lg border border-border-subtle px-3 text-sm" onClick={() => personStatus(person) === 'retired' ? reactivatePerson(person.id) : retirePerson(person.id)}>{personStatus(person) === 'retired' ? 'Reactivate' : 'Retire'}</button><button type="button" className="min-h-11 rounded-lg border border-border-subtle px-3 text-sm" onClick={() => archivePerson(person.id)}>Archive</button></>}</div>
+        </article>)}
+      </div>
       {/* People table */}
-      <div className="overflow-x-auto">
+      <div className="hidden overflow-x-auto lg:block">
         <table className="w-full min-w-[1000px] text-xs">
           <thead>
             <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
-              <th className="pb-2 pr-2">Employee</th>
-              <th className="pb-2 pr-2">Role</th>
-              <th className="pb-2 pr-2">Stores</th>
-              <th className="pb-2 pr-2">Team</th>
-              <th className="pb-2 pr-2" title="Guaranteed weekly hourly pay — rep gets MAX(commission, hourly). 0 = commission-only">Hourly/wk</th>
-              <th className="pb-2 pr-2">Wk-1 Profit</th>
-              <th className="pb-2 pr-2">Wk-2 Profit</th>
-              <th className="pb-2 pr-2">Attend.</th>
-              <th className="pb-2 pr-2">Roadmap</th>
-              <th className="pb-2"><span className="sr-only">Actions</span></th>
+              <th scope="col" className="pb-2 pr-2">Employee</th>
+              <th scope="col" className="pb-2 pr-2">Role</th>
+              <th scope="col" className="pb-2 pr-2">Stores</th>
+              <th scope="col" className="pb-2 pr-2">Team</th>
+              <th scope="col" className="pb-2 pr-2" title="Guaranteed weekly hourly pay — rep gets MAX(commission, hourly). 0 = commission-only">Hourly/wk</th>
+              <th scope="col" className="pb-2 pr-2">Wk-1 Profit</th>
+              <th scope="col" className="pb-2 pr-2">Wk-2 Profit</th>
+              <th scope="col" className="pb-2 pr-2">Attend.</th>
+              <th scope="col" className="pb-2 pr-2">Roadmap</th>
+              <th scope="col" className="pb-2"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border-subtle">
-            {people.map(person => {
+            {visiblePeople.map(person => {
               const status = promotionStatus(person, rules);
+              const retired = personStatus(person) === 'retired';
               return (
-                <tr key={person.id} className="group hover:bg-white/5 transition-colors">
+                <tr key={person.id} className={cn('group hover:bg-white/5 transition-colors', retired && 'opacity-60')}>
                   <td className="py-2 pr-2 font-medium">
                     {editingId === person.id ? (
                       <Editable
+                        label={`${person.name} name`}
                         value={person.name}
                         onCommit={(v) => { edit(person.id, { name: v.trim() || person.name }); setEditingId(null); }}
                       />
@@ -564,6 +870,19 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                         >
                           {person.name}
                         </button>
+                        {person.employeeCode && (
+                          <Link
+                            href={`/people/${encodeURIComponent(person.employeeCode)}`}
+                            className="text-[9px] font-mono text-text-muted hover:text-accent-blue transition-colors"
+                            title="Open full employee file"
+                            aria-label={`Open ${person.name}'s full employee file`}
+                          >
+                            {person.employeeCode}
+                          </Link>
+                        )}
+                        {retired && (
+                          <span className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-accent-amber/15 text-accent-amber border border-accent-amber/25">Retired</span>
+                        )}
                         <button
                           onClick={() => setEditModalId(person.id)}
                           className="p-0.5 rounded text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-white transition-all"
@@ -581,10 +900,13 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                         const i = ROLE_LADDER.indexOf(person.role);
                         edit(person.id, { role: ROLE_LADDER[(i + 1) % ROLE_LADDER.length] });
                       }}
-                      className={cn('px-2 py-0.5 rounded-full border text-[10px] uppercase tracking-wider transition-all hover:brightness-125', ROLE_BADGE[person.role])}
+                      className={cn('px-2 py-0.5 rounded-full border text-[10px] uppercase tracking-wider transition-all hover:brightness-125', ROLE_BADGE[person.role] ?? ROLE_BADGE.REP)}
                       title="Click to cycle role"
+                      aria-label={`Role: ${ROSTER_ROLE_LABELS[person.role] ?? person.role}. Click to cycle role for ${person.name}`}
                     >
-                      {ROSTER_ROLE_LABELS[person.role]}
+                      {/* Fallback keeps an imported/unknown role visible and the button named,
+                          instead of rendering an empty, unlabelled control. */}
+                      {ROSTER_ROLE_LABELS[person.role] ?? person.role ?? 'Unknown'}
                     </button>
                   </td>
                   <td className="py-2 pr-2">
@@ -596,16 +918,16 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                     />
                   </td>
                   <td className="py-2 pr-2 text-text-secondary">
-                    <Editable value={person.team || '—'} onCommit={(v) => edit(person.id, { team: v.trim() === '—' ? '' : v.trim() })} />
+                    <Editable label={`${person.name} team`} value={person.team || '—'} onCommit={(v) => edit(person.id, { team: v.trim() === '—' ? '' : v.trim() })} />
                   </td>
                   <td className="py-2 pr-2 text-accent-cyan">
-                    $<Editable value={String(person.hourlyWeekly ?? 0)} onCommit={(v) => edit(person.id, { hourlyWeekly: Math.max(0, parseNum(v)) })} />
+                    $<Editable label={`${person.name} weekly hourly pay`} value={String(person.hourlyWeekly ?? 0)} onCommit={(v) => edit(person.id, { hourlyWeekly: Math.max(0, parseNum(v)) })} />
                   </td>
                   <td className="py-2 pr-2 text-accent-green">
-                    $<Editable value={String(person.weeklyProfit[0] ?? 0)} onCommit={(v) => editWeek(person.id, 0, v)} />
+                    $<Editable label={`${person.name} profit, week 1`} value={String(person.weeklyProfit[0] ?? 0)} onCommit={(v) => editWeek(person.id, 0, v)} />
                   </td>
                   <td className="py-2 pr-2 text-accent-green">
-                    $<Editable value={String(person.weeklyProfit[1] ?? 0)} onCommit={(v) => editWeek(person.id, 1, v)} />
+                    $<Editable label={`${person.name} profit, week 2`} value={String(person.weeklyProfit[1] ?? 0)} onCommit={(v) => editWeek(person.id, 1, v)} />
                   </td>
                   <td className="py-2 pr-2">
                     {status.attendance.tracked ? (
@@ -614,7 +936,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                       </span>
                     ) : (
                       <>
-                        <Editable value={String(person.attendance)} onCommit={(v) => edit(person.id, { attendance: Math.min(100, Math.max(0, parseNum(v))) })} />%
+                        <Editable label={`${person.name} attendance percent`} value={String(person.attendance)} onCommit={(v) => edit(person.id, { attendance: Math.min(100, Math.max(0, parseNum(v))) })} />%
                       </>
                     )}
                   </td>
@@ -639,13 +961,37 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
                     )}
                   </td>
                   <td className="py-2 text-right">
-                    <button
-                      onClick={() => removePerson(person.id)}
-                      className="p-1.5 rounded-lg text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red hover:bg-accent-red/10 transition-all"
-                      aria-label={`Remove ${person.name}`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="inline-flex items-center gap-0.5">
+                      {canManage && (retired ? (
+                        <button
+                          onClick={() => reactivatePerson(person.id)}
+                          className="p-1.5 rounded-lg text-text-muted hover:text-accent-green hover:bg-accent-green/10 transition-all"
+                          aria-label={`Reactivate ${person.name}`}
+                          title="Reactivate — return to the active roster"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => retirePerson(person.id)}
+                          className="p-1.5 rounded-lg text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-amber hover:bg-accent-amber/10 transition-all"
+                          aria-label={`Retire ${person.name}`}
+                          title="Retire — keep history, remove from active roster"
+                        >
+                          <UserMinus className="w-3.5 h-3.5" />
+                        </button>
+                      ))}
+                      {canManage && (
+                        <button
+                          onClick={() => archivePerson(person.id)}
+                          className="p-1.5 rounded-lg text-text-muted opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:text-accent-red hover:bg-accent-red/10 transition-all"
+                          aria-label={`Archive ${person.name} to recycle bin`}
+                          title="Archive to recycle bin (restorable)"
+                        >
+                          <Archive className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
@@ -658,7 +1004,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
         stores &amp; teams update every board automatically
       </p>
 
-      <TeamTree people={people} assignTeam={assignTeam} />
+      <TeamTree people={activePeople(people)} assignTeam={assignTeam} />
 
       {showAdd && (
         <AddEmployeeModal
@@ -682,6 +1028,8 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
           />
         );
       })()}
+
+      {confirmDialog}
     </div>
   );
 }

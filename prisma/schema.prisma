@@ -79,6 +79,65 @@ enum SubscriptionTier {
   WHITE_LABEL
 }
 
+enum DocumentKind {
+  TRAINING
+  COMPLIANCE
+  PROMO
+  ADASM
+  TEMPLATE // company forms: offer letters, write-ups, award certificates
+  OTHER
+}
+
+/// An append-only record of security- and money-relevant actions: who did what,
+/// to which tenant, from where. Written by lib/audit.ts.
+///
+/// The actor is deliberately NOT a foreign key to User. An audit trail whose
+/// rows vanish when you delete the account is worthless precisely when it
+/// matters most (a disgruntled admin removing a user to erase what they did),
+/// so actorId/actorEmail are denormalised snapshots taken at write time.
+model AuditLog {
+  id            String   @id @default(cuid())
+  // Snapshot of who acted; survives deletion of the underlying user.
+  actorId       String?
+  actorEmail    String
+  actorRole     String
+  // Tenant the action affected. Null for platform-level acts by a super-admin.
+  marketOwnerId String?
+  // Dotted verb, e.g. 'auth.login', 'user.role_changed', 'doc.deleted'.
+  action        String
+  // What was acted on: 'Document', 'User', etc. plus its id, when applicable.
+  targetType    String?
+  targetId      String?
+  // Free-form detail (old/new values, reason). Never put secrets in here.
+  meta          Json?
+  ip            String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  // Reading the trail is always "this tenant, newest first" or "this actor,
+  // newest first", so both are composite indexes rather than plain ones.
+  @@index([marketOwnerId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+}
+
+/// One row per authentication attempt, used to throttle credential stuffing.
+///
+/// Keyed by email AND ip separately so a single attacker cycling passwords
+/// against one account and one spraying many accounts from one address are both
+/// caught. Rows are pruned by lib/rate-limit.ts rather than kept forever.
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  // Lowercased at write time so casing cannot be used to dodge the counter.
+  email     String
+  ip        String
+  success   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([ip, createdAt])
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
@@ -92,8 +151,14 @@ model User {
   authId        String?   @unique
   // A disabled account cannot sign in even though the row survives (so its
   // history stays intact). Toggled per company from the admin console.
-  disabled      Boolean   @default(false)
-  name          String
+  disabled       Boolean   @default(false)
+  // TOTP is stored and verified by Supabase Auth. These fields only control
+  // policy and record the last successful enrollment; no shared secret is
+  // copied into the application database.
+  mfaEnrolledAt  DateTime?
+  mfaRequired    Boolean   @default(false)
+  mfaExemptUntil DateTime?
+  name           String
   role          Role      @default(REP)
   employeeId    String?   @unique
   avatarUrl     String?
@@ -122,6 +187,9 @@ model MarketOwner {
   // A suspended company (non-payment, offboarding): every login under it is
   // refused, but the rows survive so it can be reinstated without data loss.
   disabled               Boolean   @default(false)
+  // Company default. A per-user exemption can temporarily override it.
+  requireMfa             Boolean   @default(false)
+  operatingStartDate     DateTime?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
@@ -133,6 +201,134 @@ model MarketOwner {
   commissionRules        CommissionRule[]
   goals                  Goal[]
   data                   TenantData[]
+  archives               DataArchive[]
+  competitions           Competition[]
+  documents              Document[]
+  repProfiles            RepProfile[]
+  ddImportBatches        DDImportBatch[]
+}
+
+// The recycle bin. Nothing in this app is ever hard-deleted from the UI: every
+// rep/store/competition removal and every full-tenant snapshot lands here first
+// as a JSON payload, scoped to the company. An OWNER can restore their own
+// company's items; only a super-admin can permanently purge (typed confirm +
+// reason, logged). kind is a plain string rather than an enum so a new archived
+// entity type never needs a migration.
+model DataArchive {
+  id            String      @id @default(cuid())
+  marketOwnerId String
+  marketOwner   MarketOwner @relation(fields: [marketOwnerId], references: [id], onDelete: Cascade)
+  kind          String      // PERSON | STORE | COMPETITION | TENANT_SNAPSHOT
+  refId         String      // the archived entity's own id (person.id, etc.)
+  label         String      // human label shown in the recovery list
+  payload       Json        // the full entity, restorable as-is
+  deletedBy     String      // userId or system marker
+  deletedAt     DateTime    @default(now())
+  restoredAt    DateTime?
+  restoredBy    String?
+  purgedAt      DateTime?   // set when a super-admin permanently purges
+  purgedBy      String?
+  reason        String?     // required on purge, optional on archive
+
+  @@index([marketOwnerId, kind])
+  @@index([marketOwnerId, restoredAt])
+}
+
+// A floor competition. Live comps are still configured client-side (a derived
+// view over live sales), but once ENDED the final standings are frozen into
+// these tables so the historical record survives a resync, a rename, or a
+// standings recompute. status flows active -> ended -> archived; a comp is
+// never hard-deleted. Values are numeric (not the old pre-formatted "$1,240"
+// strings) so history can be charted, summed, and fed into the rep profile.
+model Competition {
+  id            String                @id @default(cuid())
+  marketOwnerId String
+  marketOwner   MarketOwner           @relation(fields: [marketOwnerId], references: [id], onDelete: Cascade)
+  title         String
+  prize         String
+  metric        String                // lines | premium | internet | nextUps | revenue
+  store         String?               // null = all stores
+  periodStart   DateTime
+  periodEnd     DateTime?
+  status        String                @default("active") // active | ended | archived
+  createdBy     String
+  endedAt       DateTime?
+  endedBy       String?
+  createdAt     DateTime              @default(now())
+  standings     CompetitionStanding[]
+
+  @@index([marketOwnerId, status])
+}
+
+model CompetitionStanding {
+  id            String      @id @default(cuid())
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  personId      String      // stable, employeeCode-backed id - not a name
+  personName    String      // denormalised snapshot, so history survives a rename
+  store         String?
+  rank          Int
+  value         Float        // numeric, so it can be charted and compared
+  metric        String
+
+  @@unique([competitionId, personId])
+}
+
+// A company document: training deck, compliance form, promo sheet, AD/ASM
+// course book. The FILE itself lives in the private Supabase Storage bucket
+// `tenant-docs` at <marketOwnerId>/<docId>/<filename>; this row is only the
+// metadata + pointer. There is no public URL anywhere: reads go through
+// /api/docs/[id]/url which mints a short-lived signed URL after re-checking the
+// caller's company and role, so a leaked link dies in seconds instead of
+// exposing a compliance PDF forever.
+//
+// audienceRoles is empty = visible to the whole company. audiencePersonIds
+// targets named individuals (onboarding a specific new hire) and is stored as
+// employeeCode-backed person ids, matching CompetitionStanding, so it survives
+// a rename. supersedesId chains promo versions: the biweekly promo sheet
+// replaces the last one without deleting it, so "what was the offer on the 12th"
+// stays answerable.
+model Document {
+  id               String         @id @default(cuid())
+  marketOwnerId    String
+  marketOwner      MarketOwner    @relation(fields: [marketOwnerId], references: [id], onDelete: Cascade)
+  title            String
+  kind             DocumentKind   @default(OTHER)
+  audienceRoles    Role[]
+  audiencePersonIds String[]
+  storagePath      String         // path inside the private bucket, never a URL
+  mimeType         String
+  sizeBytes        Int
+  version          Int            @default(1)
+  supersedesId     String?        // previous version of this doc, if any
+  effectiveFrom    DateTime?      // promos: when this sheet takes over
+  effectiveTo      DateTime?      // promos: when it expires
+  requiresAck      Boolean        @default(false)
+  uploadedBy       String
+  createdAt        DateTime       @default(now())
+  // Soft delete, consistent with the recycle-bin rule: the row and the object
+  // survive so a mis-click cannot destroy a compliance record.
+  deletedAt        DateTime?
+  deletedBy        String?
+  acks             DocumentAck[]
+
+  @@index([marketOwnerId, kind, deletedAt])
+  @@index([marketOwnerId, createdAt])
+}
+
+// One acknowledgement per (document, person). Written when a rep confirms they
+// have read a doc; the unique constraint makes a double-click idempotent rather
+// than logging two reads.
+model DocumentAck {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  personId   String   // employeeCode-backed, matches CompetitionStanding
+  personName String   // denormalised so the audit trail survives a rename
+  ackedAt    DateTime @default(now())
+
+  @@unique([documentId, personId])
+  @@index([documentId])
 }
 
 // Per-company operational data (roster, sales, schedule, attendance, P&L, ...),
@@ -151,6 +347,117 @@ model TenantData {
 
   @@unique([marketOwnerId, key])
   @@index([marketOwnerId])
+}
+
+model RepProfile {
+  id               String      @id @default(cuid())
+  marketOwnerId    String
+  marketOwner      MarketOwner @relation(fields: [marketOwnerId], references: [id], onDelete: Cascade)
+  employeeCode     String
+  displayName      String
+  legalName        String?
+  status           String      @default("active")
+  startDate        DateTime?
+  email            String?
+  phone            String?
+  teamName         String?
+  storeName        String?
+  title             String?
+  notes             String?
+  metadata          Json?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  externalIds       RepExternalIdentity[]
+  ddSummaries       DDRepSummary[]
+
+  @@unique([marketOwnerId, employeeCode])
+  @@index([marketOwnerId, status, teamName])
+}
+
+model RepExternalIdentity {
+  id             String      @id @default(cuid())
+  marketOwnerId  String
+  source         String
+  externalRepId  String
+  reportName     String?
+  repProfileId   String
+  repProfile     RepProfile  @relation(fields: [repProfileId], references: [id], onDelete: Cascade)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([marketOwnerId, source, externalRepId])
+  @@index([repProfileId])
+}
+
+model DDImportBatch {
+  id                  String          @id @default(cuid())
+  marketOwnerId       String
+  marketOwner         MarketOwner     @relation(fields: [marketOwnerId], references: [id], onDelete: Cascade)
+  source              String          @default("PDF_UPLOAD")
+  sourceFileName      String
+  sourceHash          String
+  reportType          String
+  processedWeek       DateTime
+  ddWeek              DateTime
+  status              String          @default("PENDING")
+  isAuthoritative     Boolean         @default(false)
+  supersedesId        String?
+  uploadedBy          String
+  confirmedBy         String?
+  confirmedAt         DateTime?
+  officeGenerated     Float           @default(0)
+  ecBonusReceived     Float           @default(0)
+  ecBonusMissing      Float           @default(0)
+  rowCount            Int             @default(0)
+  warnings            Json?
+  createdAt           DateTime        @default(now())
+  summaries           DDRepSummary[]
+  detailRows          DDDetailRow[]
+
+  @@unique([marketOwnerId, sourceHash])
+  @@index([marketOwnerId, ddWeek, isAuthoritative])
+  @@index([marketOwnerId, createdAt])
+}
+
+model DDRepSummary {
+  id                  String        @id @default(cuid())
+  batchId             String
+  batch               DDImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  repProfileId        String?
+  repProfile          RepProfile?   @relation(fields: [repProfileId], references: [id])
+  externalRepId       String
+  reportName          String
+  generated           Float         @default(0)
+  ecBonusReceived     Float         @default(0)
+  ecBonusMissing      Float         @default(0)
+  detailCount         Int           @default(0)
+  tier                 String?
+  teamSnapshot        String?
+
+  @@unique([batchId, externalRepId])
+  @@index([repProfileId])
+}
+
+model DDDetailRow {
+  id                  String        @id @default(cuid())
+  batchId             String
+  batch               DDImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  externalRepId       String
+  reportName          String
+  generated           Float         @default(0)
+  commissionToIcd     Float         @default(0)
+  ecBonusToIcd        Float         @default(0)
+  adjustmentToIcd     Float         @default(0)
+  bonusesToIcd        Float         @default(0)
+  noEcBonusReason     String?
+  tier                 String?
+  retail              String?
+  store                String?
+  orderType            String?
+  rowData              Json?
+
+  @@index([batchId, externalRepId])
+  @@index([batchId, noEcBonusReason])
 }
 
 model Team {

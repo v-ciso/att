@@ -1,165 +1,74 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useSession, signOut } from 'next-auth/react';
-import { cn } from '@/lib/utils';
-import { Database, FlaskConical, Lock, LogOut, RotateCcw, Wand2 } from 'lucide-react';
-import {
-  DataMode, Workspace, DEFAULT_WORKSPACE, readWorkspace, setWorkspace, clearWorkspaceData,
-} from '@/lib/workspace';
+import { Database, FlaskConical, LogOut, RotateCcw, ShieldCheck, Wand2 } from 'lucide-react';
+import { type DataMode, type Workspace, readWorkspace, setWorkspace, clearWorkspaceData, purgeAllLiveBuckets } from '@/lib/workspace';
+import { flushTenantSync, stopTenantSync } from '@/lib/tenant-sync';
 import { reopenSetup } from './setup-wizard';
-import { isSuperAdminEmail } from '@/lib/super-admins';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
-// Demo vs Live is a real data boundary, not a display filter: each mode reads
-// and writes its own localStorage bucket (see lib/workspace.ts).
-//
-// Only the VENDOR (super-admin) gets the Demo sandbox — it exists to pitch from.
-// A customer is always Live and never sees a Demo option, so they can't
-// accidentally land in an empty sandbox and think their data vanished.
-export function WorkspaceSwitcher() {
+const CONTROL = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border-subtle bg-bg-tertiary px-3 text-sm text-text-primary hover:border-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-blue disabled:opacity-50';
+
+function useWorkspaceControls() {
   const { data: session } = useSession();
-  const [ws, setWs] = useState<Workspace>(DEFAULT_WORKSPACE);
-  const [confirmReset, setConfirmReset] = useState(false);
-
-  const superAdmin = session?.user?.isSuperAdmin ?? isSuperAdminEmail(session?.user?.email);
-  const isOwner = session?.user?.role === 'OWNER';
-  const tenant = session?.user?.marketOwnerId ?? 'default';
-
-  // Read after mount: the server has no localStorage, so rendering the stored
-  // mode directly would hydrate-mismatch.
-  useEffect(() => setWs(readWorkspace()), []);
-
-  // Customers are forced Live once (one reload) — the demo bucket is not theirs,
-  // and staying in it would leave their real book unsynced.
-  useEffect(() => {
-    if (!session || superAdmin) return;
-    if (readWorkspace().mode !== 'live') {
-      setWorkspace({ mode: 'live', scope: session.user?.marketOwnerId ?? 'default' });
-    }
-  }, [session, superAdmin]);
-
-  const switchTo = (mode: DataMode) => {
-    if (mode === ws.mode) return;
-    if (mode === 'live' && !isOwner) return;
-    setWorkspace({ mode, scope: mode === 'live' ? tenant : 'demo' });
+  const [workspace, setCurrent] = useState<Workspace | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => setCurrent(readWorkspace()), []);
+  const superAdmin = session?.user?.isSuperAdmin === true;
+  const change = async (mode: DataMode) => {
+    if (!superAdmin || busy || workspace?.mode === mode || !session?.user?.marketOwnerId) return;
+    setBusy(true); setError('');
+    try {
+      await flushTenantSync();
+      stopTenantSync();
+      setWorkspace({ mode, scope: mode === 'live' ? session.user.marketOwnerId : 'demo' });
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Save failed. Stay here and reload.'); setBusy(false); }
   };
-
-  const resetDemo = () => {
-    if (!confirmReset) {
-      setConfirmReset(true);
-      setTimeout(() => setConfirmReset(false), 4000);
-      return;
-    }
-    clearWorkspaceData({ mode: 'demo', scope: 'demo' });
-    window.location.reload();
+  const logout = async () => {
+    setBusy(true); setError('');
+    try {
+      await flushTenantSync();
+      stopTenantSync(); purgeAllLiveBuckets();
+      await signOut({ redirect: false });
+      window.location.assign('/login');
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to save before signing out.'); setBusy(false); }
   };
-
-  // Customer view: no demo, just the setup guide (if they're an owner with an
-  // empty book) and sign out.
-  if (!superAdmin) {
-    return (
-      <div className="space-y-2">
-        {isOwner && (
-          <button
-            onClick={reopenSetup}
-            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] text-text-muted hover:text-white hover:bg-white/5 transition-colors"
-          >
-            <Wand2 className="w-3 h-3" /> Run setup guide
-          </button>
-        )}
-        <button
-          onClick={() => signOut({ callbackUrl: '/login' })}
-          className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] text-text-muted hover:text-white hover:bg-white/5 transition-colors"
-        >
-          <LogOut className="w-3 h-3" /> Sign out
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between px-1">
-        <span className="text-[10px] uppercase tracking-wider text-text-muted">Data source (vendor)</span>
-        {!isOwner && (
-          <span className="flex items-center gap-1 text-[10px] text-text-muted" title="Only the account owner can view live data">
-            <Lock className="w-2.5 h-2.5" /> locked
-          </span>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-white/5 border border-border-subtle">
-        <ModeButton
-          mode="demo" active={ws.mode === 'demo'} enabled icon={FlaskConical}
-          label="Demo" onClick={() => switchTo('demo')}
-        />
-        <ModeButton
-          mode="live" active={ws.mode === 'live'} enabled={isOwner} icon={Database}
-          label="Live" onClick={() => switchTo('live')}
-        />
-      </div>
-
-      {ws.mode === 'live' && isOwner && (
-        <button
-          onClick={reopenSetup}
-          className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] text-text-muted hover:text-white hover:bg-white/5 transition-colors"
-        >
-          <Wand2 className="w-3 h-3" /> Run setup guide
-        </button>
-      )}
-
-      {ws.mode === 'demo' ? (
-        <button
-          onClick={resetDemo}
-          className={cn(
-            'w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] transition-colors',
-            confirmReset
-              ? 'bg-accent-red/15 text-accent-red border border-accent-red/30'
-              : 'text-text-muted hover:text-white hover:bg-white/5'
-          )}
-        >
-          <RotateCcw className="w-3 h-3" />
-          {confirmReset ? 'Click again to wipe demo' : 'Reset demo data'}
-        </button>
-      ) : (
-        <p className="px-1 text-[10px] text-accent-green/80">
-          Live numbers — edits here are your real book.
-        </p>
-      )}
-
-      <button
-        onClick={() => signOut({ callbackUrl: '/login' })}
-        className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] text-text-muted hover:text-white hover:bg-white/5 transition-colors"
-      >
-        <LogOut className="w-3 h-3" /> Sign out
-      </button>
-    </div>
-  );
+  return { workspace, session, superAdmin, busy, error, change, logout };
 }
 
-function ModeButton({
-  active, enabled, icon: Icon, label, onClick,
-}: {
-  mode: DataMode;
-  active: boolean;
-  enabled: boolean;
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={!enabled}
-      title={enabled ? `Switch to ${label.toLowerCase()} data` : 'Owner accounts only'}
-      className={cn(
-        'flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-all',
-        active && 'bg-accent-blue/20 text-white shadow-inner',
-        !active && enabled && 'text-text-secondary hover:text-white hover:bg-white/5',
-        !enabled && 'text-text-muted/40 cursor-not-allowed'
-      )}
-    >
-      <Icon className="w-3 h-3" /> {label}
-    </button>
-  );
+export function WorkspaceToolbar() {
+  const { workspace, session, superAdmin, busy, error, change, logout } = useWorkspaceControls();
+  const demo = workspace?.mode === 'demo';
+  return <section aria-label="Workspace controls" className="mb-5 flex flex-col rounded-xl border border-border-subtle bg-bg-secondary text-text-primary">
+    <div className="flex flex-wrap items-center justify-between gap-3 p-3">
+      <div className="flex min-w-0 items-center gap-2">
+        {demo ? <FlaskConical className="h-5 w-5 shrink-0 text-accent-yellow" /> : <Database className="h-5 w-5 shrink-0 text-accent-green" />}
+        <div className="min-w-0"><p className="truncate text-sm font-semibold">{demo ? 'Demo sandbox' : session?.user?.companyName || 'Live workspace'}</p><p className="text-sm text-text-muted">{demo ? 'Sample data only' : 'Live company data · 1-hour session'}</p></div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {superAdmin && <label className="sr-only" htmlFor="workspace-mode">Data source</label>}
+        {superAdmin && <select id="workspace-mode" aria-label="Data source" className={CONTROL} value={workspace?.mode ?? 'live'} disabled={busy || !workspace} onChange={event => void change(event.target.value as DataMode)}><option value="live">Live data</option><option value="demo">Demo data</option></select>}
+        {superAdmin && <Link href="/admin" className={CONTROL}><ShieldCheck className="h-4 w-4" aria-hidden="true" /><span>Admin</span></Link>}
+        <button type="button" className={CONTROL} disabled={busy} onClick={() => void logout()}><LogOut className="h-4 w-4" aria-hidden="true" />Sign out</button>
+      </div>
+    </div>
+    {demo && <p className="border-t border-border-subtle px-3 py-2 text-sm text-accent-yellow">Sample stores, reps, and production. Choose Live data above to return to your company.</p>}
+    {error && <p role="alert" className="px-3 py-2 text-sm text-accent-red">{error}</p>}
+  </section>;
+}
+
+export function WorkspaceSwitcher() {
+  const { workspace, session, superAdmin, busy, error, change, logout } = useWorkspaceControls();
+  const [resetOpen, setResetOpen] = useState(false);
+  return <div className="flex flex-col gap-2">
+    {superAdmin && <button type="button" className={CONTROL} disabled={busy} onClick={() => void change(workspace?.mode === 'demo' ? 'live' : 'demo')}>{workspace?.mode === 'demo' ? 'Return to live data' : 'Open demo sandbox'}</button>}
+    {workspace?.mode === 'live' && session?.user?.role === 'OWNER' && <button type="button" className={CONTROL} onClick={reopenSetup}><Wand2 className="h-4 w-4" aria-hidden="true" />Setup guide</button>}
+    {workspace?.mode === 'demo' && superAdmin && <button type="button" className={CONTROL} onClick={() => setResetOpen(true)}><RotateCcw className="h-4 w-4" aria-hidden="true" />Reset demo data</button>}
+    <button type="button" className={CONTROL} disabled={busy} onClick={() => void logout()}><LogOut className="h-4 w-4" aria-hidden="true" />Sign out</button>
+    {error && <p role="alert" className="text-sm text-accent-red">{error}</p>}
+    <ConfirmDialog open={resetOpen} onOpenChange={setResetOpen} onConfirm={() => { if (!superAdmin || readWorkspace().mode !== 'demo') return; clearWorkspaceData({ mode: 'demo', scope: 'demo' }); window.location.reload(); }} title="Reset demo data?" description="Clear sample data only. Your live company data will not change." confirmLabel="Reset demo" destructive />
+  </div>;
 }

@@ -8,6 +8,8 @@ import { DashboardLayout } from '@/components/dashboard/layout';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { TabBar } from '@/components/ui/tabs';
+import { useActor } from '@/lib/use-actor';
 import { LineChart } from '@/components/charts/chart-wrapper';
 import { PieChart3D } from '@/components/charts/chart-3d';
 import { formatCurrency, formatNumber, cn } from '@/lib/utils';
@@ -16,12 +18,15 @@ import {
   Building2, MapPin, PieChart, Maximize2, Minimize2, ChevronDown, Sparkles, ClipboardList,
 } from 'lucide-react';
 import { MeetingTracker } from '@/components/dashboard/dashboard-components';
-import { CommissionEngine, PnlEditor, TeamData } from '@/components/dashboard/editable-sections';
+import { PnlEditor, TeamData, DEFAULT_COMMISSION, loadTeams } from '@/components/dashboard/editable-sections';
+import { useModalA11y } from '@/hooks/use-modal-a11y';
+import { ModalShell } from '@/components/ui/modal-shell';
 import { ReportTemplate, ReportSections, ALL_SECTIONS, SECTION_LABELS } from '@/components/dashboard/report-template';
-import { RosterManager, loadPeople, ROSTER_ROLE_LABELS } from '@/components/dashboard/roster';
+import { RosterManager, loadPeople } from '@/components/dashboard/roster';
 import { Competition } from '@/components/dashboard/competition';
 import { ScheduleBoard } from '@/components/dashboard/schedule-board';
 import { ImportReport } from '@/components/dashboard/import-report';
+import { RecycleBin } from '@/components/dashboard/recycle-bin';
 import { ProfileDrawer } from '@/components/dashboard/profile-drawer';
 import { DailyTracker } from '@/components/dashboard/daily-tracker';
 import {
@@ -33,15 +38,49 @@ import { Editable, parseNum, useLocalState } from '@/components/dashboard/editab
 import { SetupWizard, SETUP_DONE_KEY, SETUP_FORCE_KEY } from '@/components/dashboard/setup-wizard';
 import { PromoPanel } from '@/components/dashboard/promo-panel';
 import { AttendanceSheet } from '@/components/dashboard/attendance-sheet';
-import { computePay } from '@/lib/pay';
 import { readWorkspace } from '@/lib/workspace';
+import { can, canSeeTab, type Role } from '@/lib/permissions';
+import { AttendanceEditor } from '@/components/dashboard/attendance-editor';
+import { DocLibrary } from '@/components/dashboard/doc-library';
+import { FormGenerator } from '@/components/dashboard/form-generator';
+import { PromoArchive } from '@/components/dashboard/promo-archive';
+import { MeetingDocs } from '@/components/dashboard/meeting-docs';
+import { MeetingDDScoreboard } from '@/components/dashboard/meeting-dd-scoreboard';
+import { normalizeName, activePeople } from '@/lib/people';
 import { useTheme } from '@/components/white-label/theme-provider';
 
-const VALID_TABS = ['dashboard', 'tracker', 'roster', 'leaderboard', 'meeting', 'schedule', 'attendance', 'competition', 'pnl', 'commission', 'import'];
+// Single source for the tab strip. VALID_TABS is derived from it so the list of
+// routable tabs and the list of rendered tabs can't drift apart.
+const ALL_TAB_ITEMS: { value: string; label: string; ariaLabel?: string }[] = [
+  { value: 'dashboard', label: 'Dashboard' },
+  { value: 'tracker', label: 'Daily Tracker' },
+  { value: 'roster', label: 'Roster' },
+  { value: 'leaderboard', label: 'Leaderboard' },
+  { value: 'meeting', label: 'Meeting Mode' },
+  { value: 'schedule', label: 'Schedule' },
+  { value: 'attendance', label: 'Attendance' },
+  { value: 'competition', label: 'Competition' },
+  { value: 'library', label: 'Library' },
+  { value: 'pnl', label: 'P&L', ariaLabel: 'Profit and loss' },
+  { value: 'import', label: 'DD Reports' },
+  { value: 'recycle', label: 'Recycle Bin' },
+];
+
+const VALID_TABS = ALL_TAB_ITEMS.map((t) => t.value);
 
 // Renders overlays inside the fullscreened element when presentation mode is
 // active — otherwise drawers opened during Present would be invisible until
 // the user exits fullscreen.
+// The print root must be a DIRECT child of <body>: buried inside the
+// dashboard's scroll containers, the browser's print engine clipped it to
+// the (hidden) first page and exported a blank PDF.
+function BodyPortal({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+  return createPortal(children, document.body);
+}
+
 function FsPortal({ children }: { children: React.ReactNode }) {
   const [target, setTarget] = useState<Element | null>(null);
   useEffect(() => {
@@ -123,20 +162,31 @@ function StatCard({ label, value, sub, icon: Icon, color, onClick, className }: 
   );
 }
 
-function TabButton({ children, isActive, onClick }: { children: React.ReactNode; isActive: boolean; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className={`tab-btn ${isActive ? 'active' : 'inactive'}`}>
-      {children}
-    </button>
-  );
-}
-
-function PeriodChips({ period, onChange, options }: { period: Period; onChange: (p: Period) => void; options?: Period[] }) {
+/**
+ * Period chips are a FILTER, not a tab strip — they change the numbers inside
+ * the current view rather than swapping views. radiogroup/radio is the correct
+ * mapping, so a screen reader announces "Daily, selected, 1 of 4" instead of
+ * four unrelated buttons with no indication of which one is active.
+ */
+function PeriodChips({ period, onChange, options, label = 'Time period' }: {
+  period: Period; onChange: (p: Period) => void; options?: Period[]; label?: string;
+}) {
   const list = options ?? (['daily', 'weekly', 'monthly', 'all'] as Period[]);
   return (
-    <div className="flex gap-1.5">
+    <div className="flex gap-1.5" role="radiogroup" aria-label={label}>
       {list.map(p => (
-        <button key={p} onClick={() => onChange(p)} className={cn('tab-btn', period === p ? 'active' : 'inactive')}>
+        <button
+          key={p}
+          type="button"
+          role="radio"
+          aria-checked={period === p}
+          onClick={() => onChange(p)}
+          className={cn(
+            'tab-btn min-h-11',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]',
+            period === p ? 'active' : 'inactive'
+          )}
+        >
           {PERIOD_LABELS[p]}
         </button>
       ))}
@@ -243,11 +293,8 @@ function ProductionDrawer({
   onClose: () => void;
   onOpenProfile: (name: string) => void;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // Escape closes, focus is trapped inside, and returns to the trigger on close.
+  const panelRef = useModalA11y<HTMLDivElement>(onClose);
 
   const view = KPI_VIEWS[metric];
   const people = [...agg.perPerson].sort((a, b) => view.sort(b) - view.sort(a)).filter(p => view.sort(p) > 0);
@@ -260,8 +307,8 @@ function ProductionDrawer({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label={`${view.title} breakdown`}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:max-w-lg glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 animate-scale-in bg-bg-secondary/95 max-h-[85vh] overflow-y-auto">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div ref={panelRef} tabIndex={-1} className="relative w-full sm:max-w-lg glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-5 sm:p-6 animate-scale-in bg-bg-secondary/95 max-h-[85vh] overflow-y-auto focus:outline-none">
         <div className="flex items-start justify-between gap-3 mb-1">
           <h3 className="text-lg font-bold">{PERIOD_LABELS[period]} · {view.title}</h3>
           <button onClick={onClose} className="p-2.5 sm:p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
@@ -295,10 +342,10 @@ function ProductionDrawer({
               <table className="w-full min-w-[380px] text-xs">
                 <thead>
                   <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
-                    <th className="pb-2">Rep</th>
-                    <th className="pb-2 text-right">{view.column.head}</th>
-                    <th className="pb-2 text-right">Generated</th>
-                    <th className="pb-2 text-right">Commission</th>
+                    <th scope="col" className="pb-2">Rep</th>
+                    <th scope="col" className="pb-2 text-right">{view.column.head}</th>
+                    <th scope="col" className="pb-2 text-right">Generated</th>
+                    <th scope="col" className="pb-2 text-right">Activity</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
@@ -309,7 +356,7 @@ function ProductionDrawer({
                       </td>
                       <td className={cn('py-2 text-right', view.column.className)}>{view.column.value(p)}</td>
                       <td className="py-2 text-right text-accent-green">{formatCurrency(p.revenue)}</td>
-                      <td className="py-2 text-right text-text-secondary">{formatCurrency(p.commission)}</td>
+                      <td className="py-2 text-right text-text-secondary">{formatNumber(p.lines + p.internet)} items</td>
                     </tr>
                   ))}
                 </tbody>
@@ -361,11 +408,8 @@ function buildMixCategories(agg: Aggregate, commission: ReturnType<typeof loadCo
 }
 
 function SliceDrawer({ category, agg, onClose }: { category: MixCategory; agg: Aggregate; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // Escape closes, focus is trapped inside, and returns to the trigger on close.
+  const panelRef = useModalA11y<HTMLDivElement>(onClose);
 
   const planRows = category.plans
     .map(plan => ({ plan, stats: agg.perPlan.get(plan) }))
@@ -373,8 +417,8 @@ function SliceDrawer({ category, agg, onClose }: { category: MixCategory; agg: A
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label={`${category.label} details`}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:max-w-md glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 max-h-[85vh] overflow-y-auto">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+      <div ref={panelRef} tabIndex={-1} className="relative w-full sm:max-w-md glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 max-h-[85vh] overflow-y-auto focus:outline-none">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold flex items-center gap-2">
             <span className="w-3 h-3 rounded-full" style={{ background: category.color }} />
@@ -450,11 +494,9 @@ function DashboardContent() {
     else if (!tabParam) setActiveTab('dashboard');
   }, [tabParam]);
 
-  const [pendingPresent, setPendingPresent] = useState(false);
 
   const switchTab = (tab: string) => {
     setActiveTab(tab);
-    if (tab === 'meeting') setPendingPresent(true);
     router.replace(tab === 'dashboard' ? '/dashboard' : `/dashboard?tab=${tab}`, { scroll: false });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -465,8 +507,33 @@ function DashboardContent() {
   const { data: session } = useSession();
   // The real tenant name comes from the session; the theme's companyName is the
   // white-label brand which defaults to "Sales Engine" until set.
-  const companyName = session?.user?.companyName
+  const companyName = readWorkspace().mode === 'demo' ? 'Demo sandbox' : session?.user?.companyName
     || (theme.companyName !== 'Sales Engine' ? theme.companyName : '');
+  // Stamped onto attendance corrections so history names who changed what.
+  const markedBy = session?.user?.name || session?.user?.email || 'unknown';
+
+  // Same actor as the sidebar — one shared hook, so the tab strip and the nav can
+  // never disagree about what this seat may see. It also defers the real session
+  // by a commit so the first client render matches the server's; see
+  // lib/use-actor.ts for why that matters.
+  const actor = useActor();
+
+  const visibleTabItems = useMemo(
+    () => ALL_TAB_ITEMS.filter((item) => canSeeTab(actor, item.value)),
+    [actor]
+  );
+
+  // A hidden tab must not stay reachable by URL. Filtering the strip only removes
+  // the button, so `?tab=commission` would still render the panel for a seat that
+  // can't see it. Fall back to Dashboard instead. The server re-checks anyway —
+  // this keeps the client from displaying figures it shouldn't.
+  useEffect(() => {
+    if (!canSeeTab(actor, activeTab)) {
+      setActiveTab('dashboard');
+      router.replace('/dashboard', { scroll: false });
+    }
+  }, [actor, activeTab, router]);
+
   const bump = useCallback(() => setDataVersion(v => v + 1), []);
 
   // Re-read on tab return too (edits on other tabs change commission/roster)
@@ -496,9 +563,35 @@ function DashboardContent() {
   const { state: campaign, setState: setCampaign } = useLocalState('se-campaign-v1', 'AT&T Retail EDM');
   const b2b = isB2B(campaign);
 
-  const commission = useMemo(loadCommission, [dataVersion]);
-  const people = useMemo(loadPeople, [dataVersion]);
-  const sales = useMemo(loadSales, [dataVersion]);
+  // These loaders read localStorage, which does not exist during SSR: the
+  // server rendered DEFAULT_COMMISSION (4 stores) while the client rendered the
+  // real saved state (0 stores), tripping a hydration mismatch that React
+  // resolved by silently discarding the client tree. Gate on mount so the first
+  // client render matches the server, then swap in the stored data — the same
+  // pattern useLocalState already uses.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  // Before mount every loader must return exactly what the server returned.
+  const commission = useMemo(
+    () => (mounted ? loadCommission() : { ...DEFAULT_COMMISSION, stores: [] }),
+    [dataVersion, mounted]
+  );
+  const people = useMemo(() => (mounted ? activePeople(loadPeople()) : []), [dataVersion, mounted]);
+  const sales = useMemo(() => (mounted ? loadSales() : []), [dataVersion, mounted]);
+
+  // Ties the signed-in seat to its roster row so the Library can filter
+  // individually-targeted documents and record acknowledgements. The session
+  // carries no employeeCode, so name is the only available join — matched
+  // through normalizeName so casing and double spaces don't break it. No match
+  // (an owner who isn't on the sales roster) leaves this null, which simply
+  // hides individually-targeted docs and disables acking rather than erroring.
+  const viewerPersonId = useMemo(() => {
+    const target = normalizeName(session?.user?.name ?? '');
+    if (!target) return null;
+    const hit = people.find(p => normalizeName(p.name) === target);
+    return hit?.employeeCode ?? null;
+  }, [people, session?.user?.name]);
 
   // First run on a real account: the roster is empty and there is nothing to
   // derive from, so ask the few questions that make the rest of the app work.
@@ -511,13 +604,10 @@ function DashboardContent() {
     setShowSetup(forced || (!dismissed && loadPeople().length === 0));
   }, [dataVersion]);
 
-  const storeOptions = useMemo(() => {
-    const set = new Set<string>();
-    commission.stores.forEach(s => set.add(s.name));
-    people.forEach(p => (p.stores ?? []).forEach(s => set.add(s)));
-    sales.forEach(s => s.store && set.add(s.store));
-    return Array.from(set);
-  }, [commission, people, sales]);
+  const storeOptions = useMemo(
+    () => Array.from(new Set(commission.stores.map(store => store.name).filter(Boolean))),
+    [commission.stores]
+  );
 
   const agg = useMemo(
     () => aggregateSales(sales, commission, { period, stores: storeSel, date: pickDate || undefined }),
@@ -550,6 +640,7 @@ function DashboardContent() {
   const premiumMix = agg.lines > 0 ? ((agg.premium / agg.lines) * 100).toFixed(1) : '0.0';
 
   const generateDemo = () => {
+    if (readWorkspace().mode !== 'demo') return;
     saveSales(generateDemoSales(people, commission));
     saveAttendance(generateDemoAttendance(people));
     bump();
@@ -634,31 +725,17 @@ function DashboardContent() {
   }, [people, agg]);
 
   // Meeting mode: its own period + live team stats from members' sales
-  const [meetingPeriod, setMeetingPeriod] = useState<Period>('daily');
-  const meetingAgg = useMemo(
-    () => aggregateSales(sales, commission, { period: meetingPeriod, stores: storeSel }),
-    [sales, commission, meetingPeriod, storeSel]
-  );
-  // Leads and ASMs earn off other people's production, so their pay is not
-  // visible anywhere in their own sales row.
-  const leadershipPay = useMemo(
-    () => people
-      .filter(p => p.role === 'LEAD' || p.role === 'ASM')
-      .map(person => ({ person, pay: computePay(person, { sales, commission, people, period: meetingPeriod }) }))
-      .filter(x => x.pay.total > 0)
-      .sort((a, b) => b.pay.total - a.pay.total),
-    [people, sales, commission, meetingPeriod]
-  );
-
+  const meetingPeriod = period;
+  const setMeetingPeriod = (value: Period) => { setPeriod(value); setPickDate(''); };
+  const meetingAgg = agg;
   const meetingTeams = useMemo(() => {
-    let teams: TeamData[] = [];
-    try { teams = JSON.parse(localStorage.getItem('se-teams-v2') || '[]'); } catch { /* none */ }
+    const teams = loadTeams();
     const statsByName = new Map(meetingAgg.perPerson.map(p => [p.person.toLowerCase(), p]));
     return teams.map(team => {
       const memberNames = people
         .filter(p => p.team === team.name)
         .map(p => p.name)
-        .concat([team.lead, team.asm].filter(n => people.some(p => p.name.toLowerCase() === n.toLowerCase())));
+        .concat([team.lead, team.asm].filter(n => people.some(p => p.team === team.name && p.name.toLowerCase() === n.toLowerCase())));
       const unique = Array.from(new Set(memberNames.map(n => n.toLowerCase())));
       const sum = unique.reduce(
         (acc, n) => {
@@ -679,6 +756,13 @@ function DashboardContent() {
 
   // Attendance card prefers marked records (yesterday, else today) from the tracker
   const attToday = useMemo(() => {
+    // Gated on `mounted` like people/sales/commission above. loadAttendance()
+    // reads localStorage, so on the server this was always null and the card
+    // rendered its "roster average" branch (a <p> first), while the client's very
+    // first render already had marked records and led with a <div> — the
+    // "Expected server HTML to contain a matching <div>" hydration error, which
+    // made React discard and re-render the whole card subtree.
+    if (!mounted) return null;
     const book = loadAttendance();
     const yesterday = attendanceForDate(book, todayStr(-1));
     if (yesterday.marked > 0) return { ...yesterday, date: 'yesterday' };
@@ -686,12 +770,17 @@ function DashboardContent() {
     if (today.marked > 0) return { ...today, date: 'today' };
     return null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataVersion]);
+  }, [dataVersion, mounted]);
 
   // Goals: set at the morning meeting — targets are editable and persist
   const { state: goalTargets, setState: setGoalTargets } = useLocalState(
     'se-goals-v1',
-    { lines: 200, premium: 80 }
+    { lines: 200, premium: 80 },
+    { lines: 0, premium: 0 },
+    raw => {
+      const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+      return { lines: Math.max(0, Number(value.lines) || 0), premium: Math.max(0, Number(value.premium) || 0) };
+    }
   );
 
   // Weekly commitments: each rep calls their number at the morning meeting —
@@ -728,12 +817,6 @@ function DashboardContent() {
     return () => window.removeEventListener('keydown', onKey);
   }, [activeTab]);
 
-  useEffect(() => {
-    if (activeTab === 'meeting' && pendingPresent) {
-      setPendingPresent(false);
-      meetingRef.current?.requestFullscreen?.().catch(() => {});
-    }
-  }, [activeTab, pendingPresent]);
 
   // PDF: crisp print-based export (vector text, browser Save as PDF).
   // `exportSel` non-null = which sections to print; `exportMenu` = the chooser.
@@ -741,23 +824,42 @@ function DashboardContent() {
   const [exportSel, setExportSel] = useState<ReportSections | null>(null);
   useEffect(() => {
     if (!exportSel) return;
+    let cancelled = false;
     const prevTitle = document.title;
-    document.title = `Sales_Engine_Report_${new Date().toISOString().slice(0, 10)}`;
+    const exportBrand = (companyName || 'KGVINC').replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '');
+    document.title = `${exportBrand}_Operations_Report_${new Date().toISOString().slice(0, 10)}`;
     const done = () => { document.title = prevTitle; setExportSel(null); };
     window.addEventListener('afterprint', done, { once: true });
-    const t = setTimeout(() => window.print(), 150);
-    return () => { clearTimeout(t); window.removeEventListener('afterprint', done); };
+
+    const printWhenReady = async () => {
+      // The print root is portalled to <body> and mounts one commit later —
+      // poll until it exists (with a hard cap) before printing, or the
+      // browser prints an empty page.
+      for (let attempt = 0; attempt < 60 && !document.getElementById('print-root'); attempt++) {
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      }
+      await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      const images = Array.from(document.querySelectorAll<HTMLImageElement>('#print-root img'));
+      await Promise.all(images.map(image => image.complete ? Promise.resolve() : image.decode().catch(() => undefined)));
+      if (!cancelled) window.print();
+    };
+    void printWhenReady();
+    return () => {
+      cancelled = true;
+      window.removeEventListener('afterprint', done);
+      document.title = prevTitle;
+    };
   }, [exportSel]);
 
   // Pre-check the section that matches the tab you're on, so exporting from P&L
   // defaults to P&L rather than the whole report.
   const defaultSections = (): ReportSections => {
     const map: Record<string, keyof ReportSections> = {
-      pnl: 'pnl', leaderboard: 'leaderboard', commission: 'commission', roster: 'roster', dashboard: 'kpis',
+      pnl: 'pnl', leaderboard: 'leaderboard', roster: 'roster', dashboard: 'kpis',
     };
     const only = map[activeTab];
     if (!only) return { ...ALL_SECTIONS };
-    return { kpis: false, leaderboard: false, pnl: false, commission: false, roster: false, [only]: true };
+    return { kpis: false, leaderboard: false, pnl: false, roster: false, [only]: true };
   };
 
   const reportRows = useMemo(
@@ -775,6 +877,7 @@ function DashboardContent() {
     <DashboardLayout>
       {showSetup && <SetupWizard onDone={() => { setShowSetup(false); setDataVersion(v => v + 1); }} />}
       {/* Header — raised stacking context so its dropdowns paint over the cards below */}
+      {['dashboard', 'leaderboard'].includes(activeTab) && <>
       <div className="slide-in relative z-40 mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl lg:text-4xl font-bold neon-brand">
@@ -830,7 +933,7 @@ function DashboardContent() {
       {/* Campaign badges */}
       <div className="slide-in mb-4 flex flex-wrap items-center gap-2">
         <Badge variant="green" className="text-xs flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse" /> Live
+          {isDemoWorkspace ? 'Demo · sample data' : 'Live · company data'}
         </Badge>
         <Badge variant="gray" className="text-xs flex items-center gap-1.5">
           <Building2 className="w-3 h-3" /> {campaign}
@@ -848,29 +951,27 @@ function DashboardContent() {
         </Badge>
       </div>
 
-      {/* Tabs — moved above content so switching changes the view immediately */}
-      <div className="slide-in mb-4 flex gap-1.5 overflow-x-auto pb-1.5 scrollbar-hide">
-        <TabButton isActive={activeTab === 'dashboard'} onClick={() => switchTab('dashboard')}>Dashboard</TabButton>
-        <TabButton isActive={activeTab === 'tracker'} onClick={() => switchTab('tracker')}>Daily Tracker</TabButton>
-        <TabButton isActive={activeTab === 'roster'} onClick={() => switchTab('roster')}>Roster</TabButton>
-        <TabButton isActive={activeTab === 'leaderboard'} onClick={() => switchTab('leaderboard')}>Leaderboard</TabButton>
-        <TabButton isActive={activeTab === 'meeting'} onClick={() => switchTab('meeting')}>Meeting Mode</TabButton>
-        <TabButton isActive={activeTab === 'schedule'} onClick={() => switchTab('schedule')}>Schedule</TabButton>
-        <TabButton isActive={activeTab === 'attendance'} onClick={() => switchTab('attendance')}>Attendance</TabButton>
-        <TabButton isActive={activeTab === 'competition'} onClick={() => switchTab('competition')}>Competition</TabButton>
-        <TabButton isActive={activeTab === 'pnl'} onClick={() => switchTab('pnl')}>P&L</TabButton>
-        <TabButton isActive={activeTab === 'commission'} onClick={() => switchTab('commission')}>Commission</TabButton>
-        <TabButton isActive={activeTab === 'import'} onClick={() => switchTab('import')}>Import</TabButton>
+      </>}
+      {/* Tabs — moved above content so switching changes the view immediately.
+          TabBar gives the strip real tablist semantics (arrow keys, roving
+          tabindex, panel association); the old bare buttons announced as 11
+          unrelated buttons with no indication of which view was showing. */}
+      <div className="mb-4 flex flex-wrap items-start gap-2">
+        <div className="min-w-0 basis-full sm:basis-auto flex-1"><TabBar className="grid grid-cols-2 sm:flex" label="Daily operations" value={activeTab} onChange={switchTab} idPrefix="view" items={visibleTabItems.filter(item => ['tracker', 'roster', 'schedule', 'meeting'].includes(item.value))} /></div>
+        {!['tracker', 'roster', 'schedule', 'meeting'].includes(activeTab) && <span className="sr-only" id={`view-tab-${activeTab}`}>{visibleTabItems.find(item => item.value === activeTab)?.label}</span>}
+        <label className="sr-only" htmlFor="more-views">More views</label>
+        <select id="more-views" className="min-h-11 max-w-full rounded-xl border border-border-subtle bg-bg-tertiary px-3 text-sm text-text-primary" value={['tracker', 'roster', 'schedule', 'meeting'].includes(activeTab) ? '' : activeTab} onChange={event => { if (event.target.value) switchTab(event.target.value); }}><option value="" disabled>More views</option>{visibleTabItems.filter(item => !['tracker', 'roster', 'schedule', 'meeting'].includes(item.value)).map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select>
       </div>
 
       {activeTab === 'dashboard' && (
-        <div id="tab-dashboard" className="tab-panel">
-          {!hasData && (
+          <div id="view-panel-dashboard" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-dashboard" tabIndex={0}>
+            <MeetingDDScoreboard onOpenProfile={setProfileName} />
+            {!hasData && (
             <Card className="mb-4 p-5 border-accent-blue/30">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="font-semibold text-sm">No sales logged yet — the whole dashboard derives from the Daily Tracker.</p>
-                  <p className="text-xs text-text-secondary mt-0.5">Log real sales, or fill everything with realistic sample data for a demo.</p>
+                  <p className="font-semibold text-sm">No tracker activity yet.</p>
+                  <p className="text-xs text-text-secondary mt-0.5">Daily Tracker activity is separate from confirmed weekly DD totals.</p>
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => switchTab('tracker')}><ClipboardList className="w-3.5 h-3.5" /> Open Tracker</Button>
@@ -909,7 +1010,7 @@ function DashboardContent() {
             {/* Internet is cyan everywhere else (table column, pie slice) — it was
                 the one place rendering the same metric purple. */}
             <StatCard label="Internet" value={String(agg.internet)} sub={`${aggDaily.internet} in daily window`} icon={Zap} color="cyan" onClick={() => setKpiDrawer('internet')} className="stagger-2" />
-            <StatCard label="Office Generated" value={formatCurrency(agg.revenue)} sub={`${formatCurrency(agg.commission)} rep commissions`} icon={DollarSign} color="green" onClick={() => setKpiDrawer('revenue')} className="stagger-3" />
+            <StatCard label="Tracker estimate" value={formatCurrency(agg.revenue)} sub="Daily Tracker estimate, not confirmed DD" icon={DollarSign} color="green" onClick={() => setKpiDrawer('revenue')} className="stagger-3" />
             <StatCard label="Premium Mix" value={`${premiumMix}%`} sub={`${agg.premium} premium lines`} icon={Star} color="yellow" onClick={() => setKpiDrawer('premium')} className="stagger-4" />
           </div>
 
@@ -922,11 +1023,25 @@ function DashboardContent() {
                     <TrendingUp className="w-4 h-4 text-accent-blue" /> Revenue Trend
                   </span>
                   <span className="flex items-center gap-1">
-                    {([['days', '7D'], ['weeks', '8W'], ['months', '12M']] as const).map(([r, label]) => (
-                      <button key={r} onClick={() => setTrendRange(r)} className={cn('tab-btn !px-2 !py-0.5 text-[10px]', trendRange === r ? 'active' : 'inactive')}>
-                        {label}
-                      </button>
-                    ))}
+                    <span role="radiogroup" aria-label="Revenue trend range" className="flex items-center gap-1">
+                      {([['days', '7D', 'Last 7 days'], ['weeks', '8W', 'Last 8 weeks'], ['months', '12M', 'Last 12 months']] as const).map(([r, label, full]) => (
+                        <button
+                          key={r}
+                          type="button"
+                          role="radio"
+                          aria-checked={trendRange === r}
+                          aria-label={full}
+                          onClick={() => setTrendRange(r)}
+                          className={cn(
+                            'tab-btn !px-2 !py-1 text-xs',
+                            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]',
+                            trendRange === r ? 'active' : 'inactive'
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </span>
                     <button onClick={() => setExpandChart('trend')} className="p-1 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Expand revenue trend" title="Enlarge">
                       <Maximize2 className="w-3.5 h-3.5" />
                     </button>
@@ -1039,13 +1154,14 @@ function DashboardContent() {
                           <span className={cn('font-medium', goal.color === 'blue' ? 'text-accent-blue' : 'text-accent-purple')}>
                             {formatNumber(goal.current)} /{' '}
                             <Editable
+                              label={`${goal.label} target`}
                               value={String(goal.target)}
                               onCommit={(v) => setGoalTargets(prev => ({ ...prev, [goal.key]: Math.max(1, parseNum(v)) }))}
                             />
                           </span>
                         </div>
                         <div className="w-full h-1.5 rounded-full bg-bg-tertiary">
-                          <div className="h-full rounded-full" style={{ width: `${Math.min(100, (goal.current / goal.target) * 100)}%`, background: goal.color === 'blue' ? 'var(--grad-brand)' : 'linear-gradient(to right, #A855F7, #C084FC)' }} />
+                          <div className="h-full rounded-full" style={{ width: `${Math.min(100, (goal.current / Math.max(1, goal.target)) * 100)}%`, background: goal.color === 'blue' ? 'var(--grad-brand)' : 'linear-gradient(to right, #A855F7, #C084FC)' }} />
                         </div>
                       </div>
                     ))}
@@ -1058,7 +1174,7 @@ function DashboardContent() {
       )}
 
       {activeTab === 'tracker' && (
-        <div id="tab-tracker" className="tab-panel">
+        <div id="view-panel-tracker" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-tracker" tabIndex={0}>
           <Card className="p-5">
             <DailyTracker onDataChange={bump} />
           </Card>
@@ -1066,16 +1182,17 @@ function DashboardContent() {
       )}
 
       {activeTab === 'roster' && (
-        <div id="tab-roster" className="tab-panel">
+        <div id="view-panel-roster" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-roster" tabIndex={0}>
           <Card className="p-5">
             <RosterManager onOpenProfile={(name) => setProfileName(name)} />
           </Card>
         </div>
       )}
 
-      {activeTab === 'leaderboard' && (
-        <div id="tab-leaderboard" className="tab-panel">
-          <Card className="p-5">
+        {activeTab === 'leaderboard' && (
+          <div id="view-panel-leaderboard" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-leaderboard" tabIndex={0}>
+            <MeetingDDScoreboard onOpenProfile={setProfileName} />
+            <Card className="p-5">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h2 className="text-xl font-bold neon-brand">
                 Team Leaderboard
@@ -1090,11 +1207,11 @@ function DashboardContent() {
               <table className="w-full min-w-[860px] text-xs">
                 <thead>
                   <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
-                    <th className="pb-2">Rank</th><th className="pb-2">Rep</th><th className="pb-2">Store</th><th className="pb-2">Team</th>
-                    <th className="pb-2 text-right">Lines</th><th className="pb-2 text-right">Premium</th>
-                    <th className="pb-2 text-right">Internet</th><th className="pb-2 text-right">Next Up</th>
-                    <th className="pb-2 text-right" title="Total office payout this rep generated">Generated</th>
-                    <th className="pb-2 text-right" title="Their commission at your rates">Commission</th>
+                    <th scope="col" className="pb-2">Rank</th><th scope="col" className="pb-2">Rep</th><th scope="col" className="pb-2">Store</th><th scope="col" className="pb-2">Team</th>
+                    <th scope="col" className="pb-2 text-right">Lines</th><th scope="col" className="pb-2 text-right">Premium</th>
+                    <th scope="col" className="pb-2 text-right">Internet</th><th scope="col" className="pb-2 text-right">Next Up</th>
+                    <th scope="col" className="pb-2 text-right" title="Total office payout this rep generated">Generated</th>
+                    <th scope="col" className="pb-2 text-right" title="Their commission at your rates">Commission</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
@@ -1102,7 +1219,7 @@ function DashboardContent() {
                     .filter(r => storeSel.length === 0 || storeSel.some(s => (r.person.stores ?? []).some(ps => ps.toLowerCase() === s.toLowerCase())))
                     .map((row, i) => (
                       <tr key={row.person.id} className="hover:bg-white/5 transition-colors">
-                        <td className="py-2"><span className={cn('font-bold', i === 0 && 'text-yellow-400', i === 1 && 'text-gray-400', i === 2 && 'text-orange-400', i > 2 && 'text-gray-500')}>#{i + 1}</span></td>
+                        <td className="py-2"><span className={cn('font-bold', i === 0 && 'text-yellow-400', i === 1 && 'text-gray-400', i === 2 && 'text-orange-400', i > 2 && 'text-text-secondary')}>#{i + 1}</span></td>
                         <td className="py-2">
                           <button onClick={() => setProfileName(row.person.name)} className="font-medium hover:text-accent-blue transition-colors">{row.person.name}</button>
                         </td>
@@ -1131,8 +1248,17 @@ function DashboardContent() {
         </div>
       )}
 
+      {/* `presentable` (not the element id) drives the fullscreen styling, so
+          Present keeps working regardless of the ARIA id scheme. */}
       {activeTab === 'meeting' && (
-        <div id="tab-meeting" ref={meetingRef} className="tab-panel">
+        <div
+          id="view-panel-meeting"
+          ref={meetingRef}
+          className="tab-panel presentable"
+          role="tabpanel"
+          aria-labelledby="view-tab-meeting"
+          tabIndex={0}
+        >
           <Card className="p-5">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h2 className="text-xl font-bold neon-brand">Meeting Mode</h2>
@@ -1145,7 +1271,9 @@ function DashboardContent() {
               </div>
             </div>
 
-            {/* Every tracker follows the selected meeting period */}
+            <MeetingDDScoreboard onOpenProfile={setProfileName} />
+
+            {/* Tracker activity supports coaching; confirmed DD remains authoritative. */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
               <MeetingTracker label={`${PERIOD_LABELS[meetingPeriod]} Lines`} value={String(meetingAgg.lines)} color="blue" size="2xl" />
               <MeetingTracker label={`Top Rep · ${PERIOD_LABELS[meetingPeriod]}`} value={meetingAgg.perPerson[0]?.person ?? '—'} color="purple" size="lg" />
@@ -1156,8 +1284,12 @@ function DashboardContent() {
                   : `${avgAttendance}%`}
                 color="green" size="2xl"
               />
-              <MeetingTracker label={`${PERIOD_LABELS[meetingPeriod]} Generated`} value={formatCurrency(meetingAgg.revenue)} color="yellow" size="2xl" />
+              <MeetingTracker label={`${PERIOD_LABELS[meetingPeriod]} Tracker estimate`} value={formatCurrency(meetingAgg.revenue)} color="yellow" size="2xl" />
             </div>
+
+            {/* Pull up the promo sheet or a training deck mid-meeting, rather
+                than leaving for the Library and losing the room. */}
+            <MeetingDocs personId={viewerPersonId} personName={session?.user?.name ?? null} />
 
             {/* Weekly goals — set the targets right here in the meeting */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
@@ -1168,58 +1300,18 @@ function DashboardContent() {
                     <span className={cn('font-medium', goal.color === 'blue' ? 'text-accent-blue' : 'text-accent-purple')}>
                       {formatNumber(goal.current)} /{' '}
                       <Editable
+                        label={`${goal.label} target`}
                         value={String(goal.target)}
                         onCommit={(v) => setGoalTargets(prev => ({ ...prev, [goal.key]: Math.max(1, parseNum(v)) }))}
                       />
                     </span>
                   </div>
                   <div className="w-full h-1.5 rounded-full bg-bg-tertiary">
-                    <div className="h-full rounded-full" style={{ width: `${Math.min(100, (goal.current / goal.target) * 100)}%`, background: goal.color === 'blue' ? 'linear-gradient(to right, #3B82F6, #60A5FA)' : 'linear-gradient(to right, #A855F7, #C084FC)' }} />
+                    <div className="h-full rounded-full" style={{ width: `${Math.min(100, (goal.current / Math.max(1, goal.target)) * 100)}%`, background: goal.color === 'blue' ? 'linear-gradient(to right, #3B82F6, #60A5FA)' : 'linear-gradient(to right, #A855F7, #C084FC)' }} />
                   </div>
                 </div>
               ))}
             </div>
-
-            {/* Leadership earnings were computed in lib/pay.ts but only visible
-                by opening one rep's profile. Leads and ASMs get paid off other
-                people's production, so it belongs on the screen you present. */}
-            {leadershipPay.length > 0 && (
-              <div className="mb-5">
-                <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-2">
-                  <Trophy className="w-4 h-4" style={{ color: 'var(--brand)' }} /> Leadership earnings · {PERIOD_LABELS[meetingPeriod]}
-                </h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[520px] text-xs">
-                    <thead>
-                      <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
-                        <th className="pb-2">Name</th><th className="pb-2">Role</th>
-                        <th className="pb-2 text-right">Own sales</th>
-                        <th className="pb-2 text-right">Lead bump</th>
-                        <th className="pb-2 text-right">ASM override</th>
-                        <th className="pb-2 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border-subtle">
-                      {leadershipPay.map(({ person, pay }) => (
-                        <tr key={person.id} className="hover:bg-white/5 transition-colors">
-                          <td className="py-2">
-                            <button onClick={() => setProfileName(person.name)} className="font-medium hover:underline">{person.name}</button>
-                          </td>
-                          <td className="py-2 text-text-muted">{ROSTER_ROLE_LABELS[person.role]}</td>
-                          <td className="py-2 text-right">{formatCurrency(pay.base)}</td>
-                          <td className="py-2 text-right text-accent-purple">{pay.bump > 0 ? formatCurrency(pay.bump) : '—'}</td>
-                          <td className="py-2 text-right text-accent-yellow">
-                            {pay.override > 0 ? formatCurrency(pay.override) : '—'}
-                            {pay.teamRevenue > 0 && <span className="block text-[9px] text-text-muted">on {formatCurrency(pay.teamRevenue)} team</span>}
-                          </td>
-                          <td className="py-2 text-right text-accent-green font-bold">{formatCurrency(pay.total)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
 
             <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-2">
               <Users className="w-4 h-4" /> Teams · live from members&apos; sales
@@ -1246,7 +1338,7 @@ function DashboardContent() {
                 </button>
               ))}
               {meetingTeams.length === 0 && (
-                <p className="text-xs text-text-muted p-3 rounded-xl bg-white/5 md:col-span-2">No teams yet — build them with drag &amp; drop on the Roster tab.</p>
+                <p className="text-xs text-text-muted p-3 rounded-xl bg-white/5 md:col-span-2">No teams yet — add a team in Roster, then assign each rep using Edit.</p>
               )}
             </div>
             {/* Weekly commitments — reps call their number at the meeting */}
@@ -1265,6 +1357,7 @@ function DashboardContent() {
                     <span className="text-[10px] text-text-muted">
                       called{' '}
                       <Editable
+                        label={`${p.name} called number`}
                         value={String(committed)}
                         onCommit={(v) => setCommits(prev => ({ ...prev, [p.name]: Math.max(0, parseNum(v)) }))}
                         className="text-accent-yellow font-semibold"
@@ -1303,7 +1396,7 @@ function DashboardContent() {
       )}
 
       {activeTab === 'schedule' && (
-        <div id="tab-schedule" className="tab-panel">
+        <div id="view-panel-schedule" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-schedule" tabIndex={0}>
           <Card className="p-5">
             <ScheduleBoard people={people} storeOptions={storeOptions} />
           </Card>
@@ -1311,7 +1404,15 @@ function DashboardContent() {
       )}
 
       {activeTab === 'attendance' && (
-        <div id="tab-attendance" className="tab-panel">
+        <div id="view-panel-attendance" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-attendance" tabIndex={0}>
+          {/* Marking lives above the record: the grid answers "who was late", the
+              editor is how you fix it. Read-only seats get the record only — the
+              same capability the API re-checks on write. */}
+          {can(actor, 'data.write') && (
+            <Card className="p-5 mb-4">
+              <AttendanceEditor people={people} markedBy={markedBy} />
+            </Card>
+          )}
           <Card className="p-5">
             <AttendanceSheet people={people} />
           </Card>
@@ -1319,30 +1420,51 @@ function DashboardContent() {
       )}
 
       {activeTab === 'competition' && (
-        <div id="tab-competition" className="tab-panel">
+        <div id="view-panel-competition" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-competition" tabIndex={0}>
           <Card className="p-5">
             <Competition sales={sales} commission={commission} storeOptions={storeOptions} />
           </Card>
         </div>
       )}
 
+      {activeTab === 'library' && (
+        <div id="view-panel-library" className="tab-panel flex flex-col gap-4" role="tabpanel" aria-labelledby="view-tab-library" tabIndex={0}>
+          <Card className="p-5">
+            <DocLibrary
+              actor={actor}
+              personId={viewerPersonId}
+              personName={session?.user?.name ?? null}
+              people={people}
+            />
+          </Card>
+          {can(actor, 'docs.manage') && (
+            <Card className="p-5">
+              <FormGenerator actor={actor} people={people} />
+            </Card>
+          )}
+          <Card className="p-5">
+            <PromoArchive actor={actor} />
+          </Card>
+        </div>
+      )}
+
       {activeTab === 'pnl' && (
-        <div id="tab-pnl" className="tab-panel">
+        <div id="view-panel-pnl" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-pnl" tabIndex={0}>
           <Card className="p-5">
             <PnlEditor derived={pnlDerived} />
           </Card>
         </div>
       )}
 
-      {activeTab === 'commission' && (
-        <div id="tab-commission" className="tab-panel">
-          <Card className="p-5"><CommissionEngine /></Card>
+      {activeTab === 'import' && (
+        <div id="view-panel-import" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-import" tabIndex={0}>
+          <Card className="p-5"><ImportReport /></Card>
         </div>
       )}
 
-      {activeTab === 'import' && (
-        <div id="tab-import" className="tab-panel">
-          <Card className="p-5"><ImportReport sales={sales} commission={commission} /></Card>
+      {activeTab === 'recycle' && (
+        <div id="view-panel-recycle" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-recycle" tabIndex={0}>
+          <Card className="p-5"><RecycleBin /></Card>
         </div>
       )}
 
@@ -1356,9 +1478,11 @@ function DashboardContent() {
         const statsByName = new Map(meetingAgg.perPerson.map(p => [p.person.toLowerCase(), p]));
         return (
           <FsPortal>
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label={`${team.name} stats`}>
-            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setTeamDrawerName(null)} />
-            <div className="relative w-full sm:max-w-lg glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 max-h-[85vh] overflow-y-auto">
+          <ModalShell
+            label={`${team.name} stats`}
+            onClose={() => setTeamDrawerName(null)}
+            className="w-full sm:max-w-lg glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 max-h-[85vh] overflow-y-auto"
+          >
               <div className="flex items-center justify-between mb-1">
                 <h3 className="text-lg font-bold">{team.name}</h3>
                 <button onClick={() => setTeamDrawerName(null)} className="p-1.5 rounded-lg text-text-muted hover:text-white hover:bg-white/10 transition-all" aria-label="Close">✕</button>
@@ -1397,24 +1521,38 @@ function DashboardContent() {
                   );
                 })}
               </div>
-            </div>
-          </div>
+          </ModalShell>
           </FsPortal>
         );
       })()}
 
       {expandChart && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Enlarged chart">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setExpandChart(null)} />
-          <div className="relative w-full max-w-4xl glass border border-border-strong rounded-2xl p-6 animate-scale-in bg-bg-secondary/95">
+        <ModalShell
+          label="Enlarged chart"
+          onClose={() => setExpandChart(null)}
+          containerClassName="items-center p-4"
+          overlayClassName="bg-black/80"
+          className="w-full max-w-4xl glass border border-border-strong rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 max-h-[90vh] overflow-y-auto"
+        >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold flex items-center gap-2">
                 {expandChart === 'trend'
                   ? <>
                       <TrendingUp className="w-5 h-5 text-accent-blue" /> Revenue Trend
-                      <span className="flex items-center gap-1 ml-2">
+                      <span role="radiogroup" aria-label="Revenue trend range" className="flex items-center gap-1 ml-2">
                         {([['days', '7 Days'], ['weeks', '8 Weeks'], ['months', '12 Months']] as const).map(([r, label]) => (
-                          <button key={r} onClick={() => setTrendRange(r)} className={cn('tab-btn', trendRange === r ? 'active' : 'inactive')}>
+                          <button
+                            key={r}
+                            type="button"
+                            role="radio"
+                            aria-checked={trendRange === r}
+                            onClick={() => setTrendRange(r)}
+                            className={cn(
+                              'tab-btn min-h-11',
+                              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]',
+                              trendRange === r ? 'active' : 'inactive'
+                            )}
+                          >
                             {label}
                           </button>
                         ))}
@@ -1441,8 +1579,7 @@ function DashboardContent() {
                 </div>
               </>
             )}
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       {drillCat && <FsPortal><SliceDrawer category={drillCat} agg={agg} onClose={() => setDrillCat(null)} /></FsPortal>}
@@ -1457,9 +1594,11 @@ function DashboardContent() {
         <ExportDialog initial={defaultSections()} onCancel={() => setExportMenu(false)} onExport={(sel) => { setExportMenu(false); setExportSel(sel); }} />
       )}
       {exportSel && (
-        <div id="print-root">
-          <ReportTemplate leaderboard={reportRows} sections={exportSel} />
-        </div>
+        <BodyPortal>
+          <div id="print-root">
+            <ReportTemplate leaderboard={reportRows} sections={exportSel} />
+          </div>
+        </BodyPortal>
       )}
     </DashboardLayout>
   );
@@ -1471,16 +1610,12 @@ function ExportDialog({ initial, onCancel, onExport }: {
   const [sel, setSel] = useState<ReportSections>(initial);
   const keys = Object.keys(SECTION_LABELS) as (keyof ReportSections)[];
   const any = keys.some(k => sel[k]);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onCancel]);
+  const panelRef = useModalA11y<HTMLDivElement>(onCancel);
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center" role="dialog" aria-modal="true" aria-label="Export PDF">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} />
-      <div className="relative w-full sm:max-w-sm glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} aria-hidden="true" />
+      <div ref={panelRef} tabIndex={-1} className="relative w-full sm:max-w-sm glass border border-border-strong rounded-t-2xl sm:rounded-2xl p-6 animate-scale-in bg-bg-secondary/95 focus:outline-none">
         <h3 className="text-lg font-bold mb-1">Export PDF</h3>
         <p className="text-xs text-text-secondary mb-4">Pick what to include. The tab you&apos;re on is pre-selected.</p>
         <div className="space-y-1.5 mb-5">

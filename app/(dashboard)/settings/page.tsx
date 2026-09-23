@@ -10,8 +10,11 @@ import { useTheme } from '@/components/white-label/theme-provider';
 import { cn } from '@/lib/utils';
 import { Palette, Globe, CheckCircle, Upload, Lock, KeyRound } from 'lucide-react';
 import { ChangePassword } from '@/components/dashboard/change-password';
+import { AuditTrail } from '@/components/dashboard/audit-trail';
 import { isSuperAdminEmail } from '@/lib/super-admins';
 import type { ThemePreset } from '@/lib/theme';
+import { TabBar, tabPanelProps } from '@/components/ui/tabs';
+import { useConfirm } from '@/hooks/use-confirm';
 
 const PRESETS: { id: ThemePreset; name: string; swatch: string; note: string }[] = [
   { id: 'command-blue', name: 'Command Blue', swatch: 'linear-gradient(135deg,#60a5fa,#2563eb)', note: 'The default — electric blue on black' },
@@ -29,12 +32,14 @@ export default function SettingsPage() {
   // those at purchase (the admin console); in their own Settings they only get
   // to change their password.
   const canBrand = session?.user?.isSuperAdmin ?? isSuperAdminEmail(session?.user?.email);
+  const canAudit = canBrand || session?.user?.role === 'OWNER';
   const [draft, setDraft] = useState({
     companyName: theme.companyName,
     logoUrl: theme.logoUrl ?? '',
   });
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<'branding' | 'domain' | 'account'>(canBrand ? 'branding' : 'account');
+  const { confirm, confirmDialog } = useConfirm();
 
   const save = () => {
     setTheme({
@@ -52,26 +57,29 @@ export default function SettingsPage() {
         <p className="text-text-secondary text-sm mt-0.5">Put your company&apos;s name and logo on the tool — changes apply instantly, everywhere</p>
       </div>
 
-      <div className="slide-in mb-4 flex gap-1.5">
-        {canBrand && (
-          <>
-            <button onClick={() => setActiveTab('branding')} className={cn('tab-btn', activeTab === 'branding' ? 'active' : 'inactive')}>
-              <Palette className="w-3 h-3 inline mr-1" /> Branding
-            </button>
-            <button onClick={() => setActiveTab('domain')} className={cn('tab-btn', activeTab === 'domain' ? 'active' : 'inactive')}>
-              <Globe className="w-3 h-3 inline mr-1" /> Domain
-            </button>
-          </>
-        )}
-        <button onClick={() => setActiveTab('account')} className={cn('tab-btn', activeTab === 'account' ? 'active' : 'inactive')}>
-          <KeyRound className="w-3 h-3 inline mr-1" /> Account
-        </button>
-      </div>
+      <TabBar
+        label="Settings sections"
+        value={activeTab}
+        onChange={(v) => setActiveTab(v as typeof activeTab)}
+        className="slide-in mb-4"
+        items={[
+          ...(canBrand ? [
+            { value: 'branding', label: <><Palette className="w-3.5 h-3.5 inline mr-1.5" aria-hidden="true" />Branding</> },
+            { value: 'domain', label: <><Globe className="w-3.5 h-3.5 inline mr-1.5" aria-hidden="true" />Domain</> },
+          ] : []),
+          { value: 'account', label: <><KeyRound className="w-3.5 h-3.5 inline mr-1.5" aria-hidden="true" />Account</> },
+        ]}
+      />
 
-      {activeTab === 'account' && <ChangePassword />}
+      {activeTab === 'account' && (
+        <div className="flex flex-col gap-4" {...tabPanelProps('account', activeTab)}>
+          <ChangePassword />
+          {canAudit && <AuditTrail />}
+        </div>
+      )}
 
       {activeTab === 'branding' && (
-        <Card className="slide-in p-6 max-w-2xl">
+        <Card className="slide-in p-6 max-w-2xl" {...tabPanelProps('branding', activeTab)}>
           <CardHeader className="pb-3">
             <CardTitle>Brand Identity</CardTitle>
           </CardHeader>
@@ -156,27 +164,33 @@ export default function SettingsPage() {
               {!theme.logoLocked && draft.logoUrl && (
                 <Button
                   variant="secondary"
-                  onClick={() => {
-                    if (confirm('Lock this logo permanently? It cannot be changed afterward.')) {
-                      setTheme({ logoUrl: draft.logoUrl.trim(), logoLocked: true });
-                    }
+                  onClick={async () => {
+                    // Genuinely irreversible in the UI — require typing LOCK so
+                    // it can never be triggered by a stray click.
+                    if (!(await confirm({
+                      title: 'Lock this logo permanently?',
+                      description: 'The logo cannot be changed or removed from Settings afterward. Only use this once you are certain this is the final brand asset.',
+                      confirmLabel: 'Lock logo',
+                      destructive: true,
+                      requireTypedConfirmation: 'LOCK',
+                    }))) return;
+                    setTheme({ logoUrl: draft.logoUrl.trim(), logoLocked: true });
                   }}
                 >
                   <Lock className="w-3.5 h-3.5" /> Lock logo permanently
                 </Button>
               )}
-              {saved && (
-                <span className="text-xs text-accent-green flex items-center gap-1">
-                  <CheckCircle className="w-3.5 h-3.5" /> Saved — applied everywhere
-                </span>
-              )}
+              {/* role=status so the confirmation is announced, not just shown. */}
+              <span role="status" aria-live="polite" className="text-xs text-accent-green flex items-center gap-1">
+                {saved && (<><CheckCircle className="w-3.5 h-3.5" aria-hidden="true" /> Saved — applied everywhere</>)}
+              </span>
             </div>
           </CardContent>
         </Card>
       )}
 
       {activeTab === 'domain' && (
-        <Card className="slide-in p-6 max-w-2xl">
+        <Card className="slide-in p-6 max-w-2xl" {...tabPanelProps('domain', activeTab)}>
           <CardHeader className="pb-3">
             <CardTitle>Custom Domain</CardTitle>
           </CardHeader>
@@ -188,10 +202,12 @@ export default function SettingsPage() {
               <li>Add that CNAME at your domain registrar</li>
               <li>SSL is issued automatically within minutes</li>
             </ol>
-            <p className="text-[10px] text-text-muted">Running the tool on your own domain comes with the multi-tenant database phase.</p>
+            <p className="text-xs text-text-muted">Running the tool on your own domain comes with the multi-tenant database phase.</p>
           </CardContent>
         </Card>
       )}
+
+      {confirmDialog}
     </DashboardLayout>
   );
 }

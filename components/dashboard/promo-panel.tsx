@@ -5,6 +5,7 @@ import { Megaphone, Plus, Trash2, Upload, ExternalLink, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Editable, useLocalState } from './editable-sections';
 import { isoToday } from '@/lib/roadtrips';
+import { upsertPromoArchive } from './promo-archive';
 
 // Promotions to walk the floor through during the morning meeting.
 //
@@ -20,6 +21,9 @@ export interface PromoItem {
   url: string;
   added: string;
 }
+
+// Module-level so it survives re-renders and never repeats within a session.
+let promoCounter = 0;
 
 export function PromoPanel() {
   const { state: promos, setState: setPromos } = useLocalState<PromoItem[]>('se-promo-v1', []);
@@ -42,11 +46,29 @@ export function PromoPanel() {
     setFile(null);
   };
 
-  const add = () =>
-    setPromos(p => [...p, { id: `p${Date.now()}`, title: 'New promotion', note: '', url: '', added: isoToday() }]);
+  // Counter appended because two promos added in the same millisecond would
+  // otherwise share an id and collide as React keys. Every add/edit is also
+  // mirrored into the Library's append-only history (upsertPromoArchive), so
+  // clearing the meeting screen never erases what was announced and when.
+  //
+  // `next` is computed OUTSIDE setPromos on purpose: StrictMode runs state
+  // updaters twice in dev, so a side effect inside the updater fired twice
+  // and wrote duplicate archive entries (each run drew a fresh counter id).
+  // Updaters must stay pure; the mirror happens once, out here.
+  const add = () => {
+    const next = [
+      ...promos,
+      { id: `p${Date.now()}-${promoCounter++}`, title: 'New promotion', note: '', url: '', added: isoToday() },
+    ];
+    upsertPromoArchive(next);
+    setPromos(next);
+  };
 
-  const edit = (id: string, field: 'title' | 'note' | 'url', value: string) =>
-    setPromos(p => p.map(x => (x.id === id ? { ...x, [field]: value } : x)));
+  const edit = (id: string, field: 'title' | 'note' | 'url', value: string) => {
+    const next = promos.map(x => (x.id === id ? { ...x, [field]: value } : x));
+    upsertPromoArchive(next);
+    setPromos(next);
+  };
 
   return (
     <div className="mt-5 pt-4 border-t border-border-subtle">
@@ -74,6 +96,7 @@ export function PromoPanel() {
           <div key={p.id} className="group p-3 rounded-xl glass border border-border-subtle">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <Editable
+                label="Promotion title"
                 value={p.title}
                 onCommit={v => edit(p.id, 'title', v)}
                 className="font-semibold text-sm flex-1 min-w-0"
@@ -100,11 +123,13 @@ export function PromoPanel() {
               </div>
             </div>
             <Editable
+              label={`Talk track for ${p.title}`}
               value={p.note || 'Add the talk track…'}
               onCommit={v => edit(p.id, 'note', v)}
               className="block text-xs text-text-secondary mt-1"
             />
             <Editable
+              label={`Link for ${p.title}`}
               value={p.url || 'Paste a link…'}
               onCommit={v => edit(p.id, 'url', v.startsWith('http') || !v.trim() ? v : `https://${v}`)}
               className="block text-[10px] text-text-muted mt-1 font-mono"

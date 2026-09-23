@@ -41,7 +41,11 @@ export function LeaderboardRow({ entry, teamName, onEdit, onRemove, onOpenProfil
   return (
     <tr className="group hover:bg-white/5 transition-colors">
       <td className="py-2">
-        <span className={cn('font-bold', rankColors[entry.rank - 1] || 'text-gray-500')}>#{entry.rank}</span>
+        {/* Off-podium ranks use the secondary text token rather than
+            text-gray-500: gray-500 on the row background is 4.34:1 at 12px,
+            just under the 4.5:1 AA floor. It only surfaced once a 4th rep
+            existed, so an empty or top-3 roster hid it. Token is 8.27:1. */}
+        <span className={cn('font-bold', rankColors[entry.rank - 1] || 'text-text-secondary')}>#{entry.rank}</span>
       </td>
       <td className="py-2 font-medium">
         <span className="inline-flex items-center gap-1.5">
@@ -116,7 +120,7 @@ export function MeetingTracker({ label, value, color, size }: MeetingTrackerProp
   return (
     <div className="glass rounded-xl p-3 text-center">
       <p className="text-xs text-text-secondary">{label}</p>
-      <p className={cn('font-bold', colorClasses[color as keyof typeof colorClasses], sizeClasses[size as keyof typeof sizeClasses])} contentEditable suppressContentEditableWarning>
+      <p className={cn('break-words font-bold', colorClasses[color as keyof typeof colorClasses], sizeClasses[size as keyof typeof sizeClasses])}>
         {value}
       </p>
     </div>

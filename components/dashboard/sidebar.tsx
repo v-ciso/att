@@ -1,12 +1,15 @@
 'use client';
 
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { cn, getInitials, ROLE_LABELS } from '@/lib/utils';
 import { useTheme } from '@/components/white-label/theme-provider';
 import { navigation, isNavItemActive } from './nav-items';
+import { can } from '@/lib/permissions';
 import { isSuperAdminEmail } from '@/lib/super-admins';
+import { useActor } from '@/lib/use-actor';
 import { ShieldCheck } from 'lucide-react';
 import { WorkspaceSwitcher } from './workspace-switcher';
 
@@ -23,25 +26,48 @@ export function Sidebar() {
     ? (ROLE_LABELS[session.user.role as keyof typeof ROLE_LABELS] ?? session.user.role)
     : 'Market Owner';
 
+  // The actor handed to the capability matrix. When there is no session at all
+  // this keeps the existing "Demo Owner" fallback and treats the seat as OWNER —
+  // otherwise the unauthenticated preview would silently lose P&L, DD Reports,
+  // Import and Settings from the nav. This is presentation only: middleware and
+  // the route handlers re-check the real session on every request, so a browser
+  // with no cookie still cannot read or write anything.
+  // Shared with the dashboard tab strip via useActor so the two can't disagree,
+  // and hydration-safe — see the note in lib/use-actor.ts.
+  const actor = useActor();
+
+  const visibleNavigation = useMemo(
+    () => navigation.filter((item) => !item.capability || can(actor, item.capability)),
+    [actor]
+  );
+
   return (
-    <aside className="fixed left-0 top-0 bottom-0 w-64 glass border-r border-border-subtle p-6 hidden lg:flex flex-col z-30">
-      <div className="mb-8 flex items-center gap-2">
+    <aside className="dashboard-sidebar fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-border-subtle glass lg:flex">
+      {/* Header and footer are fixed; only the nav list scrolls. Without the
+          min-h-0 below, a 12-item nav pushes the footer (Demo/Live switch, user
+          chip, Sign out) off the bottom of a short viewport — which is how the
+          Sign out button became unreachable at 652px tall. */}
+      <div className="flex-none px-6 pt-6 pb-4 flex items-center gap-2">
         {theme.logoUrl ? (
           <img src={theme.logoUrl} alt={`${theme.companyName} logo`} className="h-10 w-auto" />
         ) : (
           <span className="text-xl font-bold neon-brand">{theme.companyName}</span>
         )}
-        <span className="text-xs text-gray-500">v2.0</span>
+        <span className="text-xs text-text-muted">v2.0</span>
       </div>
-      <nav className="flex-1 space-y-1" role="navigation" aria-label="Main navigation">
-        {navigation.map((item) => {
+      <nav
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 space-y-1"
+        aria-label="Main navigation"
+      >
+        {visibleNavigation.map((item) => {
           const isActive = isNavItemActive(item, pathname, currentTab);
           return (
             <Link
               key={item.name}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all duration-200',
+                'flex items-center gap-3 px-3 py-2.5 min-h-[44px] rounded-xl border transition-all duration-200',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]',
                 isActive
                   ? 'bg-[var(--brand-soft)] border-[var(--brand-soft)] text-white'
                   : 'border-transparent text-text-secondary hover:text-white hover:bg-white/5'
@@ -62,13 +88,23 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="pt-4 border-t border-border-subtle space-y-3">
-        {(session?.user?.isSuperAdmin ?? isSuperAdminEmail(session?.user?.email)) && (
+      {/* flex-none: this block must never be squeezed or scrolled away. */}
+      <div className="dashboard-sidebar-footer flex-none space-y-3 border-t border-border-subtle px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4">
+        {/* Same matrix as every other gate. The email fallback is kept for
+            sessions minted before isSuperAdmin was stamped into the JWT. */}
+        {can(
+          {
+            role: actor.role,
+            isSuperAdmin: session?.user?.isSuperAdmin ?? isSuperAdminEmail(session?.user?.email),
+          },
+          'admin.console'
+        ) && (
           <Link
             href="/admin"
-            className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+            className="flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-xl text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)]"
           >
-            <ShieldCheck className="w-4 h-4" style={{ color: 'var(--brand)' }} /> Admin Console
+            <ShieldCheck className="w-4 h-4 flex-none" style={{ color: 'var(--brand)' }} aria-hidden="true" />
+            Admin Console
           </Link>
         )}
         <WorkspaceSwitcher />
@@ -79,14 +115,17 @@ export function Sidebar() {
               background: 'linear-gradient(135deg, var(--brand-2), var(--brand-3))',
               color: 'var(--brand-ink)',
             }}
+            aria-hidden="true"
           >
             {getInitials(userName)}
           </div>
           <div className="min-w-0">
             <p className="text-sm font-medium truncate">{userName}</p>
-            <p className="text-xs text-text-muted">{userRole}</p>
+            <p className="text-xs text-text-muted truncate">{userRole}</p>
           </div>
         </div>
+        {/* Sign out lives inside WorkspaceSwitcher above — its handler also
+            purges cached tenant data, so never add a bare signOut() here. */}
       </div>
     </aside>
   );

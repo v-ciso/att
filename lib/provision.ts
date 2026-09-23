@@ -2,7 +2,7 @@ import { randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { createAuthUser, setAuthPassword, deleteAuthUser, supabaseAuthReady } from '@/lib/supabase-admin';
-import type { Role } from '@prisma/client';
+import type { Role, Prisma } from '@prisma/client';
 
 // One place that creates tenants and logins, used by the admin API (and usable
 // by the CLI scripts). New accounts go into Supabase Auth so they appear in the
@@ -103,7 +103,7 @@ export async function provisionCompany(input: CompanyInput) {
         marketOwnerId: owner.id,
       },
     });
-    return { slug, ownerEmail: email, tempPassword: password, seats, campaign, authBackend: cred.authId ? 'supabase' : 'bcrypt' as const };
+    return { marketOwnerId: owner.id, slug, ownerEmail: email, tempPassword: password, seats, campaign, authBackend: cred.authId ? 'supabase' : 'bcrypt' as const };
   } catch (e) {
     // Roll back the Supabase auth user if the DB write failed, so we never leave
     // an orphan in the Authentication tab.
@@ -147,7 +147,7 @@ export async function addCompanyUser(input: {
         marketOwnerId: owner.id,
       },
     });
-    return { email: user.email, role: user.role, tempPassword: password, seatsUsed: used + 1, seats };
+    return { userId: user.id, email: user.email, role: user.role, tempPassword: password, seatsUsed: used + 1, seats };
   } catch (e) {
     if (cred.authId) await deleteAuthUser(cred.authId);
     throw e;
@@ -199,6 +199,54 @@ export async function setCompanySeats(marketOwnerId: string, seats: number) {
   return { seats: n, used };
 }
 
+// Rename a company and/or switch its campaign after provisioning. This fixes
+// the "created with the wrong campaign, can't recreate because the name is
+// taken" dead end. Name changes propagate to every place the old name lives:
+// the MarketOwner row, the theme JSON on that row, and the tenant's own
+// se-theme-v1 blob (what their dashboard header actually reads). Campaign
+// changes update theme.campaign and the tenant's se-campaign-v1 key; the
+// commission plan is deliberately left alone — the owner may have customized
+// rates, and silently resetting them would destroy real configuration.
+export async function setCompanyDetails(
+  marketOwnerId: string,
+  input: { name?: string; campaign?: 'retail' | 'b2b' }
+) {
+  const owner = await prisma.marketOwner.findUniqueOrThrow({ where: { id: marketOwnerId } });
+  const theme = { ...(owner.theme as Record<string, unknown>) };
+  const name = input.name?.trim();
+  const campaign = input.campaign ? (input.campaign === 'b2b' ? 'AT&T B2B' : 'AT&T Retail EDM') : undefined;
+
+  if (name) theme.companyName = name;
+  if (campaign) theme.campaign = campaign;
+
+  await prisma.marketOwner.update({
+    where: { id: marketOwnerId },
+    // Prisma's Json input type doesn't accept Record<string, unknown> directly;
+    // the object is plain JSON built from a JSON column, so the cast is safe.
+    data: { ...(name ? { name } : {}), theme: theme as Prisma.InputJsonValue },
+  });
+
+  if (campaign) {
+    await prisma.tenantData.upsert({
+      where: { marketOwnerId_key: { marketOwnerId, key: 'se-campaign-v1' } },
+      create: { marketOwnerId, key: 'se-campaign-v1', value: campaign },
+      update: { value: campaign },
+    });
+  }
+  if (name) {
+    const row = await prisma.tenantData.findUnique({
+      where: { marketOwnerId_key: { marketOwnerId, key: 'se-theme-v1' } },
+    });
+    const tenantTheme = { ...((row?.value ?? {}) as object), companyName: name };
+    await prisma.tenantData.upsert({
+      where: { marketOwnerId_key: { marketOwnerId, key: 'se-theme-v1' } },
+      create: { marketOwnerId, key: 'se-theme-v1', value: tenantTheme },
+      update: { value: tenantTheme },
+    });
+  }
+  return { name: name ?? owner.name, campaign: campaign ?? (theme.campaign as string | undefined) };
+}
+
 // The clean starting point for a new tenant. Empty collections so no invented
 // staff or money appears; the client fills the commission plan payouts from its
 // own liveDefault. Kept as JSON blobs matching the app's localStorage shapes.
@@ -239,7 +287,7 @@ export async function resetUserPassword(userId: string, password?: string) {
 
   if (user.authId) await setAuthPassword(user.authId, pw);
   await prisma.user.update({ where: { id: userId }, data: { passwordHash: await bcrypt.hash(pw, 12) } });
-  return { email: user.email, tempPassword: pw };
+  return { userId: user.id, marketOwnerId: user.marketOwnerId, email: user.email, tempPassword: pw };
 }
 
 export async function removeCompanyUser(userId: string) {
@@ -255,5 +303,5 @@ export async function removeCompanyUser(userId: string) {
     prisma.goal.deleteMany({ where: { userId } }),
     prisma.user.delete({ where: { id: userId } }),
   ]);
-  return { email: user.email };
+  return { userId: user.id, marketOwnerId: user.marketOwnerId, email: user.email };
 }

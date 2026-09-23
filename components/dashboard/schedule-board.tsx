@@ -59,14 +59,23 @@ export function ScheduleBoard({ people, storeOptions, compact = false }: {
     });
 
   // person -> {store, code} for this date (Map for O(1) lookups per the guide)
+  //
+  // Only people CURRENTLY on the active roster count. The saved schedule can
+  // hold names of reps who were since archived/retired (or demo sample names
+  // from before an import) — counting those made a store show "Covered" while
+  // every visible shift row was empty, because the card only renders current
+  // roster members. Ghost entries are ignored here rather than deleted, so
+  // restoring the person restores their schedule too.
   const placed = useMemo(() => {
+    const roster = new Set(people.map(p => p.name));
     const m = new Map<string, { store: string; code: ShiftCode }>();
     for (const [person, value] of Object.entries(dayPlan)) {
+      if (!roster.has(person)) continue;
       const { store, code } = parseShift(value);
       if (store && code) m.set(person, { store, code });
     }
     return m;
-  }, [dayPlan]);
+  }, [dayPlan, people]);
 
   const unscheduled = people.filter(p => !placed.has(p.name));
 
@@ -121,14 +130,35 @@ export function ScheduleBoard({ people, storeOptions, compact = false }: {
         <div className="flex flex-wrap items-center gap-2">
           {/* Date pager: arrows + a picker to jump to any specific day. */}
           <div className="flex items-center gap-1 rounded-lg bg-white/5 border border-border-subtle p-0.5">
-            <button onClick={() => step(-1)} className="p-1.5 rounded hover:bg-white/10" aria-label="Previous day"><ChevronLeft className="w-4 h-4" /></button>
+            <button
+              type="button"
+              onClick={() => step(-1)}
+              className="w-9 h-9 inline-flex items-center justify-center rounded hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+              aria-label="Previous day"
+            >
+              <ChevronLeft className="w-4 h-4" aria-hidden="true" />
+            </button>
             <input
               type="date" value={date} onChange={e => e.target.value && setDate(e.target.value)}
-              className="bg-transparent text-sm px-1 focus:outline-none" aria-label="Pick a date"
+              className="bg-transparent text-sm px-1 min-h-9 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] rounded"
+              aria-label="Pick a schedule date"
             />
-            <button onClick={() => step(1)} className="p-1.5 rounded hover:bg-white/10" aria-label="Next day"><ChevronRight className="w-4 h-4" /></button>
+            <button
+              type="button"
+              onClick={() => step(1)}
+              className="w-9 h-9 inline-flex items-center justify-center rounded hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+              aria-label="Next day"
+            >
+              <ChevronRight className="w-4 h-4" aria-hidden="true" />
+            </button>
           </div>
-          <button onClick={() => setDate(todayStr())} className="tab-btn inactive">Today</button>
+          <button
+            type="button"
+            onClick={() => setDate(todayStr())}
+            className="tab-btn inactive min-h-9 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)]"
+          >
+            Today
+          </button>
           <Button variant="secondary" size="sm" onClick={copy}>{copied ? 'Copied' : 'Copy'}</Button>
           {!compact && (
             <Button size="sm" onClick={present}>
@@ -152,7 +182,7 @@ export function ScheduleBoard({ people, storeOptions, compact = false }: {
       )}
 
       {storeOptions.length === 0 ? (
-        <p className="text-xs text-text-muted p-3 rounded-xl bg-white/5">No stores yet - add them in the Commission tab or the setup guide.</p>
+        <p className="text-xs text-text-muted p-3 rounded-xl bg-white/5">No stores configured. Add a store under Roster → Manage stores.</p>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {storeOptions.map(store => (

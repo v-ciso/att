@@ -15,10 +15,15 @@
     /* Brand chrome tokens — switched by the admin theme preset.
        Data/semantic colors (green=profit, red=loss, blue=phone…) are NOT
        driven by these; they stay fixed for meaning. */
-    --brand: #3b82f6;
+    /* #2563eb, not #3b82f6: brand is the fill behind --brand-ink on
+       .btn-primary-brand, and #3b82f6 + white measures 3.68:1 — under the 4.5:1
+       AA floor for normal text. #2563eb is the same hue one step darker and
+       measures 5.17:1. The gold (10.68:1) and emerald (7.45:1) presets already
+       passed, so only this default needed changing. */
+    --brand: #2563eb;
     --brand-2: #60a5fa;
     --brand-3: #1d4ed8; /* dark end of the brand ramp */
-    --brand-rgb: 59, 130, 246;
+    --brand-rgb: 37, 99, 235;
     --grad-brand: linear-gradient(135deg, #60a5fa, #3b82f6, #2563eb);
     --brand-glow: rgba(59, 130, 246, 0.35); /* a SHADOW value */
     --brand-soft: rgba(59, 130, 246, 0.2); /* a FILL value — different job */
@@ -59,6 +64,46 @@
   body {
     @apply bg-bg-primary text-text-primary font-sans antialiased;
     background: #000;
+    /* Phones must never scroll sideways: one over-wide table or chart is all
+       it takes, and the whole app then wobbles horizontally forever. Desktop
+       keeps natural overflow behaviour. */
+  }
+
+  @media (max-width: 1023px) {
+    html,
+    body {
+      overflow-x: clip;
+    }
+  }
+
+  /* Surface treatment: flat #000 reads like an empty void ("AI default").
+     Two fixed layers make it read like a lit material instead:
+     1. a film-grain speckle (two offset radial dot fields, alpha 1.5–2%) that
+        breaks up banding on the big blurred orbs, and
+     2. a corner vignette that pools light toward the content column.
+     Both are pointer-transparent and sit under everything (z-index 0 siblings
+     already stack above body backgrounds). */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      radial-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+      radial-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px);
+    background-size: 22px 22px, 26px 26px;
+    background-position: 0 0, 11px 13px;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(120% 90% at 50% -10%, rgba(255, 255, 255, 0.03), transparent 55%),
+      radial-gradient(140% 100% at 50% 115%, rgba(0, 0, 0, 0.5), transparent 60%);
   }
 
   /* Distinctive display face for headings — Sora reads as intentional, not
@@ -104,6 +149,40 @@
     }
   }
 
+  /* WCAG 2.5.8 wants a 24px minimum target. This dashboard is deliberately
+     dense — inline role badges, day chips and row actions are 14-20px tall — and
+     simply padding them would break the table rhythm on desktop. Instead the
+     *hit area* is grown with a centred pseudo-element, so the pixels a finger
+     can land on grow while the painted control stays exactly as designed.
+     Scoped to coarse pointers so mouse users keep the compact layout. */
+  @media (pointer: coarse) {
+    button,
+    a[href],
+    [role='button'],
+    summary {
+      position: relative;
+    }
+
+    button::after,
+    a[href]::after,
+    [role='button']::after,
+    summary::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      height: 100%;
+      min-width: 24px;
+      min-height: 24px;
+      /* Purely a touch surface: never paints, never intercepts hover styling,
+         and sits behind content so it can't cover text or icons. */
+      pointer-events: auto;
+      z-index: 0;
+    }
+  }
+
   /* Native dropdown lists are painted by the OS, not by the page, so they
      default to white-on-white against this dark UI. `color-scheme` tells the
      browser to render its own widgets dark; the explicit option colours cover
@@ -146,6 +225,13 @@
 
   .card-3d {
     @apply relative bg-grad-card rounded-2xl border border-border-subtle transition-all duration-300;
+    /* Layered ambient shadow: a tight contact line plus a wide soft pool.
+       Cards used to float shadowless on flat black, which is a big part of
+       what made the UI read "generated" — depth needs a light model. */
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.55),
+      0 10px 30px -12px rgba(0, 0, 0, 0.65),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03);
   }
 
   .card-3d::before {
@@ -393,7 +479,9 @@
      of <main>, so the top layer paints straight over them and the gold wash
      vanished the moment you hit Present — flat black plus whatever accents
      were left. Re-create the wash here from the same token. */
-  #tab-meeting:fullscreen,
+  /* Keyed off `.presentable` only — the Meeting panel carries that class. The
+     old `#tab-meeting` selectors were dropped when the tabpanel ids moved to
+     the `view-panel-*` scheme that TabBar's aria-controls expects. */
   .presentable:fullscreen {
     @apply overflow-auto;
     background-color: #000;
@@ -403,13 +491,11 @@
     background-attachment: fixed;
     padding: clamp(1rem, 4vw, 4rem);
   }
-  #tab-meeting::backdrop,
   .presentable::backdrop {
     background: #000;
   }
   /* Safari <=16.3 only knows :-webkit-full-screen, and one unrecognised
      selector invalidates the whole list — so this must stay a separate rule. */
-  #tab-meeting:-webkit-full-screen,
   .presentable:-webkit-full-screen {
     overflow: auto;
     background-color: #000;
@@ -418,7 +504,6 @@
       radial-gradient(40vw 40vw at -6% 112%, rgba(var(--brand-rgb), 0.08), transparent 60%);
     padding: clamp(1rem, 4vw, 4rem);
   }
-  #tab-meeting:fullscreen > *,
   .presentable:fullscreen > * {
     max-width: 1400px;
     margin-left: auto;
@@ -431,6 +516,70 @@
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Pointer spotlight: a soft brand-tinted glow that trails the cursor,
+     driven by --px/--py CSS vars from components/fx/pointer-glow.tsx.
+     Mouse/trackpad only — on touch there is no cursor to follow — and the
+     reduced-motion block at the bottom of this file kills its transition. */
+  .pointer-glow {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0;
+    /* color-mix, not rgba(var(--brand-rgb)): --brand is a hex token per theme
+       and no *-rgb variant exists — an invalid gradient silently renders as
+       nothing, which is exactly the bug this line replaces. */
+    background: radial-gradient(
+      520px circle at var(--px, 50%) var(--py, 50%),
+      color-mix(in srgb, var(--brand) 6%, transparent),
+      transparent 70%
+    );
+    transition: opacity 0.6s ease;
+  }
+  /* No (pointer: fine) gate here: hybrid laptops report their primary pointer
+     as coarse even when a mouse is attached. pointer-glow.tsx already ignores
+     pointerType 'touch', so is-active only ever appears for mouse/pen input. */
+  .pointer-glow.is-active {
+    opacity: 1;
+  }
+
+  /* Content offset below the fixed mobile header. The header now grows by
+     env(safe-area-inset-top) on notched phones, so a hardcoded pt-14 left the
+     page title tucked under it. Desktop (lg+) has no fixed header. */
+  .content-below-header {
+    padding-top: calc(3.5rem + env(safe-area-inset-top));
+  }
+  @media (min-width: 1024px) {
+    .content-below-header {
+      padding-top: 0;
+    }
+  }
+
+  .dashboard-sidebar {
+    height: 100dvh;
+  }
+
+  @media (min-width: 1024px) and (max-height: 760px) {
+    .dashboard-sidebar > :first-child {
+      padding-top: 1rem;
+      padding-bottom: 0.75rem;
+    }
+
+    .dashboard-sidebar nav {
+      padding-inline: 1rem;
+    }
+
+    .dashboard-sidebar nav a {
+      min-height: 2.5rem;
+      padding-block: 0.5rem;
+    }
+
+    .dashboard-sidebar-footer {
+      gap: 0.375rem;
+      padding: 0.625rem 1rem max(0.625rem, env(safe-area-inset-bottom));
+    }
   }
 }
 
@@ -463,19 +612,23 @@
 }
 
 @media print {
-  body * {
-    visibility: hidden;
+  /* Hide the app itself, not just paint it invisible: the old visibility
+     trick kept the dashboard's layout boxes in the page flow, so the report
+     (buried inside scroll containers) printed as a blank page. The report is
+     portalled to <body>, so hiding its siblings leaves only the report. */
+  body > *:not(#print-root) {
+    display: none !important;
+  }
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
   }
   #print-root {
     display: block;
-    visibility: visible;
-    position: absolute;
-    left: 0;
-    top: 0;
+    position: static;
     width: 100%;
-  }
-  #print-root * {
-    visibility: visible;
   }
   #print-root,
   #print-root * {
