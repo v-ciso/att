@@ -60,7 +60,15 @@ export async function GET() {
     }),
     loadRoster(user.marketOwnerId),
   ]);
-  return NextResponse.json({ batches, profiles, productionBatch, roster, operatingStartDate: company?.operatingStartDate }, { headers: NO_STORE });
+  const rosterByCode = new Map(roster.map(person => [person.employeeCode, person]));
+  const reconciledBatches = batches.map(batch => ({
+    ...batch,
+    summaries: batch.summaries.map(summary => {
+      const person = summary.repProfile && rosterByCode.get(summary.repProfile.employeeCode);
+      return person ? { ...summary, teamSnapshot: person.team || null, repProfile: { ...summary.repProfile!, displayName: person.name, teamName: person.team || null } } : summary;
+    }),
+  }));
+  return NextResponse.json({ batches: reconciledBatches, profiles, productionBatch, roster, operatingStartDate: company?.operatingStartDate }, { headers: NO_STORE });
 }
 
 export async function POST(request: NextRequest) {

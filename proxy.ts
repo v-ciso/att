@@ -2,7 +2,7 @@ import { withAuth } from 'next-auth/middleware';
 import { NextRequest, NextResponse } from 'next/server';
 import { authSecret } from '@/lib/auth-secret';
 import { canWrite, can, type Role } from '@/lib/permissions';
-import { SESSION_VERSION } from '@/lib/session-version';
+import { sessionIsCurrent } from '@/lib/session-version';
 
 // Auth gate for pages AND the data API.
 //
@@ -65,7 +65,7 @@ export default withAuth(
     // so a phone signed in months ago still sailed through — with a stale UI
     // to match. Pages get the redirect from `authorized` below; API calls from
     // such a session get an explicit 401 here instead of an HTML login page.
-    if (isApi && token && token.sv !== SESSION_VERSION) {
+    if (isApi && token && !sessionIsCurrent(token)) {
       return apiResponse({ error: 'Session expired — please sign in again.' }, 401);
     }
 
@@ -108,7 +108,7 @@ export default withAuth(
       authorized: ({ token, req }) =>
         req.nextUrl.pathname.startsWith('/api/')
           ? true
-          : !!token && token.sv === SESSION_VERSION,
+          : sessionIsCurrent(token),
     },
   }
 );
@@ -117,5 +117,5 @@ export const config = {
   // /api/auth/* is excluded so sign-in and the NextAuth callbacks stay
   // reachable to anonymous visitors; every other API route is gated. The
   // /admin page and /api/admin routes additionally check super-admin server-side.
-  matcher: ['/dashboard/:path*', '/settings/:path*', '/admin/:path*', '/api/((?!auth/|webhooks/).*)'],
+  matcher: ['/dashboard/:path*', '/settings/:path*', '/people/:path*', '/admin/:path*', '/api/((?!auth/|webhooks/).*)'],
 };

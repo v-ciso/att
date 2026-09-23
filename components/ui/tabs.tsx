@@ -258,7 +258,7 @@ export function TabBar({
             // readers can't follow. Emit it only where the target really exists.
             aria-controls={isActive ? `${prefix}panel-${item.value}` : undefined}
             aria-label={item.ariaLabel}
-            tabIndex={isActive ? 0 : -1}
+tabIndex={isActive || (!items.some(candidate => candidate.value === value) && item === items[0]) ? 0 : -1}
             disabled={item.disabled}
             onClick={() => !item.disabled && onChange(item.value)}
             className={twMerge(clsx(

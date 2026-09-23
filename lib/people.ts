@@ -93,3 +93,15 @@ export function findRehireCandidate(people: Person[], name: string): Person | nu
   if (!target) return null;
   return people.find(p => !isActive(p) && normalizeName(p.name) === target) ?? null;
 }
+
+export const PERSON_REFERENCE_KEYS = ['se-sales-v1', 'se-attendance-v1', 'se-schedule-v1', 'se-mtg-v1', 'se-lateouts-v1', 'se-commit-v1', 'se-teams-v2'] as const;
+
+/** Legacy books use names; rename their references without touching IDs or amounts. */
+export function renamePersonBook(value: unknown, oldName: string, newName: string, field = ''): unknown {
+  if (typeof value === 'string') return ['person', 'lead', 'asm', 'members'].includes(field) && value === oldName ? newName : value;
+  if (Array.isArray(value)) return value.map(item => renamePersonBook(item, oldName, newName, field));
+  if (!value || typeof value !== 'object') return value;
+  const record = value as Record<string, unknown>;
+  if (oldName in record && newName in record && oldName !== newName) throw new Error('The new name already has records. Choose a distinct display name.');
+  return Object.fromEntries(Object.entries(record).map(([key, item]) => [key === oldName ? newName : key, renamePersonBook(item, oldName, newName, key)]));
+}

@@ -44,7 +44,7 @@ export function loadSales(): SaleEntry[] {
 // Cross-component reactivity: any write dispatches this so every view (which
 // listens in the dashboard) recomputes immediately — no stale stores/sales.
 export function notifyDataChanged() {
-  if (typeof window !== 'undefined') window.dispatchEvent(new Event('se:data'));
+  if (typeof window !== 'undefined') queueMicrotask(() => window.dispatchEvent(new Event('se:data')));
 }
 
 export function saveSales(entries: SaleEntry[]) {

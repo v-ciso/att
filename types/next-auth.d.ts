@@ -3,6 +3,7 @@ import { DefaultJWT } from 'next-auth/jwt';
 
 declare module 'next-auth' {
   interface Session {
+    sessionExpiresAt?: number;
     user: {
       id: string;
       role: string;
@@ -31,5 +32,6 @@ declare module 'next-auth/jwt' {
     companyName?: string;
     /** Session version — see lib/session-version.ts. Absent on legacy tokens. */
     sv?: number;
+    sessionExpiresAt?: number;
   }
 }

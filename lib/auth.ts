@@ -14,14 +14,12 @@ import {
 import { verifySupabasePassword } from '@/lib/supabase-admin';
 import { isSuperAdminEmail } from '@/lib/super-admins';
 import { authSecret } from '@/lib/auth-secret';
-import { SESSION_VERSION } from '@/lib/session-version';
+import { SESSION_VERSION, SESSION_MAX_AGE, sessionIsCurrent } from '@/lib/session-version';
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
-  // A two-hour ceiling limits exposure on shared or lost field devices while
-  // still covering a focused work block. updateAge avoids rewriting the token
-  // on every request; explicit Sign out remains available from the profile.
-  session: { strategy: 'jwt', maxAge: 2 * 60 * 60, updateAge: 15 * 60 },
+  // The fixed deadline below prevents NextAuth's rolling refresh extending a login.
+  session: { strategy: 'jwt', maxAge: SESSION_MAX_AGE },
   pages: { signIn: '/login' },
   providers: [
     CredentialsProvider({
@@ -161,10 +159,14 @@ export const authOptions: NextAuthOptions = {
         // Version every fresh session; proxy.ts refuses tokens without the
         // current value, which is how pre-2h-ceiling sessions get retired.
         token.sv = SESSION_VERSION;
+        token.sessionExpiresAt = Date.now() + SESSION_MAX_AGE * 1000;
       }
       return token;
     },
     async session({ session, token }) {
+      if (!sessionIsCurrent(token)) return { expires: new Date(0).toISOString() } as typeof session;
+      session.expires = new Date(token.sessionExpiresAt!).toISOString();
+      session.sessionExpiresAt = token.sessionExpiresAt;
       if (token) {
         session.user = {
           ...session.user,

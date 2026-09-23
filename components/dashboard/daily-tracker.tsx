@@ -5,12 +5,13 @@ import { cn, formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Plus, Trash2, Sparkles, ClipboardList, ChevronDown, ChevronUp, Maximize2, Minimize2, CalendarCheck } from 'lucide-react';
 import {
-  SaleEntry, loadSales, saveSales, loadCommission, entryRevenue, todayStr, generateDemoSales, generateDemoAttendance,
+  SaleEntry, loadCommission, entryRevenue, todayStr, generateDemoSales, generateDemoAttendance,
   AttendanceBook, AttendanceStatus, loadAttendance, saveAttendance, attendanceForDate, markStatus,
   LateOutBook, loadLateOuts, saveLateOuts, isPhonePlan, scheduledStore, notifyDataChanged,
 } from '@/lib/sales';
 import { loadPeople } from './roster';
-import { DEFAULT_COMMISSION } from './editable-sections';
+import { activePeople } from '@/lib/people';
+import { DEFAULT_COMMISSION, useLocalState } from './editable-sections';
 import { useAnnounce } from '@/components/a11y/announcer';
 import { useConfirm } from '@/hooks/use-confirm';
 import { readWorkspace } from '@/lib/workspace';
@@ -33,7 +34,8 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   // Stamped onto every attendance mark so a correction can name who made it.
   const { data: session } = useSession();
   const markedBy = session?.user?.name || session?.user?.email || 'unknown';
-  const [sales, setSales] = useState<SaleEntry[]>([]);
+  const { state: sales, setState: setSales } = useLocalState<SaleEntry[]>('se-sales-v1', []);
+  const [dataVersion, setDataVersion] = useState(0);
   const [isDemo, setIsDemo] = useState(false);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => setIsDemo(readWorkspace().mode === 'demo'), []);
@@ -43,8 +45,8 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   // mismatch ("server HTML contained a <tr> in <tbody>"). `loaded` flips in the
   // mount effect below, so gating on it keeps render #1 identical to the server
   // and still rereads whenever sales change.
-  const commission = useMemo(() => (loaded ? loadCommission() : DEFAULT_COMMISSION), [sales, loaded]);
-  const people = useMemo(() => (loaded ? loadPeople() : []), [sales, loaded]);
+  const commission = useMemo(() => (loaded ? loadCommission() : { ...DEFAULT_COMMISSION, stores: [] }), [sales, loaded, dataVersion]);
+  const people = useMemo(() => (loaded ? activePeople(loadPeople()) : []), [sales, loaded, dataVersion]);
   const plans = useMemo(
     () => [...commission.phonePlans.map(p => p.name), ...commission.internet.map(p => p.name)],
     [commission]
@@ -79,10 +81,16 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   };
 
   useEffect(() => {
-    setSales(loadSales());
-    setAttendance(loadAttendance());
-    setLateOuts(loadLateOuts());
-    setLoaded(true);
+    const read = () => {
+      setAttendance(loadAttendance());
+      setLateOuts(loadLateOuts());
+      setDataVersion(version => version + 1);
+      setLoaded(true);
+    };
+    const refresh = () => queueMicrotask(read);
+    read();
+    window.addEventListener('se:data', refresh);
+    return () => window.removeEventListener('se:data', refresh);
   }, []);
 
   // Toggle a GPS late clock-out for a rep on this date. The store defaults to
@@ -162,7 +170,7 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   const [meeting, setMeeting] = useState<Record<string, Record<string, boolean>>>({});
   useEffect(() => {
     try { setMeeting(JSON.parse(localStorage.getItem('se-mtg-v1') || '{}')); } catch { setMeeting({}); }
-  }, [loaded]);
+  }, [loaded, dataVersion]);
   const toggleMeeting = (name: string) => {
     setMeeting(prev => {
       const day = { ...(prev[date] ?? {}) };
@@ -185,20 +193,16 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
 
   const attSummary = attendanceForDate(attendance, date);
 
-  useEffect(() => {
-    if (loaded) {
-      saveSales(sales);
-      onDataChange();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sales, loaded]);
+
 
   const selectedPerson = people.find(p => p.name === person) ?? people[0];
-  const personStores = selectedPerson?.stores?.length ? selectedPerson.stores : ['Costco'];
-  const allStores = Array.from(new Set(people.flatMap(p => p.stores ?? [])));
+  const allStores = commission.stores.map(store => store.name);
+  const assignedStores = (selectedPerson?.stores ?? []).filter(store => allStores.includes(store));
+  const personStores = assignedStores.length ? assignedStores : allStores;
   // If this rep is scheduled somewhere that day, the sale is locked to that
   // store — no logging Sarah at Target when she was scheduled at Costco.
-  const scheduledAt = scheduledStore(selectedPerson?.name ?? '', date);
+  const scheduled = scheduledStore(selectedPerson?.name ?? '', date);
+  const scheduledAt = scheduled && allStores.includes(scheduled) ? scheduled : '';
   const effectiveStores = scheduledAt ? [scheduledAt] : personStores;
 
   const addEntry = () => {
@@ -206,6 +210,7 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
     const what = plan || plans[0];
     if (!who || !what || qty < 1) return;
     const store = scheduledAt || (effectiveStores.includes(entryStore) ? entryStore : effectiveStores[0]);
+    if (!store) { announce('Add a company store in Roster before logging a sale.', 'assertive'); return; }
     setSales(prev => [
       {
         // Date.now() alone collides: logging two sales in the same millisecond
@@ -236,6 +241,7 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   };
 
   const generateDemo = () => {
+    if (readWorkspace().mode !== 'demo') return;
     const demo = generateDemoSales(people, commission);
     setSales(demo);
     const att = generateDemoAttendance(people);
@@ -294,14 +300,14 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
               <Sparkles className="w-3.5 h-3.5" /> Generate Demo Data
             </Button>
           )}
-          <Button variant="ghost" size="sm" onClick={clearAll}>↻ Clear All</Button>
+          {isDemo && <Button variant="ghost" size="sm" onClick={clearAll}>Clear demo data</Button>}
         </div>
       </div>
 
       {/* Entry form — the morning workflow: pick rep, pick plan, pick counts */}
       <div className="p-4 rounded-xl glass border border-accent-blue/20 mb-4">
         <p className="text-[10px] text-text-muted uppercase tracking-wider mb-2.5">
-          Log a sale — revenue, leaderboard &amp; dashboard update automatically at your current payouts
+          Log activity — tracker, leaderboard, and meeting totals stay in sync
         </p>
         <div className="flex flex-wrap items-end gap-2.5">
           <label className="flex flex-col gap-1 text-[10px] text-text-muted uppercase tracking-wider">
@@ -349,7 +355,8 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
             Insurance
             <input type="number" min={0} max={99} value={insurance} onChange={e => setInsurance(Math.max(0, parseInt(e.target.value) || 0))} className={cn(selectClass, 'w-16')} />
           </label>
-          <Button size="sm" onClick={addEntry}><Plus className="w-3.5 h-3.5" /> Add Sale</Button>
+          <Button size="sm" onClick={addEntry} disabled={!loaded || !people.length || !allStores.length}><Plus className="w-3.5 h-3.5" /> Add Sale</Button>
+          {loaded && !allStores.length && <p className="w-full text-sm text-text-secondary">Add a store under Roster → Manage stores before logging activity.</p>}
         </div>
       </div>
 

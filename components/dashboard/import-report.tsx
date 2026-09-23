@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import { AlertTriangle, ArrowRight, CheckCircle2, FileText, History, Link2, Loader2, RotateCcw, ShieldCheck, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn, formatCurrency } from '@/lib/utils';
+import { readWorkspace } from '@/lib/workspace';
 
 interface Profile { id: string; employeeCode: string; displayName: string; legalName?: string | null; externalIds: Array<{ externalRepId: string }> }
 interface Summary { externalRepId: string; reportName: string; generated: number; ecBonusReceived: number; ecBonusMissing: number; detailCount: number; profile: Profile | null }
@@ -16,6 +17,11 @@ const fetcher = (url: string) => fetch(url).then(async response => { const body 
 const stepLabels = ['Upload & parse', 'Resolve people', 'Confirm week'];
 
 export function ImportReport() {
+  if (readWorkspace().mode === 'demo') return <section className="rounded-xl border border-border-subtle bg-bg-secondary p-5 text-text-primary"><h2 className="text-xl font-semibold">Reports are live-only</h2><p className="mt-2 text-sm leading-6 text-text-secondary">Choose Live data above to view or import your company reports. Demo generation never changes live reports.</p></section>;
+  return <LiveImportReport />;
+}
+
+function LiveImportReport() {
   const { data, mutate } = useSWR<ReportData>('/api/dd-reports', fetcher);
   const fileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<Preview | null>(null);

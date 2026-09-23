@@ -182,7 +182,7 @@ export function ScheduleBoard({ people, storeOptions, compact = false }: {
       )}
 
       {storeOptions.length === 0 ? (
-        <p className="text-xs text-text-muted p-3 rounded-xl bg-white/5">No stores yet - add them in the Commission tab or the setup guide.</p>
+        <p className="text-xs text-text-muted p-3 rounded-xl bg-white/5">No stores configured. Add a store under Roster → Manage stores.</p>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {storeOptions.map(store => (

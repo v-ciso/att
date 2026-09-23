@@ -18,7 +18,7 @@ import {
   Building2, MapPin, PieChart, Maximize2, Minimize2, ChevronDown, Sparkles, ClipboardList,
 } from 'lucide-react';
 import { MeetingTracker } from '@/components/dashboard/dashboard-components';
-import { PnlEditor, TeamData, DEFAULT_COMMISSION } from '@/components/dashboard/editable-sections';
+import { PnlEditor, TeamData, DEFAULT_COMMISSION, loadTeams } from '@/components/dashboard/editable-sections';
 import { useModalA11y } from '@/hooks/use-modal-a11y';
 import { ModalShell } from '@/components/ui/modal-shell';
 import { ReportTemplate, ReportSections, ALL_SECTIONS, SECTION_LABELS } from '@/components/dashboard/report-template';
@@ -46,7 +46,7 @@ import { FormGenerator } from '@/components/dashboard/form-generator';
 import { PromoArchive } from '@/components/dashboard/promo-archive';
 import { MeetingDocs } from '@/components/dashboard/meeting-docs';
 import { MeetingDDScoreboard } from '@/components/dashboard/meeting-dd-scoreboard';
-import { normalizeName } from '@/lib/people';
+import { normalizeName, activePeople } from '@/lib/people';
 import { useTheme } from '@/components/white-label/theme-provider';
 
 // Single source for the tab strip. VALID_TABS is derived from it so the list of
@@ -494,11 +494,9 @@ function DashboardContent() {
     else if (!tabParam) setActiveTab('dashboard');
   }, [tabParam]);
 
-  const [pendingPresent, setPendingPresent] = useState(false);
 
   const switchTab = (tab: string) => {
     setActiveTab(tab);
-    if (tab === 'meeting') setPendingPresent(true);
     router.replace(tab === 'dashboard' ? '/dashboard' : `/dashboard?tab=${tab}`, { scroll: false });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -509,7 +507,7 @@ function DashboardContent() {
   const { data: session } = useSession();
   // The real tenant name comes from the session; the theme's companyName is the
   // white-label brand which defaults to "Sales Engine" until set.
-  const companyName = session?.user?.companyName
+  const companyName = readWorkspace().mode === 'demo' ? 'Demo sandbox' : session?.user?.companyName
     || (theme.companyName !== 'Sales Engine' ? theme.companyName : '');
   // Stamped onto attendance corrections so history names who changed what.
   const markedBy = session?.user?.name || session?.user?.email || 'unknown';
@@ -576,10 +574,10 @@ function DashboardContent() {
 
   // Before mount every loader must return exactly what the server returned.
   const commission = useMemo(
-    () => (mounted ? loadCommission() : DEFAULT_COMMISSION),
+    () => (mounted ? loadCommission() : { ...DEFAULT_COMMISSION, stores: [] }),
     [dataVersion, mounted]
   );
-  const people = useMemo(() => (mounted ? loadPeople() : []), [dataVersion, mounted]);
+  const people = useMemo(() => (mounted ? activePeople(loadPeople()) : []), [dataVersion, mounted]);
   const sales = useMemo(() => (mounted ? loadSales() : []), [dataVersion, mounted]);
 
   // Ties the signed-in seat to its roster row so the Library can filter
@@ -606,13 +604,10 @@ function DashboardContent() {
     setShowSetup(forced || (!dismissed && loadPeople().length === 0));
   }, [dataVersion]);
 
-  const storeOptions = useMemo(() => {
-    const set = new Set<string>();
-    commission.stores.forEach(s => set.add(s.name));
-    people.forEach(p => (p.stores ?? []).forEach(s => set.add(s)));
-    sales.forEach(s => s.store && set.add(s.store));
-    return Array.from(set);
-  }, [commission, people, sales]);
+  const storeOptions = useMemo(
+    () => Array.from(new Set(commission.stores.map(store => store.name).filter(Boolean))),
+    [commission.stores]
+  );
 
   const agg = useMemo(
     () => aggregateSales(sales, commission, { period, stores: storeSel, date: pickDate || undefined }),
@@ -645,6 +640,7 @@ function DashboardContent() {
   const premiumMix = agg.lines > 0 ? ((agg.premium / agg.lines) * 100).toFixed(1) : '0.0';
 
   const generateDemo = () => {
+    if (readWorkspace().mode !== 'demo') return;
     saveSales(generateDemoSales(people, commission));
     saveAttendance(generateDemoAttendance(people));
     bump();
@@ -729,20 +725,17 @@ function DashboardContent() {
   }, [people, agg]);
 
   // Meeting mode: its own period + live team stats from members' sales
-  const [meetingPeriod, setMeetingPeriod] = useState<Period>('daily');
-  const meetingAgg = useMemo(
-    () => aggregateSales(sales, commission, { period: meetingPeriod, stores: storeSel }),
-    [sales, commission, meetingPeriod, storeSel]
-  );
+  const meetingPeriod = period;
+  const setMeetingPeriod = (value: Period) => { setPeriod(value); setPickDate(''); };
+  const meetingAgg = agg;
   const meetingTeams = useMemo(() => {
-    let teams: TeamData[] = [];
-    try { teams = JSON.parse(localStorage.getItem('se-teams-v2') || '[]'); } catch { /* none */ }
+    const teams = loadTeams();
     const statsByName = new Map(meetingAgg.perPerson.map(p => [p.person.toLowerCase(), p]));
     return teams.map(team => {
       const memberNames = people
         .filter(p => p.team === team.name)
         .map(p => p.name)
-        .concat([team.lead, team.asm].filter(n => people.some(p => p.name.toLowerCase() === n.toLowerCase())));
+        .concat([team.lead, team.asm].filter(n => people.some(p => p.team === team.name && p.name.toLowerCase() === n.toLowerCase())));
       const unique = Array.from(new Set(memberNames.map(n => n.toLowerCase())));
       const sum = unique.reduce(
         (acc, n) => {
@@ -782,7 +775,12 @@ function DashboardContent() {
   // Goals: set at the morning meeting — targets are editable and persist
   const { state: goalTargets, setState: setGoalTargets } = useLocalState(
     'se-goals-v1',
-    { lines: 200, premium: 80 }
+    { lines: 200, premium: 80 },
+    { lines: 0, premium: 0 },
+    raw => {
+      const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
+      return { lines: Math.max(0, Number(value.lines) || 0), premium: Math.max(0, Number(value.premium) || 0) };
+    }
   );
 
   // Weekly commitments: each rep calls their number at the morning meeting —
@@ -819,12 +817,6 @@ function DashboardContent() {
     return () => window.removeEventListener('keydown', onKey);
   }, [activeTab]);
 
-  useEffect(() => {
-    if (activeTab === 'meeting' && pendingPresent) {
-      setPendingPresent(false);
-      meetingRef.current?.requestFullscreen?.().catch(() => {});
-    }
-  }, [activeTab, pendingPresent]);
 
   // PDF: crisp print-based export (vector text, browser Save as PDF).
   // `exportSel` non-null = which sections to print; `exportMenu` = the chooser.
@@ -885,6 +877,7 @@ function DashboardContent() {
     <DashboardLayout>
       {showSetup && <SetupWizard onDone={() => { setShowSetup(false); setDataVersion(v => v + 1); }} />}
       {/* Header — raised stacking context so its dropdowns paint over the cards below */}
+      {['dashboard', 'leaderboard'].includes(activeTab) && <>
       <div className="slide-in relative z-40 mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl lg:text-4xl font-bold neon-brand">
@@ -940,7 +933,7 @@ function DashboardContent() {
       {/* Campaign badges */}
       <div className="slide-in mb-4 flex flex-wrap items-center gap-2">
         <Badge variant="green" className="text-xs flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse" /> Live
+          {isDemoWorkspace ? 'Demo · sample data' : 'Live · company data'}
         </Badge>
         <Badge variant="gray" className="text-xs flex items-center gap-1.5">
           <Building2 className="w-3 h-3" /> {campaign}
@@ -958,18 +951,17 @@ function DashboardContent() {
         </Badge>
       </div>
 
+      </>}
       {/* Tabs — moved above content so switching changes the view immediately.
           TabBar gives the strip real tablist semantics (arrow keys, roving
           tabindex, panel association); the old bare buttons announced as 11
           unrelated buttons with no indication of which view was showing. */}
-      <TabBar
-        label="Dashboard views"
-        value={activeTab}
-        onChange={switchTab}
-        idPrefix="view"
-        className="slide-in mb-4"
-        items={visibleTabItems}
-      />
+      <div className="mb-4 flex flex-wrap items-start gap-2">
+        <div className="min-w-0 basis-full sm:basis-auto flex-1"><TabBar className="grid grid-cols-2 sm:flex" label="Daily operations" value={activeTab} onChange={switchTab} idPrefix="view" items={visibleTabItems.filter(item => ['tracker', 'roster', 'schedule', 'meeting'].includes(item.value))} /></div>
+        {!['tracker', 'roster', 'schedule', 'meeting'].includes(activeTab) && <span className="sr-only" id={`view-tab-${activeTab}`}>{visibleTabItems.find(item => item.value === activeTab)?.label}</span>}
+        <label className="sr-only" htmlFor="more-views">More views</label>
+        <select id="more-views" className="min-h-11 max-w-full rounded-xl border border-border-subtle bg-bg-tertiary px-3 text-sm text-text-primary" value={['tracker', 'roster', 'schedule', 'meeting'].includes(activeTab) ? '' : activeTab} onChange={event => { if (event.target.value) switchTab(event.target.value); }}><option value="" disabled>More views</option>{visibleTabItems.filter(item => !['tracker', 'roster', 'schedule', 'meeting'].includes(item.value)).map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select>
+      </div>
 
       {activeTab === 'dashboard' && (
           <div id="view-panel-dashboard" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-dashboard" tabIndex={0}>
@@ -978,8 +970,8 @@ function DashboardContent() {
             <Card className="mb-4 p-5 border-accent-blue/30">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="font-semibold text-sm">No sales logged yet — the whole dashboard derives from the Daily Tracker.</p>
-                  <p className="text-xs text-text-secondary mt-0.5">Log real sales, or fill everything with realistic sample data for a demo.</p>
+                  <p className="font-semibold text-sm">No tracker activity yet.</p>
+                  <p className="text-xs text-text-secondary mt-0.5">Daily Tracker activity is separate from confirmed weekly DD totals.</p>
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => switchTab('tracker')}><ClipboardList className="w-3.5 h-3.5" /> Open Tracker</Button>
@@ -1018,7 +1010,7 @@ function DashboardContent() {
             {/* Internet is cyan everywhere else (table column, pie slice) — it was
                 the one place rendering the same metric purple. */}
             <StatCard label="Internet" value={String(agg.internet)} sub={`${aggDaily.internet} in daily window`} icon={Zap} color="cyan" onClick={() => setKpiDrawer('internet')} className="stagger-2" />
-            <StatCard label="Office Generated" value={formatCurrency(agg.revenue)} sub={`${formatCurrency(agg.commission)} rep commissions`} icon={DollarSign} color="green" onClick={() => setKpiDrawer('revenue')} className="stagger-3" />
+            <StatCard label="Tracker estimate" value={formatCurrency(agg.revenue)} sub="Daily Tracker estimate, not confirmed DD" icon={DollarSign} color="green" onClick={() => setKpiDrawer('revenue')} className="stagger-3" />
             <StatCard label="Premium Mix" value={`${premiumMix}%`} sub={`${agg.premium} premium lines`} icon={Star} color="yellow" onClick={() => setKpiDrawer('premium')} className="stagger-4" />
           </div>
 
@@ -1169,7 +1161,7 @@ function DashboardContent() {
                           </span>
                         </div>
                         <div className="w-full h-1.5 rounded-full bg-bg-tertiary">
-                          <div className="h-full rounded-full" style={{ width: `${Math.min(100, (goal.current / goal.target) * 100)}%`, background: goal.color === 'blue' ? 'var(--grad-brand)' : 'linear-gradient(to right, #A855F7, #C084FC)' }} />
+                          <div className="h-full rounded-full" style={{ width: `${Math.min(100, (goal.current / Math.max(1, goal.target)) * 100)}%`, background: goal.color === 'blue' ? 'var(--grad-brand)' : 'linear-gradient(to right, #A855F7, #C084FC)' }} />
                         </div>
                       </div>
                     ))}
@@ -1292,7 +1284,7 @@ function DashboardContent() {
                   : `${avgAttendance}%`}
                 color="green" size="2xl"
               />
-              <MeetingTracker label={`${PERIOD_LABELS[meetingPeriod]} Generated`} value={formatCurrency(meetingAgg.revenue)} color="yellow" size="2xl" />
+              <MeetingTracker label={`${PERIOD_LABELS[meetingPeriod]} Tracker estimate`} value={formatCurrency(meetingAgg.revenue)} color="yellow" size="2xl" />
             </div>
 
             {/* Pull up the promo sheet or a training deck mid-meeting, rather
@@ -1315,7 +1307,7 @@ function DashboardContent() {
                     </span>
                   </div>
                   <div className="w-full h-1.5 rounded-full bg-bg-tertiary">
-                    <div className="h-full rounded-full" style={{ width: `${Math.min(100, (goal.current / goal.target) * 100)}%`, background: goal.color === 'blue' ? 'linear-gradient(to right, #3B82F6, #60A5FA)' : 'linear-gradient(to right, #A855F7, #C084FC)' }} />
+                    <div className="h-full rounded-full" style={{ width: `${Math.min(100, (goal.current / Math.max(1, goal.target)) * 100)}%`, background: goal.color === 'blue' ? 'linear-gradient(to right, #3B82F6, #60A5FA)' : 'linear-gradient(to right, #A855F7, #C084FC)' }} />
                   </div>
                 </div>
               ))}
@@ -1346,7 +1338,7 @@ function DashboardContent() {
                 </button>
               ))}
               {meetingTeams.length === 0 && (
-                <p className="text-xs text-text-muted p-3 rounded-xl bg-white/5 md:col-span-2">No teams yet — build them with drag &amp; drop on the Roster tab.</p>
+                <p className="text-xs text-text-muted p-3 rounded-xl bg-white/5 md:col-span-2">No teams yet — add a team in Roster, then assign each rep using Edit.</p>
               )}
             </div>
             {/* Weekly commitments — reps call their number at the meeting */}

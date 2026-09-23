@@ -59,6 +59,7 @@ const putSchema = z.object({
         // matter are the key allowlist and the byte cap below, not a per-key
         // schema that would have to be kept in lockstep with every feature.
         value: z.unknown(),
+        expectedUpdatedAt: z.string().datetime().nullable(),
       })
     )
     .max(ALLOWED_KEYS_MAX),
@@ -84,11 +85,15 @@ export async function GET(request: NextRequest) {
 
   const rows = await prisma.tenantData.findMany({
     where: { marketOwnerId: t.id },
-    select: { key: true, value: true },
+    select: { key: true, value: true, updatedAt: true },
   });
   const data: Record<string, unknown> = {};
-  for (const r of rows) data[r.key] = r.value;
-  return NextResponse.json({ data }, { headers: NO_STORE });
+  const versions: Record<string, string> = {};
+  for (const r of rows) {
+    data[r.key] = r.value;
+    versions[r.key] = r.updatedAt.toISOString();
+  }
+  return NextResponse.json({ data, versions }, { headers: NO_STORE });
 }
 
 export async function PUT(request: NextRequest) {
@@ -136,14 +141,32 @@ export async function PUT(request: NextRequest) {
     );
   }
 
-  await prisma.$transaction(
-    valid.map(i =>
-      prisma.tenantData.upsert({
-        where: { marketOwnerId_key: { marketOwnerId: t.id, key: i.key } },
-        create: { marketOwnerId: t.id, key: i.key, value: i.value as object },
-        update: { value: i.value as object },
-      })
-    )
-  );
-  return NextResponse.json({ saved: valid.length }, { headers: NO_STORE });
+  if (valid.length !== items.length || new Set(valid.map(item => item.key)).size !== valid.length) {
+    return NextResponse.json({ error: 'Unknown or duplicate data key.' }, { status: 400, headers: NO_STORE });
+  }
+  try {
+    const versions = await prisma.$transaction(async tx => {
+      const result: Record<string, string> = {};
+      for (const item of valid) {
+        const where = { marketOwnerId: t.id, key: item.key };
+        const current = await tx.tenantData.findUnique({ where: { marketOwnerId_key: where } });
+        if ((current?.updatedAt.toISOString() ?? null) !== item.expectedUpdatedAt) throw new Error('STALE_DATA');
+        const updatedAt = new Date(Math.max(Date.now(), (current?.updatedAt.getTime() ?? 0) + 1));
+        await tx.tenantData.upsert({
+          where: { marketOwnerId_key: where },
+          create: { ...where, value: item.value as object, updatedAt },
+          update: { value: item.value as object, updatedAt },
+        });
+        result[item.key] = updatedAt.toISOString();
+      }
+      return result;
+    }, { isolationLevel: 'Serializable' });
+    return NextResponse.json({ saved: valid.length, versions }, { headers: NO_STORE });
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    if ((error instanceof Error && error.message === 'STALE_DATA') || code === 'P2034' || code === 'P2002') {
+      return NextResponse.json({ error: 'Another device changed this data. Your edit was not saved. Reload the latest data before trying again.' }, { status: 409, headers: NO_STORE });
+    }
+    throw error;
+  }
 }

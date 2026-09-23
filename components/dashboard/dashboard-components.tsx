@@ -120,7 +120,7 @@ export function MeetingTracker({ label, value, color, size }: MeetingTrackerProp
   return (
     <div className="glass rounded-xl p-3 text-center">
       <p className="text-xs text-text-secondary">{label}</p>
-      <p className={cn('font-bold', colorClasses[color as keyof typeof colorClasses], sizeClasses[size as keyof typeof sizeClasses])} contentEditable suppressContentEditableWarning>
+      <p className={cn('break-words font-bold', colorClasses[color as keyof typeof colorClasses], sizeClasses[size as keyof typeof sizeClasses])}>
         {value}
       </p>
     </div>

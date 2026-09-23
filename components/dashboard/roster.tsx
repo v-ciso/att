@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocalState, Editable, parseNum } from './editable-sections';
+import { useLocalState, Editable, parseNum, loadTeams } from './editable-sections';
 import { cn, formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Trash2, TrendingUp, Award, UserPlus, Pencil, ChevronDown, Plus, Store as StoreIcon, Archive, UserMinus, RotateCcw } from 'lucide-react';
@@ -17,7 +17,7 @@ import { localArchiveAdd } from '@/lib/local-archive';
 import { useConfirm } from '@/hooks/use-confirm';
 import { useAnnounce } from '@/components/a11y/announcer';
 import {
-  activePeople, isActive, personStatus, assignEmployeeCodes, findRehireCandidate,
+  activePeople, isActive, personStatus, assignEmployeeCodes, findRehireCandidate, normalizeName, PERSON_REFERENCE_KEYS, renamePersonBook,
 } from '@/lib/people';
 import { archiveEntity } from '@/lib/archive-client';
 import { useModalA11y } from '@/hooks/use-modal-a11y';
@@ -108,7 +108,7 @@ export function normalizeRole(role: unknown): RosterRole {
 }
 
 export function primaryStore(p: Person): string {
-  return p.stores[0] ?? 'Costco';
+  return p.stores[0] ?? 'Unassigned';
 }
 
 // The single shape-fixer for stored roster data. Every reader — loadPeople and
@@ -122,7 +122,7 @@ export function migratePeople(raw: unknown): Person[] {
       ...p,
       role: normalizeRole(p.role),
       // Migrate single `store` → `stores[]`
-      stores: p.stores?.length ? p.stores : [p.store ?? 'Costco'],
+      stores: Array.isArray(p.stores) ? p.stores : p.store ? [p.store] : [],
       hourlyWeekly: p.hourlyWeekly ?? 0,
       weeklyProfit: Array.isArray(p.weeklyProfit) ? p.weeklyProfit : [],
       team: p.team ?? '',
@@ -231,7 +231,7 @@ function StoresPicker({ value, options, onChange, label }: { value: string[]; op
   const toggle = () => {
     if (!open && btnRef.current) {
       const r = btnRef.current.getBoundingClientRect();
-      setPos({ top: r.bottom + 4, left: r.left });
+      setPos({ top: Math.min(r.bottom + 4, window.innerHeight - 272), left: Math.max(8, Math.min(r.left, window.innerWidth - 200)) });
     }
     setOpen(o => !o);
   };
@@ -284,13 +284,10 @@ interface StoreRule { name: string; multiplier: number }
 function StoresManager() {
   const [stores, setStores] = useState<StoreRule[]>([]);
   useEffect(() => {
-    try {
-      const c = JSON.parse(localStorage.getItem('se-commission-v2') || 'null');
-      setStores(c?.stores?.length ? c.stores : [
-        { name: 'Costco 1018', multiplier: 1 }, { name: 'Costco 1020', multiplier: 1 },
-        { name: 'Target 2450', multiplier: 1 }, { name: "BJ's 610", multiplier: 1 },
-      ]);
-    } catch { /* defaults */ }
+    const read = () => setStores(loadCommission().stores);
+    read();
+    window.addEventListener('se:data', read);
+    return () => window.removeEventListener('se:data', read);
   }, []);
 
   const persist = (next: StoreRule[]) => {
@@ -329,7 +326,7 @@ function StoresManager() {
           <select value={retailer} onChange={e => setRetailer(e.target.value)} className="bg-bg-tertiary border border-border-subtle rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none" aria-label="Retailer">
             {RETAILERS.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
-          <input value={num} onChange={e => setNum(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') add(); }} placeholder="Store #" className="w-20 bg-bg-tertiary border border-border-subtle rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none" aria-label="Store number" />
+          <input value={num} onChange={e => setNum(e.target.value)} onKeyDown={e => { if (e.nativeEvent.isComposing || e.keyCode === 229) return; if (e.key === 'Enter') add(); }} placeholder="Store #" className="w-20 bg-bg-tertiary border border-border-subtle rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none" aria-label="Store number" />
           <Button size="sm" onClick={add}><Plus className="w-3.5 h-3.5" /> Add</Button>
         </div>
       </div>
@@ -486,7 +483,7 @@ function AddEmployeeModal({ storeOptions, teamOptions, onAdd, onClose }: {
     onAdd({
       name: name.trim(),
       role,
-      stores: stores.length ? stores : [storeOptions[0] ?? 'Costco'],
+      stores: stores.length ? stores : storeOptions.slice(0, 1),
       team,
       weeklyProfit: [0, 0],
       attendance: 100,
@@ -588,24 +585,53 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
   }, [people, companyName, setPeople]);
 
   // Store options come from the Commission Engine's store list
-  const [storeOptions, setStoreOptions] = useState<string[]>(['Costco 1018', 'Costco 1020', 'Target 2450', "BJ's 610"]);
+  const [storeOptions, setStoreOptions] = useState<string[]>([]);
   const [teamOptions, setTeamOptions] = useState<string[]>([]);
   useEffect(() => {
-    try {
-      const c = JSON.parse(localStorage.getItem('se-commission-v2') || 'null');
-      if (c?.stores?.length) setStoreOptions(c.stores.map((s: { name: string }) => s.name));
-    } catch { /* keep defaults */ }
-    try {
-      const teams = JSON.parse(localStorage.getItem('se-teams-v2') || '[]');
-      setTeamOptions(teams.map((t: { name: string }) => t.name));
-    } catch { /* none */ }
+    const read = () => {
+      setStoreOptions(loadCommission().stores.map(store => store.name));
+      setTeamOptions(loadTeams().map(team => team.name));
+    };
+    read();
+    window.addEventListener('se:data', read);
+    return () => window.removeEventListener('se:data', read);
   }, []);
 
-  const edit = (id: string, patch: Partial<Person>) =>
-    setPeople(prev => prev.map(p => (p.id === id ? { ...p, ...patch } : p)));
+  const edit = (id: string, patch: Partial<Person>) => {
+    const person = people.find(item => item.id === id);
+    if (!person) return;
+    const newName = patch.name?.trim() || person.name;
+    const renaming = newName !== person.name;
+    if (renaming && people.some(item => item.id !== id && (normalizeName(item.name) === normalizeName(person.name) || normalizeName(item.name) === normalizeName(newName)))) {
+      announce('This name is shared by another rep. Resolve the duplicate display names before renaming legacy records.', 'assertive');
+      return;
+    }
+    const originals = new Map<string, string>();
+    try {
+      const updates = new Map<string, string>();
+      for (const key of PERSON_REFERENCE_KEYS) {
+        const raw = localStorage.getItem(key);
+        if (raw === null) continue;
+        originals.set(key, raw);
+        let value = JSON.parse(raw);
+        if (renaming) value = renamePersonBook(value, person.name, newName);
+        if (key === 'se-teams-v2' && patch.team !== undefined && Array.isArray(value)) {
+          value = value.map(team => team.name === patch.team ? team : { ...team, lead: team.lead === newName ? '' : team.lead, asm: team.asm === newName ? '' : team.asm });
+        }
+        const next = JSON.stringify(value);
+        if (next !== raw) updates.set(key, next);
+      }
+      for (const [key, value] of updates) localStorage.setItem(key, value);
+      setPeople(previous => previous.map(item => item.id === id ? { ...item, ...patch, name: newName } : item));
+      notifyDataChanged();
+    } catch (error) {
+      for (const [key, value] of originals) localStorage.setItem(key, value);
+      announce(error instanceof Error ? error.message : 'Could not update the shared records.', 'assertive');
+    }
+  };
 
   const assignTeam = (name: string, team: string) =>
-    setPeople(prev => prev.map(p => (p.name.toLowerCase() === name.toLowerCase() ? { ...p, team } : p)));
+    setPeople(previous => previous.map(person => person.name === name ? { ...person, team } : person));
 
   const addPerson = async (p: Omit<Person, 'id'>) => {
     // A returning employee should reclaim their old identity (and history)
@@ -740,7 +766,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-        <h2 className="text-xl font-bold neon-brand">Roster &amp; Promotions</h2>
+        <h2 className="text-xl font-bold neon-brand">Roster</h2>
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={() => setShowAdd(true)}><UserPlus className="w-3.5 h-3.5" /> Add Employee</Button>
           {retiredCount > 0 && (
@@ -754,7 +780,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
             </Button>
           )}
           {/* Reset wipes the entire roster — never a single unguarded click. */}
-          <Button
+          {readWorkspace().mode === 'demo' && <Button
             variant="ghost"
             size="sm"
             onClick={async () => {
@@ -768,16 +794,16 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
               resetRules();
             }}
           >
-            ↻ Reset
-          </Button>
+            Reset demo roster
+          </Button>}
         </div>
       </div>
 
       {/* Stores live here now (not the Commission tab) */}
-      <StoresManager />
+      <details className="mb-4 rounded-xl border border-border-subtle bg-bg-secondary text-text-primary"><summary className="min-h-11 cursor-pointer px-4 py-3 text-sm font-medium">Manage stores · {storeOptions.length} configured</summary><StoresManager /></details>
 
       {/* Promotion rules — the leadership roadmap criteria, all editable */}
-      <div className="p-4 rounded-xl glass border border-accent-green/20 mb-4">
+      <details className="mb-4 rounded-xl border border-border-subtle bg-bg-secondary p-4 text-text-primary"><summary className="min-h-11 cursor-pointer text-sm font-medium">Promotion settings</summary>
         <h4 className="font-semibold text-sm mb-1 flex items-center gap-2 text-accent-green">
           <Award className="w-4 h-4" /> Leadership Roadmap Rules
         </h4>
@@ -796,10 +822,17 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
           </span>{' '}
           attendance. Attendance marked in the Daily Tracker counts automatically (Present 100% · Late 50% · Absent 0%).
         </p>
-      </div>
+      </details>
 
+      <div className="flex flex-col gap-3 lg:hidden">
+        {visiblePeople.map(person => <article key={person.id} className="rounded-xl border border-border-subtle bg-bg-secondary p-4 text-text-primary">
+          <div className="flex items-start justify-between gap-3"><div className="min-w-0"><button type="button" onClick={() => onOpenProfile(person.name)} className="min-h-11 break-words text-left text-base font-semibold">{person.name}</button><p className="text-sm text-text-muted">{ROSTER_ROLE_LABELS[person.role]} · {person.employeeCode ?? 'Profile pending'}</p></div><button type="button" onClick={() => setEditModalId(person.id)} className="min-h-11 min-w-11 rounded-lg border border-border-subtle bg-bg-tertiary px-3 text-sm" aria-label={`Edit ${person.name}`}>Edit</button></div>
+          <dl className="mt-3 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-text-muted">Store</dt><dd className="break-words">{person.stores.join(', ') || 'Unassigned'}</dd></div><div><dt className="text-text-muted">Team</dt><dd className="break-words">{person.team || 'Unassigned'}</dd></div><div><dt className="text-text-muted">Attendance</dt><dd>{effectiveAttendance(person).pct}%</dd></div><div><dt className="text-text-muted">Status</dt><dd className="capitalize">{personStatus(person)}</dd></div></dl>
+          <div className="mt-3 flex flex-wrap gap-2">{person.employeeCode && <Link href={`/people/${encodeURIComponent(person.employeeCode)}`} className="inline-flex min-h-11 items-center rounded-lg border border-border-subtle px-3 text-sm">Full profile</Link>}{canManage && <><button type="button" className="min-h-11 rounded-lg border border-border-subtle px-3 text-sm" onClick={() => personStatus(person) === 'retired' ? reactivatePerson(person.id) : retirePerson(person.id)}>{personStatus(person) === 'retired' ? 'Reactivate' : 'Retire'}</button><button type="button" className="min-h-11 rounded-lg border border-border-subtle px-3 text-sm" onClick={() => archivePerson(person.id)}>Archive</button></>}</div>
+        </article>)}
+      </div>
       {/* People table */}
-      <div className="overflow-x-auto">
+      <div className="hidden overflow-x-auto lg:block">
         <table className="w-full min-w-[1000px] text-xs">
           <thead>
             <tr className="text-left text-[10px] text-text-muted uppercase tracking-wider border-b border-border-subtle">
@@ -971,7 +1004,7 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
         stores &amp; teams update every board automatically
       </p>
 
-      <TeamTree people={people} assignTeam={assignTeam} />
+      <TeamTree people={activePeople(people)} assignTeam={assignTeam} />
 
       {showAdd && (
         <AddEmployeeModal

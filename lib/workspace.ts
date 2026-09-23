@@ -116,13 +116,6 @@ export function reconcileWorkspace(sessionTenantId: string): boolean {
 
   // Wrong tenant in a live bucket: drop the stale pointer before switching so
   // nothing can read the previous tenant's numbers in the gap before reload.
-  if (current.mode === 'live' && current.scope !== sessionTenantId) {
-    console.log('[v0] workspace scope mismatch — correcting', {
-      was: current.scope,
-      now: sessionTenantId,
-    });
-  }
-
   setWorkspace(target);
   return true;
 }

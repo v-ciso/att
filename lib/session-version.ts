@@ -15,4 +15,9 @@
  *
  * Edge-safe: a bare constant with zero imports, usable from middleware.
  */
-export const SESSION_VERSION = 2;
+export const SESSION_VERSION = 3;
+export const SESSION_MAX_AGE = 60 * 60;
+
+export function sessionIsCurrent(token: { sv?: number; sessionExpiresAt?: number } | null | undefined, now = Date.now()) {
+  return token?.sv === SESSION_VERSION && typeof token.sessionExpiresAt === 'number' && token.sessionExpiresAt > now;
+}

@@ -40,7 +40,7 @@ export function useLocalState<T>(key: string, defaultValue: T, liveDefault?: T, 
   // tabs. Both sides now start from the same `defaultValue`, and the
   // workspace-specific default is applied in the effect below where
   // localStorage genuinely exists.
-  const [state, setStateRaw] = useState<T>(defaultValue);
+  const [state, setStateRaw] = useState<T>(liveDefault ?? defaultValue);
   const [loaded, setLoaded] = useState(false);
   // True once this key is genuinely "owned" — either a saved value was loaded,
   // or the user edited. Until then we do NOT write, so opening a tab can never
@@ -48,21 +48,20 @@ export function useLocalState<T>(key: string, defaultValue: T, liveDefault?: T, 
   const ownedRef = useRef(false);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(key);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setStateRaw(migrate ? migrate(parsed) : parsed);
-        ownedRef.current = true;
-      } else {
-        // Nothing saved: now that we're on the client we can tell a live
-        // workspace from a demo one, so drop the demo furniture if this is live.
-        setStateRaw(resolveDefault());
-      }
-    } catch {
-      // corrupted storage — keep defaults
-    }
-    setLoaded(true);
+    const read = () => {
+      if (ownedRef.current) return;
+      try {
+        const saved = localStorage.getItem(key);
+        const parsed = saved ? JSON.parse(saved) : undefined;
+        const next = saved ? (migrate ? migrate(parsed) : parsed) : resolveDefault();
+        setStateRaw(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
+      } catch { setStateRaw(resolveDefault()); }
+      setLoaded(true);
+    };
+    read();
+    window.addEventListener('se:data', read);
+    window.addEventListener('storage', read);
+    return () => { window.removeEventListener('se:data', read); window.removeEventListener('storage', read); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
@@ -81,14 +80,11 @@ export function useLocalState<T>(key: string, defaultValue: T, liveDefault?: T, 
       // mid-meeting, which is worse.
       console.warn(`Could not save "${key}" — browser storage is full.`);
     }
+    ownedRef.current = false;
     window.dispatchEvent(new Event('se:data'));
   }, [state, loaded, key]);
 
-  const reset = () => {
-    ownedRef.current = false; // back to unowned so live re-empties, not re-seeds
-    localStorage.removeItem(key);
-    setStateRaw(resolveDefault());
-  };
+  const reset = () => setState(resolveDefault());
 
   return { state, setState, reset } as const;
 }
@@ -1057,10 +1053,18 @@ const TEAM_COLORS = ['blue', 'purple', 'cyan', 'yellow'];
 // Jordan Reyes in charge of both Alpha and Beta and named nine people
 // (Priya Patel, Taylor Brooks, Devon Carter, ...) who were not on the roster
 // at all, so the org chart showed staff who did not exist.
-const DEFAULT_TEAMS: TeamData[] = [
-  { name: 'Team Alpha', change: '+12%', lines: 34, premium: 18, fiber: 6, progress: 78, color: 'blue', lead: 'Alex Thompson', asm: 'Jordan Reyes', members: ['Sarah Johnson', 'Chris Lee'] },
-  { name: 'Team Beta', change: '+8%', lines: 28, premium: 14, fiber: 5, progress: 64, color: 'purple', lead: 'Mike Chen', asm: '', members: ['Jessica Williams', 'Dana White'] },
+export const DEFAULT_TEAMS: TeamData[] = [
+  { name: 'Team Alpha', change: '+12%', lines: 34, premium: 18, fiber: 6, progress: 78, color: 'blue', lead: 'Alex Thompson', asm: 'Jordan Reyes', members: ['Sarah Johnson', 'Jessica Williams', 'Chris Lee'] },
+  { name: 'Team Beta', change: '+8%', lines: 28, premium: 14, fiber: 5, progress: 64, color: 'purple', lead: 'Mike Chen', asm: '', members: [] },
 ];
+
+export function loadTeams(): TeamData[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem('se-teams-v2');
+    return raw ? JSON.parse(raw) : seedForWorkspace(DEFAULT_TEAMS, []);
+  } catch { return []; }
+}
 
 export function TeamsEditor() {
   const { state: teams, setState: setTeams, reset } = useLocalState<TeamData[]>('se-teams-v2', DEFAULT_TEAMS, []);

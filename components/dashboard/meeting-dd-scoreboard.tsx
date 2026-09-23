@@ -4,21 +4,26 @@ import useSWR from 'swr';
 import Link from 'next/link';
 import { AlertTriangle, ArrowUpRight, BadgeDollarSign, Building2, Users } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import { readWorkspace } from '@/lib/workspace';
 
 interface Summary { id: string; generated: number; ecBonusReceived: number; ecBonusMissing: number; externalRepId: string; reportName: string; teamSnapshot?: string | null; repProfile?: { employeeCode: string; displayName: string; teamName?: string | null } | null }
 interface Batch { id: string; ddWeek: string; reportType: string; officeGenerated: number; ecBonusReceived: number; ecBonusMissing: number; rowCount: number; isAuthoritative: boolean; summaries: Summary[] }
 interface ProductionRow { id: string; externalRepId: string; reportName: string; tier?: string | null; retail?: string | null; store?: string | null; orderType?: string | null; noEcBonusReason?: string | null; rowData?: Record<string, string> | null }
 interface DDResponse { batches: Batch[]; productionBatch?: { id: string; ddWeek: string; detailRows: ProductionRow[] } | null }
-const fetcher = (url: string) => fetch(url).then(response => response.json());
+const fetcher = (url: string) => fetch(url).then(async response => { if (!response.ok) throw new Error('DD reports could not be loaded.'); return response.json(); });
 
 export function MeetingDDScoreboard({ onOpenProfile }: { onOpenProfile?: (name: string) => void }) {
-  const { data } = useSWR<DDResponse>('/api/dd-reports', fetcher, { refreshInterval: 30_000 });
-  const batch = data?.batches.find(item => item.isAuthoritative && item.reportType === 'DD_BY_REP');
+  const workspace = readWorkspace();
+  const { data, error, isLoading } = useSWR<DDResponse>(workspace.mode === 'live' ? ['/api/dd-reports', workspace.scope] : null, ([url]) => fetcher(url), { refreshInterval: 15_000 });
+  if (workspace.mode === 'demo') return null;
+  if (error) return <p role="alert" className="mb-4 text-sm text-accent-red">DD reports could not be loaded. No sample totals are substituted.</p>;
+  if (isLoading) return <p role="status" className="mb-4 text-sm text-text-secondary">Loading confirmed DD totals…</p>;
+  const batch = data?.batches.filter(item => item.isAuthoritative && item.reportType === 'DD_BY_REP').sort((a, b) => b.ddWeek.localeCompare(a.ddWeek))[0];
   if (!batch) return <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-dashed border-border-strong bg-bg-tertiary p-5 md:flex-row md:items-center md:justify-between"><div><p className="font-semibold">No confirmed DD week yet</p><p className="mt-1 text-sm text-text-secondary">Import and confirm a DD report to make office and rep totals authoritative.</p></div><Link href="/dashboard?tab=import" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-accent-yellow px-4 text-sm font-semibold text-bg-primary">Open DD Reports</Link></div>;
   const sorted = [...batch.summaries].sort((a, b) => b.generated - a.generated);
   const exceptions = sorted.filter(row => row.ecBonusMissing > 0);
   const teamTotals = [...sorted.reduce((map, row) => { const team = row.repProfile?.teamName || row.teamSnapshot || 'Unassigned'; map.set(team, (map.get(team) ?? 0) + row.generated); return map; }, new Map<string, number>())].sort((a, b) => b[1] - a[1]);
-  const productionRows = data?.productionBatch?.detailRows ?? [];
+  const productionRows = data?.productionBatch?.ddWeek === batch.ddWeek ? data.productionBatch.detailRows : [];
   const productionMix = [...productionRows.reduce((map, row) => {
     const label = row.orderType || row.tier || row.rowData?.description || 'Other production';
     map.set(label, (map.get(label) ?? 0) + 1);
@@ -26,7 +31,7 @@ export function MeetingDDScoreboard({ onOpenProfile }: { onOpenProfile?: (name: 
   }, new Map<string, number>())].sort((a, b) => b[1] - a[1]).slice(0, 6);
   const nextUpCount = productionRows.filter(row => /next up/i.test([row.orderType, row.tier, row.rowData?.description].filter(Boolean).join(' '))).length;
   return <div className="mb-6 flex flex-col gap-4">
-    <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between"><div><span className="text-xs font-semibold uppercase tracking-[0.18em] text-accent-yellow">Live DD week</span><h2 className="mt-1 text-2xl font-bold text-balance">Office production scoreboard</h2></div><p className="font-mono text-xs text-text-muted">Week ending {new Date(batch.ddWeek).toLocaleDateString()}</p></div>
+    <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between"><div><span className="text-xs font-semibold uppercase tracking-[0.18em] text-accent-yellow">Latest confirmed DD week · separate from tracker filters</span><h2 className="mt-1 text-2xl font-bold text-balance">Office production scoreboard</h2></div><p className="font-mono text-xs text-text-muted">Week ending {new Date(batch.ddWeek).toLocaleDateString()}</p></div>
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[
       ['Office generated', formatCurrency(batch.officeGenerated), Building2], ['EC received', formatCurrency(batch.ecBonusReceived), BadgeDollarSign], ['Missing / withheld EC', formatCurrency(batch.ecBonusMissing), AlertTriangle], ['Active report reps', String(sorted.length), Users],
     ].map(([label, value, Icon]) => { const Glyph = Icon as typeof Building2; return <div key={String(label)} className="rounded-2xl border border-border-subtle bg-bg-secondary p-4"><div className="flex items-center justify-between"><p className="text-[10px] uppercase tracking-wider text-text-muted">{String(label)}</p><Glyph className="h-4 w-4 text-accent-yellow" /></div><p className="mt-3 font-mono text-2xl font-bold">{String(value)}</p></div>; })}</div>
