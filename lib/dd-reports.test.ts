@@ -47,7 +47,29 @@ async function main() {
     }
   }
 
-  console.log('dd-reports: PDF extraction and normalization passed');
+  const wrapped = [
+    ['DD BY REP'], ['Processed Week', 'cl.DD Week'], ['09/21/2026', 'All'],
+    ['2', '2'], ['Example Company', 'Owner', 'Ben', 'Smart Circle', 'INTERNET - Internet 1000'],
+    ['Tinoco', '$728.00', '$728.00'], ['(9432422)'],
+    ['Internet Bonus - Converged Internet', '2', '2'], ['Bonus - Internet 1000', '$100.00', '$100.00'],
+    ['WIRELESS - AT&T Unlimited Premium', '1', '1'], ['(Elite) - Upgrade', '$15.00', '$15.00'],
+    ['1', '1'], ['WIRELESS - Upgrade', '$44.00', '$44.00'],
+    ['Rep Total', '$887.00', '$887.00'],
+    ['Alex', 'Smart Circle', 'WIRELESS - New Line', '1'], ['Smith'], ['(9431004)'], ['$116.50'], ['Rep Total'], ['$116.50'],
+  ];
+  const normalized = normalizeGrid(wrapped, wrapped.map(row => row.join('\t')).join('\n'));
+  assert.equal(normalized.ddWeek.slice(0, 10), '2026-09-20');
+  assert.equal(normalized.rows[0].raw.quantity, '2');
+  assert.equal(normalized.rows[1].raw.description, 'Internet Bonus - Converged Internet Bonus - Internet 1000');
+  assert.equal(normalized.rows[1].ecBonusToIcd, 0, 'Converged bonus is not EC');
+  assert.equal(normalized.rows[1].bonusesToIcd, 100);
+  assert.equal(normalized.rows[2].raw.description, 'WIRELESS - AT&T Unlimited Premium (Elite) - Upgrade');
+  assert.equal(normalized.rows[4].generated, 116.5, 'A same-line rep total must not swallow the next rep');
+  const clipped = wrapped.slice(0, -2).concat([['***CONFIDENTIAL***'], ['$25.00']]);
+  const partial = normalizeGrid(clipped, clipped.map(row => row.join('\t')).join('\n'));
+  assert.ok(partial.rows.some(row => row.raw.needsReview));
+  assert.equal(partial.rows.at(-1)?.orderType, undefined, 'Do not carry the last plan into a clipped row');
+  console.log('dd-reports: PDF extraction, wrapped descriptions, totals and bonus classification passed');
 }
 
 void main();

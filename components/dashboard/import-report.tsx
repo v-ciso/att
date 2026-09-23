@@ -31,7 +31,8 @@ function LiveImportReport() {
   const [confirming, setConfirming] = useState(false);
   const [mappingId, setMappingId] = useState<string | null>(null);
   const unmapped = useMemo(() => preview?.summaries.filter(row => !row.profile) ?? [], [preview]);
-  const step = !preview ? 0 : unmapped.length ? 1 : 2;
+  const needsReview = preview?.rows.some(row => Boolean((row.raw as Record<string, string> | undefined)?.needsReview)) ?? false;
+  const step = !preview ? 0 : unmapped.length || needsReview ? 1 : 2;
 
   async function parse(file?: File) {
     if (!file && !pasted.trim()) return;
@@ -60,7 +61,7 @@ function LiveImportReport() {
   }
 
   async function confirm() {
-    if (!preview || unmapped.length) return;
+    if (!preview || unmapped.length || needsReview) return;
     setBusy(true); setError('');
     try {
       const response = await fetch('/api/dd-reports/confirm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...preview, confirmation: true }) });
@@ -105,6 +106,8 @@ function LiveImportReport() {
       </div>}
 
       {preview && <div className="flex flex-col gap-4">
+        {preview.warnings.length > 0 && <div role="status" className="rounded-xl border border-accent-yellow/30 bg-bg-secondary p-4 text-sm text-text-primary"><h3 className="font-semibold">{needsReview ? 'Complete export required before confirmation' : 'Review report warnings'}</h3><ul className="mt-2 flex list-inside list-disc flex-col gap-1">{preview.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul></div>}
+        <label className="flex flex-col gap-1 text-sm text-text-secondary">DD week ending<input type="date" value={preview.ddWeek.slice(0, 10)} min={data?.operatingStartDate?.slice(0, 10)} onChange={event => { const value = event.target.value; if (value) setPreview(current => current ? { ...current, ddWeek: `${value}T00:00:00.000Z` } : current); }} className="min-h-11 max-w-xs rounded-lg border border-border-subtle bg-bg-tertiary px-3 text-text-primary" /><span>Verify the responsible week before confirming. Processed week: {preview.processedWeek.slice(0, 10)}.</span></label>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           {[['Office generated', formatCurrency(preview.totals.officeGenerated)], ['EC received', formatCurrency(preview.totals.ecBonusReceived)], ['Missing / withheld EC', formatCurrency(preview.totals.ecBonusMissing)], ['Mapped reps', `${preview.totals.reps - unmapped.length}/${preview.totals.reps}`], ['Detail rows', String(preview.totals.rows)]].map(([label, value]) => <div key={label} className="rounded-xl border border-border-subtle bg-bg-secondary p-4"><p className="text-[10px] uppercase tracking-wider text-text-muted">{label}</p><p className="mt-2 font-mono text-xl font-bold text-foreground">{value}</p></div>)}
         </div>
@@ -126,7 +129,7 @@ function LiveImportReport() {
                             </>;
                           })()}
                         </select><Button size="sm" variant="outline" disabled={mappingId === summary.externalRepId} onClick={() => void mapPerson(summary)}>{mappingId === summary.externalRepId ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create profile'}</Button></div>}</td><td className="p-3 text-right font-mono font-semibold">{formatCurrency(summary.generated)}</td><td className="p-3 text-right font-mono text-accent-green">{formatCurrency(summary.ecBonusReceived)}</td><td className="p-3 text-right font-mono text-accent-yellow">{summary.ecBonusMissing ? formatCurrency(summary.ecBonusMissing) : '—'}</td></tr>)}</tbody></table></div></div>
-        <div className="flex flex-col gap-3 rounded-2xl border border-border-subtle bg-bg-secondary p-4 md:flex-row md:items-center md:justify-between"><div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 text-accent-yellow" /><div><p className="font-semibold">{unmapped.length ? `${unmapped.length} carrier ${unmapped.length === 1 ? 'ID needs' : 'IDs need'} a profile` : 'Ready for owner review'}</p><p className="mt-1 text-xs leading-5 text-text-secondary">Confirming replaces the authoritative record for this DD week. The old batch remains available for rollback.</p></div></div><Button disabled={Boolean(unmapped.length) || busy} onClick={() => setConfirming(true)}>Review replacement <ArrowRight className="ml-2 h-4 w-4" /></Button></div>
+        <div className="flex flex-col gap-3 rounded-2xl border border-border-subtle bg-bg-secondary p-4 md:flex-row md:items-center md:justify-between"><div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 text-accent-yellow" /><div><p className="font-semibold">{unmapped.length ? `${unmapped.length} carrier ${unmapped.length === 1 ? 'ID needs' : 'IDs need'} a profile` : needsReview ? 'Upload a complete export to continue' : 'Ready for owner review'}</p><p className="mt-1 text-xs leading-5 text-text-secondary">Confirming replaces the authoritative record for this DD week. The old batch remains available for rollback.</p></div></div><Button disabled={Boolean(unmapped.length) || needsReview || busy} onClick={() => setConfirming(true)}>Review replacement <ArrowRight className="ml-2 h-4 w-4" /></Button></div>
       </div>}
 
       {confirming && preview && <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="confirm-dd-title"><div className="w-full max-w-lg rounded-2xl border border-border-strong bg-bg-secondary p-6 shadow-2xl"><span className="text-xs font-semibold uppercase tracking-wider text-accent-yellow">Final confirmation</span><h3 id="confirm-dd-title" className="mt-2 text-xl font-bold text-balance">Replace week of {new Date(preview.ddWeek).toLocaleDateString()}?</h3><p className="mt-3 text-sm leading-6 text-text-secondary">This makes {formatCurrency(preview.totals.officeGenerated)} across {preview.totals.reps} reps and {preview.totals.rows} rows the live sales record for the week. Previous data is retained in audit history.</p><div className="mt-6 flex justify-end gap-3"><Button variant="ghost" onClick={() => setConfirming(false)}>Cancel</Button><Button onClick={() => void confirm()} disabled={busy}>{busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirm replacement</Button></div></div></div>}

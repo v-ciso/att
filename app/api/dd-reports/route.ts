@@ -29,13 +29,17 @@ async function loadRoster(marketOwnerId: string): Promise<RosterPerson[]> {
 
 const nameKey = (value: string) => value.toLowerCase().replace(/[^a-z]/g, '');
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const user = await actor();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: NO_STORE });
-  const [batches, profiles, company, productionBatch, roster] = await Promise.all([
+  const week = request.nextUrl.searchParams.get('week');
+  const weekDate = week && /^\d{4}-\d{2}-\d{2}$/.test(week) ? new Date(`${week}T00:00:00.000Z`) : null;
+  if (week && (!weekDate || !Number.isFinite(weekDate.valueOf()) || weekDate.toISOString().slice(0, 10) !== week)) return NextResponse.json({ error: 'Invalid DD week.' }, { status: 400, headers: NO_STORE });
+  const weekFilter = weekDate ? { ddWeek: weekDate } : {};
+  const [batches, profiles, company, productionBatch, roster, weeks] = await Promise.all([
     prisma.dDImportBatch.findMany({
-      where: { marketOwnerId: user.marketOwnerId },
-      orderBy: { createdAt: 'desc' },
+      where: { marketOwnerId: user.marketOwnerId, ...weekFilter },
+      orderBy: { ddWeek: 'desc' },
       take: 30,
       include: { summaries: { include: { repProfile: true }, orderBy: { generated: 'desc' } } },
     }),
@@ -46,7 +50,7 @@ export async function GET() {
     }),
     prisma.marketOwner.findUnique({ where: { id: user.marketOwnerId }, select: { operatingStartDate: true } }),
     prisma.dDImportBatch.findFirst({
-      where: { marketOwnerId: user.marketOwnerId, reportType: 'DD_DETAIL', isAuthoritative: true },
+      where: { marketOwnerId: user.marketOwnerId, reportType: 'DD_DETAIL', isAuthoritative: true, ...weekFilter },
       orderBy: { confirmedAt: 'desc' },
       select: {
         id: true,
@@ -59,16 +63,17 @@ export async function GET() {
       },
     }),
     loadRoster(user.marketOwnerId),
+    prisma.dDImportBatch.findMany({ where: { marketOwnerId: user.marketOwnerId, isAuthoritative: true, reportType: 'DD_BY_REP' }, select: { ddWeek: true }, distinct: ['ddWeek'], orderBy: { ddWeek: 'desc' } }),
   ]);
   const rosterByCode = new Map(roster.map(person => [person.employeeCode, person]));
   const reconciledBatches = batches.map(batch => ({
     ...batch,
     summaries: batch.summaries.map(summary => {
       const person = summary.repProfile && rosterByCode.get(summary.repProfile.employeeCode);
-      return person ? { ...summary, teamSnapshot: person.team || null, repProfile: { ...summary.repProfile!, displayName: person.name, teamName: person.team || null } } : summary;
+      return person ? { ...summary, teamSnapshot: person.role === 'OWNER' ? null : person.team || null, repProfile: { ...summary.repProfile!, displayName: person.name, title: person.role, teamName: person.role === 'OWNER' ? null : person.team || null } } : summary;
     }),
   }));
-  return NextResponse.json({ batches: reconciledBatches, profiles, productionBatch, roster, operatingStartDate: company?.operatingStartDate }, { headers: NO_STORE });
+  return NextResponse.json({ batches: reconciledBatches, profiles, productionBatch, roster, weeks: weeks.map(item => item.ddWeek), operatingStartDate: company?.operatingStartDate }, { headers: NO_STORE });
 }
 
 export async function POST(request: NextRequest) {
@@ -109,14 +114,21 @@ export async function POST(request: NextRequest) {
         loadRoster(user.marketOwnerId),
         prisma.repProfile.findMany({ where: { marketOwnerId: user.marketOwnerId } }),
       ]);
-      const profilesByName = new Map(existingProfiles.map(profile => [nameKey(profile.displayName), profile]));
-      const rosterByName = new Map(roster.map(person => [nameKey(person.name), person]));
+      const uniquelyNamedProfile = (name: string) => {
+        const matches = existingProfiles.filter(profile => nameKey(profile.displayName) === name);
+        return matches.length === 1 ? matches[0] : null;
+      };
+      const uniquelyNamedPerson = (name: string) => {
+        const matches = roster.filter(person => nameKey(person.name) === name);
+        return matches.length === 1 ? matches[0] : null;
+      };
       summaries = await Promise.all(summaries.map(async summary => {
         if (summary.profile) return summary;
         const key = nameKey(summary.reportName);
-        let target = profilesByName.get(key) ?? null;
+        if (unmatched.filter(row => nameKey(row.reportName) === key).length > 1) return summary;
+        let target = uniquelyNamedProfile(key);
         if (!target) {
-          const person = rosterByName.get(key);
+          const person = uniquelyNamedPerson(key);
           if (person) {
             target = await prisma.repProfile.upsert({
               where: { marketOwnerId_employeeCode: { marketOwnerId: user.marketOwnerId, employeeCode: person.employeeCode } },

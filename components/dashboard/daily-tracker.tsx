@@ -16,6 +16,8 @@ import { useAnnounce } from '@/components/a11y/announcer';
 import { useConfirm } from '@/hooks/use-confirm';
 import { readWorkspace } from '@/lib/workspace';
 import { useSession } from 'next-auth/react';
+import { ProductionShare } from './production-share';
+import { canonicalPlan, productionPlanLabel } from '@/lib/production-post';
 
 interface DailyTrackerProps {
   onDataChange: () => void; // tells the dashboard to recompute derived stats
@@ -59,6 +61,10 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   const [qty, setQty] = useState(1);
   const [nextUps, setNextUps] = useState(0);
   const [insurance, setInsurance] = useState(0);
+  const [upgradePlan, setUpgradePlan] = useState('');
+  const [upgradePlanBonus, setUpgradePlanBonus] = useState('');
+  const [convergedQty, setConvergedQty] = useState(0);
+  const [bonusPerBundle, setBonusPerBundle] = useState('');
   const [entryStore, setEntryStore] = useState('');
   const [viewStore, setViewStore] = useState(''); // '' = all stores
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -205,10 +211,18 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   const scheduledAt = scheduled && allStores.includes(scheduled) ? scheduled : '';
   const effectiveStores = scheduledAt ? [scheduledAt] : personStores;
 
+  const selectedPlan = canonicalPlan(plan || plans[0] || '');
+  const isUpgrade = selectedPlan === 'Upgrades';
+  const isFiber = /fiber/i.test(selectedPlan);
+  const bonusRate = bonusPerBundle === '' ? commission.convergedBonusOffice : Number(bonusPerBundle);
+
   const addEntry = () => {
     const who = person || people[0]?.name;
     const what = plan || plans[0];
-    if (!who || !what || qty < 1) return;
+    if (!who || !what || !date || !Number.isInteger(qty) || qty < 1 || qty > 99) return;
+    if ([isUpgrade ? upgradePlanBonus : '', isFiber ? bonusPerBundle : ''].some(value => value !== '' && (!Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 10000))) {
+      announce('Office supplements must be between $0 and $10,000.', 'assertive'); return;
+    }
     const store = scheduledAt || (effectiveStores.includes(entryStore) ? entryStore : effectiveStores[0]);
     if (!store) { announce('Add a company store in Roster before logging a sale.', 'assertive'); return; }
     setSales(prev => [
@@ -225,10 +239,15 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
         qty,
         nextUps: Math.min(nextUps, qty),
         insurance: Math.min(insurance, qty),
+        ...(isUpgrade && upgradePlan ? { upgradePlan, ...(upgradePlanBonus !== '' ? { upgradePlanBonus: Number(upgradePlanBonus) } : {}) } : {}),
+        ...(isFiber && convergedQty > 0 ? {
+          convergedQty: Math.min(convergedQty, qty),
+          ...(typeof bonusRate === 'number' && Number.isFinite(bonusRate) && bonusRate >= 0 && bonusRate <= 10000 ? { convergedBonusPerBundle: bonusRate } : {}),
+        } : {}),
       },
       ...prev,
     ]);
-    setQty(1); setNextUps(0); setInsurance(0);
+    setQty(1); setNextUps(0); setInsurance(0); setConvergedQty(0); setBonusPerBundle(''); setUpgradePlan(''); setUpgradePlanBonus('');
     // The new row appears at the top of the table with no focus change, so this
     // is the only feedback a screen-reader user gets that the sale was logged.
     announce(`Logged ${qty} ${what} for ${who} at ${store}.`);
@@ -334,15 +353,22 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
           </label>
           <label className="flex flex-col gap-1 text-[10px] text-text-muted uppercase tracking-wider">
             Plan
-            <select value={plan || plans[0] || ''} onChange={e => setPlan(e.target.value)} className={selectClass}>
+            <select value={plan || plans[0] || ''} onChange={e => { setPlan(e.target.value); setUpgradePlan(''); setUpgradePlanBonus(''); setConvergedQty(0); }} className={selectClass}>
               <optgroup label="Phone Lines">
-                {commission.phonePlans.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+                {commission.phonePlans.map(p => <option key={p.name} value={p.name}>{productionPlanLabel(p.name)}</option>)}
               </optgroup>
               <optgroup label="Internet">
-                {commission.internet.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+                {commission.internet.map(p => <option key={p.name} value={p.name}>{productionPlanLabel(p.name)}</option>)}
               </optgroup>
             </select>
           </label>
+          {isUpgrade && <label className="flex flex-col gap-1 text-sm text-text-secondary">Upgrade plan<select value={upgradePlan} onChange={event => { setUpgradePlan(event.target.value); setUpgradePlanBonus(''); }} className={selectClass}><option value="">Plan unchanged / not recorded</option>{commission.phonePlans.filter(item => canonicalPlan(item.name) !== 'Upgrades').map(item => <option key={item.name} value={item.name}>{productionPlanLabel(item.name)}</option>)}</select></label>}
+          {isUpgrade && upgradePlan && <label className="flex flex-col gap-1 text-sm text-text-secondary">Office plan supplement / upgrade ($)<input type="number" min={0} max={10000} step="0.01" value={upgradePlanBonus} placeholder="Pending" onChange={event => setUpgradePlanBonus(event.target.value)} className={cn(selectClass, 'w-28')} /><span className="max-w-xs text-sm">Additional to upgrade payout, not a second new line. Leave blank if unverified.</span></label>}
+          {isFiber && <>
+            <label className="flex flex-col gap-1 text-sm text-text-secondary">Converged bundles<input type="number" min={0} max={qty} value={convergedQty} onChange={event => setConvergedQty(Math.min(qty, Math.max(0, Number.parseInt(event.target.value) || 0)))} className={cn(selectClass, 'w-24')} /></label>
+            {convergedQty > 0 && <label className="flex flex-col gap-1 text-sm text-text-secondary">Office bonus / bundle ($)<input type="number" min={0} max={10000} step="0.01" value={bonusPerBundle} placeholder={commission.convergedBonusOffice?.toString() ?? 'Pending'} onChange={event => setBonusPerBundle(event.target.value)} className={cn(selectClass, 'w-28')} /></label>}
+            <p className="basis-full text-sm text-text-secondary">Only mark confirmed same-customer fiber + wireless bundles. Bonus is additional to fiber payout, once per bundle; a blank unconfigured rate stays pending.</p>
+          </>}
           <label className="flex flex-col gap-1 text-[10px] text-text-muted uppercase tracking-wider">
             Qty
             <input type="number" min={1} max={99} value={qty} onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))} className={cn(selectClass, 'w-16')} />
@@ -359,6 +385,8 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
           {loaded && !allStores.length && <p className="w-full text-sm text-text-secondary">Add a store under Roster → Manage stores before logging activity.</p>}
         </div>
       </div>
+
+      <ProductionShare sales={sales} date={date} stores={viewStore ? [viewStore] : undefined} />
 
       {/* Attendance for the selected date */}
       <div className="p-4 rounded-xl glass border border-accent-green/20 mb-4">
@@ -469,7 +497,7 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
             {allStores.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
           <p className="text-xs whitespace-nowrap">
-            Office generated: <span className="text-accent-green font-bold">{formatCurrency(dayTotal)}</span>
+            Tracker estimate: <span className="text-accent-green font-bold">{formatCurrency(dayTotal)}</span>
           </p>
         </div>
       </div>
@@ -481,15 +509,15 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
           </p>
         )}
         {dayEntries.map(entry => {
-          const { total, repTotal, parts } = entryRevenue(entry, commission);
+          const { total, parts } = entryRevenue(entry, commission);
           const isOpen = expanded === entry.id;
           return (
             <div key={entry.id} className="group rounded-xl glass border border-border-subtle overflow-hidden">
-              <div className="flex items-center gap-3 px-3 py-2 text-xs">
+              <div className="flex flex-wrap items-center gap-3 px-3 py-2 text-xs">
                 <span className="font-semibold min-w-[110px]">{entry.person}</span>
                 <span className="text-text-secondary">{entry.store}</span>
                 <span className="px-2 py-0.5 rounded-full bg-accent-blue/10 text-accent-blue border border-accent-blue/20 text-[10px]">
-                  {entry.qty} × {entry.plan}
+                  {entry.qty} × {productionPlanLabel(entry.plan)}{entry.upgradePlan ? ` / ${productionPlanLabel(entry.upgradePlan)}` : ''}
                 </span>
                 {entry.nextUps > 0 && (
                   <span className="px-2 py-0.5 rounded-full bg-accent-red/10 text-accent-red border border-accent-red/20 text-[10px]">
@@ -501,6 +529,7 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
                     {entry.insurance} Ins.
                   </span>
                 )}
+                {!!entry.convergedQty && <span className="text-sm text-text-secondary">{entry.convergedQty} converged{entry.convergedBonusPerBundle === undefined ? ' · bonus pending' : ''}</span>}
                 <span className="ml-auto text-accent-green font-bold">{formatCurrency(total)}</span>
                 <button
                   onClick={() => setExpanded(isOpen ? null : entry.id)}
@@ -526,13 +555,8 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
                       <span className="text-accent-green">{formatCurrency(part.amount)}</span>
                     </div>
                   ))}
-                  <div className="flex justify-between text-[11px] py-0.5 border-t border-border-subtle mt-1 pt-1">
-                    <span className="text-text-secondary">Rep&apos;s commission (your rates)</span>
-                    <span className="text-accent-blue font-semibold">{formatCurrency(repTotal)}</span>
-                  </div>
-                  <p className="text-[9px] text-text-muted mt-1">
-                    Office totals priced at Tier {commission.tier} with {entry.store}&apos;s multiplier — the rep cut is the flat amount you set per plan in the Commission tab.
-                  </p>
+                  <p className="mt-2 text-sm text-text-secondary">Tracker estimate using saved Tier {commission.tier} office rates; confirmed DD reports remain authoritative. Unknown supplements are pending, not zero.</p>
+                  {entry.upgradePlan && entry.upgradePlanBonus === undefined && <p className="text-sm text-text-secondary">Upgrade plan supplement pending — base upgrade payout only.</p>}
                 </div>
               )}
             </div>

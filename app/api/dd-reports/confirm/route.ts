@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
   const parsed = schema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: 'Invalid confirmation payload.', details: parsed.error.flatten() }, { status: 400 });
   const input = parsed.data;
+  if (input.rows.some(row => row.raw.needsReview)) return NextResponse.json({ error: 'This export has unresolved rows, missing rep totals, or unallocated office adjustments. Reconcile a complete export before replacing a DD week.' }, { status: 422 });
   const ddWeek = new Date(input.ddWeek);
   const processedWeek = new Date(input.processedWeek);
   const company = await prisma.marketOwner.findUnique({ where: { id: user.marketOwnerId }, select: { operatingStartDate: true } });

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import { canWrite } from '@/lib/permissions';
 import { z } from 'zod';
 import { parseBody } from '@/lib/api-validation';
+import { canonicalPlan } from '@/lib/production-post';
 
 // The tenant's data container. Every read and write is scoped to the caller's
 // OWN marketOwnerId, taken from the SESSION and never from the request body.
@@ -143,6 +144,28 @@ export async function PUT(request: NextRequest) {
 
   if (valid.length !== items.length || new Set(valid.map(item => item.key)).size !== valid.length) {
     return NextResponse.json({ error: 'Unknown or duplicate data key.' }, { status: 400, headers: NO_STORE });
+  }
+  const rosterBook = valid.find(item => item.key === 'se-people-v1');
+  if (rosterBook && Array.isArray(rosterBook.value)) {
+    rosterBook.value = rosterBook.value.map(person => person && typeof person === 'object' && person.role === 'OWNER' ? { ...person, team: '' } : person);
+  }
+  const salesBook = valid.find(item => item.key === 'se-sales-v1');
+  if (salesBook) {
+    const details = z.object({
+      plan: z.string().min(1).max(120),
+      qty: z.number().int().min(1).max(10000),
+      upgradePlan: z.string().min(1).max(120).optional(),
+      upgradePlanBonus: z.number().finite().min(0).max(10000).optional(),
+      convergedQty: z.number().int().min(0).max(10000).optional(),
+      convergedBonusPerBundle: z.number().finite().min(0).max(10000).optional(),
+    }).passthrough().superRefine((entry, ctx) => {
+      if (entry.upgradePlan && canonicalPlan(entry.plan) !== 'Upgrades') ctx.addIssue({ code: 'custom', message: 'Upgrade plan only applies to upgrades.' });
+      if (entry.upgradePlanBonus !== undefined && !entry.upgradePlan) ctx.addIssue({ code: 'custom', message: 'A plan supplement requires an upgrade plan.' });
+      if (entry.convergedQty && (!/fiber/i.test(canonicalPlan(entry.plan)) || entry.convergedQty > entry.qty)) ctx.addIssue({ code: 'custom', message: 'Converged bundles cannot exceed fiber orders.' });
+      if (entry.convergedBonusPerBundle !== undefined && !entry.convergedQty) ctx.addIssue({ code: 'custom', message: 'A converged bonus requires a bundle.' });
+    });
+    const result = z.array(details).max(100000).safeParse(salesBook.value);
+    if (!result.success) return NextResponse.json({ error: 'Invalid sale details: check quantities, upgrade plans, and converged bonuses.' }, { status: 400, headers: NO_STORE });
   }
   try {
     const versions = await prisma.$transaction(async tx => {

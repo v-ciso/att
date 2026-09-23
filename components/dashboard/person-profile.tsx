@@ -20,7 +20,7 @@ export function PersonSnapshot({ name, period }: { name: string; period: Period 
   const person = loadPeople().find(p => p.name.trim().toLowerCase() === name.trim().toLowerCase());
   const rules = loadPromoRules();
   const status = person ? promotionStatus(person, rules) : null;
-  const roleIndex = person ? ROLE_LADDER.indexOf(person.role) : -1;
+  const roleIndex = person && person.role !== 'OWNER' ? ROLE_LADDER.indexOf(person.role) : -1;
   const profitMax = person ? Math.max(...person.weeklyProfit, rules.profitPerWeek) : 1;
 
   // Live stats for this person over the selected period, derived from sales entries
