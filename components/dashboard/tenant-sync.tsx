@@ -25,7 +25,7 @@ export function TenantSync({ children }: { children: ReactNode }) {
       setExpired(true);
       stopTenantSync();
       purgeAllLiveBuckets();
-      void signOut({ callbackUrl: '/login' });
+      void signOut({ redirect: false }).then(() => window.location.assign('/login'));
     };
     if (!session?.user?.id || !session.sessionExpiresAt || session.sessionExpiresAt <= Date.now()) {
       expire();
@@ -63,7 +63,7 @@ export function TenantSync({ children }: { children: ReactNode }) {
   if (!protectedPage) return <>{children}</>;
   if (expired) return <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-bg-primary text-text-primary"><p>Your one-hour session has ended.</p><a href="/login" className="min-h-11 rounded-lg border border-border-subtle px-4 py-2 text-sm">Sign in again</a></main>;
   if (status === 'loading' || !session?.user?.id || (needsData && !workspace)) return <Loading />;
-  if (saveError || error) return <main className="flex min-h-dvh flex-col items-center justify-center bg-bg-primary px-6 text-text-primary"><div className="flex max-w-lg flex-col gap-4"><h1 className="text-xl font-semibold">Live data needs attention</h1><p role="alert" className="text-sm leading-6 text-text-secondary">{saveError || error.message}</p><p className="text-sm leading-6 text-text-secondary">No other company or demo data is shown. Reloading discards unsaved edits on this device.</p><button className="min-h-11 rounded-lg bg-bg-tertiary px-4 text-text-primary" onClick={() => saveError ? window.location.reload() : void mutate()}>Reload latest data</button><button className="min-h-11 rounded-lg border border-border-subtle px-4 text-text-secondary" onClick={() => { stopTenantSync(); purgeAllLiveBuckets(); void signOut({ callbackUrl: '/login' }); }}>Sign out</button></div></main>;
+  if (saveError || error) return <main className="flex min-h-dvh flex-col items-center justify-center bg-bg-primary px-6 text-text-primary"><div className="flex max-w-lg flex-col gap-4"><h1 className="text-xl font-semibold">Live data needs attention</h1><p role="alert" className="text-sm leading-6 text-text-secondary">{saveError || error.message}</p><p className="text-sm leading-6 text-text-secondary">No other company or demo data is shown. Reloading discards unsaved edits on this device.</p><button className="min-h-11 rounded-lg bg-bg-tertiary px-4 text-text-primary" onClick={() => saveError ? window.location.reload() : void mutate()}>Reload latest data</button><button className="min-h-11 rounded-lg border border-border-subtle px-4 text-text-secondary" onClick={() => { stopTenantSync(); purgeAllLiveBuckets(); void signOut({ redirect: false }).then(() => window.location.assign('/login')); }}>Sign out</button></div></main>;
   if (readyToLoad && !loaded) return <Loading />;
   return <>{children}</>;
 }

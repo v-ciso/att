@@ -32,7 +32,8 @@ function useWorkspaceControls() {
     try {
       await flushTenantSync();
       stopTenantSync(); purgeAllLiveBuckets();
-      await signOut({ callbackUrl: '/login' });
+      await signOut({ redirect: false });
+      window.location.assign('/login');
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to save before signing out.'); setBusy(false); }
   };
   return { workspace, session, superAdmin, busy, error, change, logout };
