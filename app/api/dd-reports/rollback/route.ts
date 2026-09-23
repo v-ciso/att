@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { audit } from '@/lib/audit';
 import { z } from 'zod';
+import { canRestoreDDReport } from '@/lib/dd-report-selection';
 
 const schema = z.object({ batchId: z.string().cuid(), confirmation: z.literal(true) });
 type SessionUser = { id: string; email?: string | null; role?: string; marketOwnerId?: string };
@@ -17,10 +18,11 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: 'Invalid rollback request.' }, { status: 400 });
   const restored = await prisma.$transaction(async tx => {
     const target = await tx.dDImportBatch.findFirst({ where: { id: parsed.data.batchId, marketOwnerId: user.marketOwnerId } });
-    if (!target) throw new Error('Batch not found.');
-    await tx.dDImportBatch.updateMany({ where: { marketOwnerId: user.marketOwnerId, ddWeek: target.ddWeek, isAuthoritative: true }, data: { isAuthoritative: false, status: 'ROLLED_BACK' } });
+    if (!target || !canRestoreDDReport(target)) return null;
+    await tx.dDImportBatch.updateMany({ where: { marketOwnerId: user.marketOwnerId, ddWeek: target.ddWeek, reportType: target.reportType, isAuthoritative: true }, data: { isAuthoritative: false, status: 'ROLLED_BACK' } });
     return tx.dDImportBatch.update({ where: { id: target.id }, data: { isAuthoritative: true, status: 'CONFIRMED', confirmedBy: user.id, confirmedAt: new Date() } });
   });
+  if (!restored) return NextResponse.json({ error: 'Only previously confirmed reports can be restored. Partial exports require reconciliation.' }, { status: 422 });
   await audit({ action: 'dd.rollback', actor: { id: user.id, email: user.email ?? 'unknown', role: user.role ?? 'UNKNOWN', marketOwnerId: user.marketOwnerId }, targetType: 'DDImportBatch', targetId: restored.id, meta: { ddWeek: restored.ddWeek.toISOString() } });
   return NextResponse.json({ batch: restored });
 }
