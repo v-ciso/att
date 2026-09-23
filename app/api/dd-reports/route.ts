@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
       },
     }),
     loadRoster(user.marketOwnerId),
-    prisma.dDImportBatch.findMany({ where: { marketOwnerId: user.marketOwnerId, isAuthoritative: true, reportType: 'DD_BY_REP' }, select: { ddWeek: true }, distinct: ['ddWeek'], orderBy: { ddWeek: 'desc' } }),
+    prisma.dDImportBatch.findMany({ where: { marketOwnerId: user.marketOwnerId, reportType: 'DD_BY_REP', OR: [{ isAuthoritative: true }, { status: 'PARTIAL' }] }, select: { ddWeek: true }, distinct: ['ddWeek'], orderBy: { ddWeek: 'desc' } }),
   ]);
   const rosterByCode = new Map(roster.map(person => [person.employeeCode, person]));
   const reconciledBatches = batches.map(batch => ({

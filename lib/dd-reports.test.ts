@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { jsPDF } from 'jspdf';
 import { extractPdfGrid, normalizeGrid, summarizeRows } from './dd-reports';
+import { canRestoreDDReport, hasIncompleteRepTotal, selectDDReport } from './dd-report-selection';
 
 async function main() {
   const pdf = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'landscape' });
@@ -69,7 +70,20 @@ async function main() {
   const partial = normalizeGrid(clipped, clipped.map(row => row.join('\t')).join('\n'));
   assert.ok(partial.rows.some(row => row.raw.needsReview));
   assert.equal(partial.rows.at(-1)?.orderType, undefined, 'Do not carry the last plan into a clipped row');
-  console.log('dd-reports: PDF extraction, wrapped descriptions, totals and bonus classification passed');
+  const oldConfirmed = { id: 'old', ddWeek: '2026-08-16', reportType: 'DD_BY_REP', status: 'CONFIRMED', isAuthoritative: true };
+  const latestPartial = { id: 'partial', ddWeek: '2026-09-20', reportType: 'DD_BY_REP', status: 'PARTIAL', isAuthoritative: false };
+  const latestConfirmed = { ...latestPartial, id: 'confirmed', status: 'CONFIRMED', isAuthoritative: true };
+  assert.equal(selectDDReport([oldConfirmed, latestPartial])?.id, 'partial');
+  assert.equal(selectDDReport([oldConfirmed, latestPartial], '2026-08-16')?.id, 'old');
+  assert.equal(selectDDReport([latestPartial, latestConfirmed])?.id, 'confirmed');
+  assert.equal(selectDDReport([{ ...latestPartial, status: 'ROLLED_BACK' }]), undefined);
+  assert.equal(selectDDReport([{ ...latestPartial, reportType: 'DD_DETAIL' }]), undefined);
+  assert.equal(canRestoreDDReport({ status: 'PARTIAL', confirmedAt: new Date() }), false);
+  assert.equal(canRestoreDDReport({ status: 'SUPERSEDED', confirmedAt: new Date() }), true);
+  assert.equal(canRestoreDDReport({ status: 'SUPERSEDED', confirmedAt: null }), false);
+  assert.equal(hasIncompleteRepTotal(partial.warnings, '9431004'), true);
+  assert.equal(hasIncompleteRepTotal(partial.warnings, '9432422'), false);
+  console.log('dd-reports: PDF extraction, totals, partial week selection and restore safeguards passed');
 }
 
 void main();

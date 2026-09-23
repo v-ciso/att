@@ -846,8 +846,8 @@ export function RosterManager({ onOpenProfile }: { onOpenProfile: (name: string)
               <th scope="col" className="pb-2 pr-2">Stores</th>
               <th scope="col" className="pb-2 pr-2">Team</th>
               <th scope="col" className="pb-2 pr-2" title="Guaranteed weekly hourly pay — rep gets MAX(commission, hourly). 0 = commission-only">Hourly/wk</th>
-              <th scope="col" className="pb-2 pr-2">Wk-1 Profit</th>
-              <th scope="col" className="pb-2 pr-2">Wk-2 Profit</th>
+              <th scope="col" className="pb-2 pr-2">Wk-1 Profit (manual)</th>
+              <th scope="col" className="pb-2 pr-2">Wk-2 Profit (manual)</th>
               <th scope="col" className="pb-2 pr-2">Attend.</th>
               <th scope="col" className="pb-2 pr-2">Roadmap</th>
               <th scope="col" className="pb-2"><span className="sr-only">Actions</span></th>
