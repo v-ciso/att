@@ -155,7 +155,9 @@ export function applyTheme(theme: WhiteLabelTheme) {
     document.documentElement.dataset.theme = theme.preset ?? 'command-blue';
     // Company logo doubles as the browser favicon
     const favHref = theme.faviconUrl || theme.logoUrl;
-    if (favHref) {
+    // Public training has its own Sorami branding, independent of the signed-in tenant.
+    const isTraining = window.location.pathname === '/training' || window.location.pathname.startsWith('/training/');
+    if (favHref && !isTraining) {
       let fav = document.querySelector('link[rel="icon"]') as HTMLLinkElement | null;
       if (!fav) { fav = document.createElement('link'); fav.rel = 'icon'; document.head.appendChild(fav); }
       fav.href = favHref;

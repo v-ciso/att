@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: { default: 'Rep Training | Sorami Marketing', template: '%s | Sorami Training' },
   description: 'Practice your sales knowledge, brush up on Costco promotions, and get started with Sorami Marketing’s field guides. No account required.',
   robots: { index: false, follow: false },
+  icons: { icon: { url: '/training/sorami-favicon.svg', type: 'image/svg+xml' } },
 };
 
 export const viewport: Viewport = { themeColor: '#14140f', width: 'device-width', initialScale: 1 };
