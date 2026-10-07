@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { drills, drawRound, initialState, practiceReducer, scoreRound } from './engine';
+import { careerSteps, onboardingSteps, fieldLinks } from './roadmap';
+
+test('roadmap has exactly the four approved career stages and complete onboarding resources', () => {
+  assert.deepEqual(careerSteps.map(step => step.title), ['Sales Rep', 'Leader', 'Assistant Director/Manager', 'Owner']);
+  assert.equal(onboardingSteps.length, 5);
+  assert.equal(fieldLinks.length, 7);
+  for (const link of fieldLinks) assert.equal(new URL(link.href).protocol, 'https:');
+});
 
 for (const key of ['promo', 'pitch'] as const) {
   test(`${key}: imported content is complete and every answer has a study topic`, () => {

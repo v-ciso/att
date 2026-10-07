@@ -20,7 +20,8 @@ export default function TrainingLayout({ children }: { children: React.ReactNode
             <span className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-[var(--training-brand)] training-accent"><BookOpen size={22} aria-hidden="true" /></span>
             <span className="flex flex-col"><span className="text-lg font-extrabold tracking-[0.16em]">SORAMI</span><span className="training-muted text-sm">Learning & development</span></span>
           </Link>
-          <nav aria-label="Training navigation" className="flex items-center gap-4 sm:gap-7">
+          <nav aria-label="Training navigation" className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 sm:gap-7">
+            <Link href="/training/roadmap" className="flex min-h-11 items-center text-sm training-muted hover:underline">Roadmap</Link>
             <Link href="/training#resources" className="hidden text-sm training-muted hover:underline sm:inline-flex">Field resources</Link>
             <Link href="/login" className="flex min-h-11 items-center gap-1 text-sm training-muted hover:underline">Staff login <ArrowUpRight size={16} aria-hidden="true" /></Link>
           </nav>
