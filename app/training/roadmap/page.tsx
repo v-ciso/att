@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function RoadmapPage() {
   return (
-    <main id="training-main" className="mx-auto flex max-w-6xl flex-col gap-12 px-5 py-10 sm:px-8 sm:py-14">
+    <main id="training-main" tabIndex={-1} className="mx-auto flex max-w-6xl flex-col gap-12 px-5 py-10 sm:px-8 sm:py-14">
       <header className="flex flex-col items-start gap-5">
         <Link href="/training" className="training-muted inline-flex min-h-11 items-center gap-2 text-sm hover:underline"><ArrowLeft size={16} aria-hidden="true" />Back to training</Link>
         <p className="training-accent text-sm font-semibold uppercase tracking-[0.16em]">New hire roadmap</p>
