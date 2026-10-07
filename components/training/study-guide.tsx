@@ -7,7 +7,8 @@ export function StudyGuide({ guide, topic, onTopic, onResume, resumeLabel }: {
   guide: Study; topic: string; onTopic: (topic: string) => void; onResume: () => void; resumeLabel: string;
 }) {
   return <div className="flex flex-col gap-6">
-    <div className="flex flex-wrap gap-2" role="group" aria-label="Brush-up topics">
+    <div className="flex flex-col gap-2 sm:hidden"><label htmlFor="study-topic" className="text-sm font-semibold">Choose a topic</label><select id="study-topic" className="training-topic-select" value={topic} onChange={event => onTopic(event.target.value)}>{Object.keys(guide).map(name => <option key={name} value={name}>{name}</option>)}</select></div>
+    <div className="hidden flex-wrap gap-2 sm:flex" role="group" aria-label="Brush-up topics">
       {Object.keys(guide).map(name => <button key={name} onClick={() => onTopic(name)} aria-pressed={topic === name} className={`training-button ${topic === name ? '' : 'training-button-secondary'}`}>{name}</button>)}
     </div>
     <section className="flex flex-col gap-3" aria-label={`${topic} study notes`}>

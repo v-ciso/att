@@ -19,7 +19,7 @@ export function PracticeRoom({ drill, study }: { drill: DrillKey; study: boolean
   useEffect(() => {
     headingRef.current?.focus({ preventScroll: true });
     window.scrollTo({ top: 0, behavior: 'instant' });
-  }, [state.screen, state.index, state.topic]);
+  }, [state.screen, state.index]);
 
   function start() {
     const next = drawRound(source.bank, state.seen, state.round.map(q => q.id));
@@ -27,7 +27,7 @@ export function PracticeRoom({ drill, study }: { drill: DrillKey; study: boolean
   }
   function openStudy(topic: string) { dispatch({ type: 'study', topic }); }
 
-  return <main id="training-main" data-practice-screen={state.screen} className="mx-auto flex min-h-[70dvh] max-w-3xl flex-col gap-7 px-5 py-8 sm:px-8 sm:py-10">
+  return <main id="training-main" tabIndex={-1} data-practice-screen={state.screen} className="mx-auto flex min-h-[70dvh] max-w-3xl flex-col gap-7 px-5 py-8 sm:px-8 sm:py-10">
     <div className="flex flex-wrap items-center justify-between gap-3"><Link href="/training" className="inline-flex min-h-11 items-center gap-2 text-sm training-muted" onClick={event => { if (state.screen === 'question' && !window.confirm('Leave this round? Your current round will be cleared.')) event.preventDefault(); }}><ArrowLeft size={16} aria-hidden="true" /> All training</Link><span className="text-sm training-muted">{state.screen === 'study' ? 'Brush-up guide' : 'Rep practice'} · No login required</span></div>
     {state.screen === 'question' && <div className="flex flex-col gap-3"><div className="flex items-center justify-between text-sm training-muted"><span>Question {state.index + 1} of {state.round.length}</span><span aria-live="polite">Score {score} / {state.round.length}</span></div><progress aria-label="Round progress" max={state.round.length} value={state.index + (state.picks[state.index] !== undefined ? 1 : 0)} /></div>}
     <div className="flex flex-col gap-3"><span className="text-sm font-semibold tracking-widest uppercase training-accent">{state.screen === 'question' ? question.topic : state.screen === 'ready' ? 'Build your floor confidence' : source.title}</span><h1 id="practice-heading" ref={headingRef} tabIndex={-1} className="text-pretty text-3xl font-bold leading-tight outline-none sm:text-4xl">{title}</h1></div>
