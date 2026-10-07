@@ -1,7 +1,8 @@
 'use client';
 
 import { LeaderboardEntry } from './dashboard-components';
-import { DEFAULT_PNL, PnlState, roadtripTotals } from './editable-sections';
+import { DEFAULT_PNL, EMPTY_PNL, PnlState, roadtripTotals, itemInView, type PnlView } from './editable-sections';
+import { readWorkspace } from '@/lib/workspace';
 import { loadPeople, loadPromoRules, promotionStatus, ROSTER_ROLE_LABELS } from './roster';
 import { useTheme } from '@/components/white-label/theme-provider';
 
@@ -20,7 +21,7 @@ function load<T>(key: string, fallback: T): T {
 }
 
 const fmt = (n: number) =>
-  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 
 const ACCENT = '#2563EB';
 const INK = '#111827';
@@ -60,9 +61,10 @@ export const SECTION_LABELS: Record<keyof ReportSections, string> = {
   roster: 'Roster & roadmap',
 };
 
-export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leaderboard: LeaderboardEntry[]; sections?: ReportSections }) {
+export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS, view = 'monthly', production = { revenue: 0, chargebacks: 0 }, date, productionLabel }: { leaderboard: LeaderboardEntry[]; sections?: ReportSections; view?: PnlView; production?: { revenue: number; chargebacks: number }; date?: string; productionLabel?: string }) {
   const { theme } = useTheme();
-  const pnl = load<PnlState>('se-pnl-v1', DEFAULT_PNL);
+  const pnl = load<PnlState>('se-pnl-v1', readWorkspace().mode === 'live' ? EMPTY_PNL : DEFAULT_PNL);
+  const referenceDate = date ? new Date(`${date}T12:00:00`) : new Date();
   const people = loadPeople();
   const promoRules = loadPromoRules();
 
@@ -72,11 +74,12 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
   const rate = Math.min(100, Math.max(0, pnl.reimburseRate)) / 100;
   // Same monthly window as the P&L tab, and the same 2-week reimbursement lag —
   // the PDF must not claim revenue the office has not actually been paid yet.
-  const trips = roadtripTotals(pnl.roadtrips, rate, 'monthly');
+  const trips = roadtripTotals(pnl.roadtrips, rate, view, referenceDate);
   const roadtripCost = trips.cost;
   const reimbursement = trips.received;
-  const totalRevenue = pnl.revenue.reduce((a, b) => a + b.amount, 0) + reimbursement;
-  const totalExpenses = pnl.expenses.reduce((a, b) => a + b.amount, 0) + roadtripCost;
+  const officeEstimate = production.revenue + production.chargebacks;
+  const totalRevenue = pnl.revenue.reduce((a, b) => a + itemInView(b, view, referenceDate), 0) + reimbursement + officeEstimate;
+  const totalExpenses = pnl.expenses.reduce((a, b) => a + itemInView(b, view, referenceDate), 0) + roadtripCost + production.chargebacks;
   const net = totalRevenue - totalExpenses;
   const margin = totalRevenue > 0 ? ((net / totalRevenue) * 100).toFixed(1) : '0.0';
 
@@ -113,7 +116,7 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
         <div style={{ textAlign: 'right' }}>
           <p style={{ color: '#FFFFFF', fontSize: 11, margin: 0 }}>{today}</p>
           <p style={{ color: '#9CA3AF', fontSize: 10, margin: '2px 0 0' }}>
-            Office operations record
+            {productionLabel ?? view} · P&amp;L {date || view} · office estimates, not confirmed cash
           </p>
         </div>
       </div>
@@ -179,9 +182,10 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
         <SectionTitle>Profit &amp; Loss</SectionTitle>
         <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '8px 0', tableLayout: 'fixed' }}><tbody><tr>
           <td style={{ verticalAlign: 'top' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11 }}><span>Office production estimate</span><span>{fmt(officeEstimate)}</span></div>
             {pnl.revenue.map(r => (
               <div key={r.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11, borderBottom: `1px solid ${LINE}` }}>
-                <span>{r.name}</span><span style={{ color: '#047857', fontWeight: 600 }}>{fmt(r.amount)}</span>
+                <span>{r.name}</span><span style={{ color: '#047857', fontWeight: 600 }}>{fmt(itemInView(r, view, referenceDate))}</span>
               </div>
             ))}
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11, borderBottom: `1px solid ${LINE}` }}>
@@ -193,9 +197,10 @@ export function ReportTemplate({ leaderboard, sections = ALL_SECTIONS }: { leade
             </div>
           </td>
           <td style={{ verticalAlign: 'top' }}>
+            {production.chargebacks > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11 }}><span>Historical tracker chargebacks</span><span>{fmt(production.chargebacks)}</span></div>}
             {pnl.expenses.map(x => (
               <div key={x.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11, borderBottom: `1px solid ${LINE}` }}>
-                <span>{x.name}</span><span style={{ color: '#B91C1C', fontWeight: 600 }}>{fmt(x.amount)}</span>
+                <span>{x.name}</span><span style={{ color: '#B91C1C', fontWeight: 600 }}>{fmt(itemInView(x, view, referenceDate))}</span>
               </div>
             ))}
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11, borderBottom: `1px solid ${LINE}` }}>

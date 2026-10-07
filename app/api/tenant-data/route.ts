@@ -6,6 +6,9 @@ import { canWrite } from '@/lib/permissions';
 import { z } from 'zod';
 import { parseBody } from '@/lib/api-validation';
 import { canonicalPlan } from '@/lib/production-post';
+import { RETAILERS } from '@/lib/sow-payout';
+import { companyRoster } from '@/lib/company-roster';
+import type { Person } from '@/components/dashboard/roster';
 
 // The tenant's data container. Every read and write is scoped to the caller's
 // OWN marketOwnerId, taken from the SESSION and never from the request body.
@@ -94,6 +97,11 @@ export async function GET(request: NextRequest) {
     data[r.key] = r.value;
     versions[r.key] = r.updatedAt.toISOString();
   }
+  const [profiles, accounts] = await Promise.all([
+    prisma.repProfile.findMany({ where: { marketOwnerId: t.id }, select: { id: true, employeeCode: true, displayName: true, email: true, status: true, title: true, teamName: true, storeName: true } }),
+    prisma.user.findMany({ where: { marketOwnerId: t.id, disabled: false }, select: { id: true, employeeId: true, name: true, email: true, role: true } }),
+  ]);
+  data['se-people-v1'] = companyRoster(Array.isArray(data['se-people-v1']) ? data['se-people-v1'] as Person[] : [], profiles, accounts);
   return NextResponse.json({ data, versions }, { headers: NO_STORE });
 }
 
@@ -158,7 +166,19 @@ export async function PUT(request: NextRequest) {
       upgradePlanBonus: z.number().finite().min(0).max(10000).optional(),
       convergedQty: z.number().int().min(0).max(10000).optional(),
       convergedBonusPerBundle: z.number().finite().min(0).max(10000).optional(),
+      personId: z.string().min(1).max(120).optional(),
+      retailer: z.enum(RETAILERS).optional(),
+      newLineTier: z.number().int().min(1).max(5).optional(),
+      upgradeTier: z.number().int().min(1).max(2).optional(),
+      byod: z.boolean().optional(),
+      autoBillPay: z.boolean().optional(),
+      ecEligible: z.boolean().optional(),
+      voipPort: z.boolean().optional(),
+      protectionFour: z.number().int().min(0).max(10000).optional(),
+      nextUps: z.number().int().min(0).max(10000).optional(),
+      insurance: z.number().int().min(0).max(10000).optional(),
     }).passthrough().superRefine((entry, ctx) => {
+      if (entry.protectionFour !== undefined && entry.protectionFour + (entry.insurance ?? 0) > entry.qty) ctx.addIssue({ code: 'custom', message: 'Protection quantities cannot overlap or exceed the line count.' });
       if (entry.upgradePlan && canonicalPlan(entry.plan) !== 'Upgrades') ctx.addIssue({ code: 'custom', message: 'Upgrade plan only applies to upgrades.' });
       if (entry.upgradePlanBonus !== undefined && !entry.upgradePlan) ctx.addIssue({ code: 'custom', message: 'A plan supplement requires an upgrade plan.' });
       if (entry.convergedQty && (!/fiber/i.test(canonicalPlan(entry.plan)) || entry.convergedQty > entry.qty)) ctx.addIssue({ code: 'custom', message: 'Converged bundles cannot exceed fiber orders.' });

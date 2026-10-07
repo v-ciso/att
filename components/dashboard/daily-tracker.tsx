@@ -18,6 +18,8 @@ import { readWorkspace } from '@/lib/workspace';
 import { useSession } from 'next-auth/react';
 import { ProductionShare } from './production-share';
 import { canonicalPlan, productionPlanLabel } from '@/lib/production-post';
+import { SOW_EFFECTIVE_DATE } from '@/lib/sow-payout';
+import { SOWFields, type SOWOptions } from './sow-fields';
 
 interface DailyTrackerProps {
   onDataChange: () => void; // tells the dashboard to recompute derived stats
@@ -66,6 +68,8 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
   const [convergedQty, setConvergedQty] = useState(0);
   const [bonusPerBundle, setBonusPerBundle] = useState('');
   const [entryStore, setEntryStore] = useState('');
+  const [sowOptions, setSowOptions] = useState<SOWOptions>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [viewStore, setViewStore] = useState(''); // '' = all stores
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -223,6 +227,9 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
     if ([isUpgrade ? upgradePlanBonus : '', isFiber ? bonusPerBundle : ''].some(value => value !== '' && (!Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 10000))) {
       announce('Office supplements must be between $0 and $10,000.', 'assertive'); return;
     }
+    if ((sowOptions.protectionFour ?? 0) + insurance > qty || nextUps > qty || [nextUps, insurance, sowOptions.protectionFour ?? 0].some(count => !Number.isInteger(count) || count < 0)) {
+      announce('Add-ons cannot exceed the sale quantity; protection types must not overlap.', 'assertive'); return;
+    }
     const store = scheduledAt || (effectiveStores.includes(entryStore) ? entryStore : effectiveStores[0]);
     if (!store) { announce('Add a company store in Roster before logging a sale.', 'assertive'); return; }
     setSales(prev => [
@@ -231,9 +238,12 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
         // (fast clicking, or a rep entering a batch) produced duplicate ids and a
         // React "two children with the same key" error, after which the rows
         // stopped tracking their own state. Counter matches roster/competition.
-        id: `s-${Date.now()}-${saleCounter++}`,
+        ...prev.find(entry => entry.id === editingId),
+        ...sowOptions,
+        id: editingId ?? `s-${Date.now()}-${saleCounter++}`,
         date,
         person: who,
+        personId: people.find(p => p.name === who)?.employeeCode,
         store,
         plan: what,
         qty,
@@ -245,8 +255,9 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
           ...(typeof bonusRate === 'number' && Number.isFinite(bonusRate) && bonusRate >= 0 && bonusRate <= 10000 ? { convergedBonusPerBundle: bonusRate } : {}),
         } : {}),
       },
-      ...prev,
+      ...prev.filter(entry => entry.id !== editingId),
     ]);
+    setEditingId(null); setSowOptions({});
     setQty(1); setNextUps(0); setInsurance(0); setConvergedQty(0); setBonusPerBundle(''); setUpgradePlan(''); setUpgradePlanBonus('');
     // The new row appears at the top of the table with no focus change, so this
     // is the only feedback a screen-reader user gets that the sale was logged.
@@ -363,11 +374,11 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
             </select>
           </label>
           {isUpgrade && <label className="flex flex-col gap-1 text-sm text-text-secondary">Upgrade plan<select value={upgradePlan} onChange={event => { setUpgradePlan(event.target.value); setUpgradePlanBonus(''); }} className={selectClass}><option value="">Plan unchanged / not recorded</option>{commission.phonePlans.filter(item => canonicalPlan(item.name) !== 'Upgrades').map(item => <option key={item.name} value={item.name}>{productionPlanLabel(item.name)}</option>)}</select></label>}
-          {isUpgrade && upgradePlan && <label className="flex flex-col gap-1 text-sm text-text-secondary">Office plan supplement / upgrade ($)<input type="number" min={0} max={10000} step="0.01" value={upgradePlanBonus} placeholder="Pending" onChange={event => setUpgradePlanBonus(event.target.value)} className={cn(selectClass, 'w-28')} /><span className="max-w-xs text-sm">Additional to upgrade payout, not a second new line. Leave blank if unverified.</span></label>}
+          {date < SOW_EFFECTIVE_DATE && isUpgrade && upgradePlan && <label className="flex flex-col gap-1 text-sm text-text-secondary">Office plan supplement / upgrade ($)<input type="number" min={0} max={10000} step="0.01" value={upgradePlanBonus} placeholder="Pending" onChange={event => setUpgradePlanBonus(event.target.value)} className={cn(selectClass, 'w-28')} /><span className="max-w-xs text-sm">Additional to upgrade payout, not a second new line. Leave blank if unverified.</span></label>}
           {isFiber && <>
             <label className="flex flex-col gap-1 text-sm text-text-secondary">Converged bundles<input type="number" min={0} max={qty} value={convergedQty} onChange={event => setConvergedQty(Math.min(qty, Math.max(0, Number.parseInt(event.target.value) || 0)))} className={cn(selectClass, 'w-24')} /></label>
-            {convergedQty > 0 && <label className="flex flex-col gap-1 text-sm text-text-secondary">Office bonus / bundle ($)<input type="number" min={0} max={10000} step="0.01" value={bonusPerBundle} placeholder={commission.convergedBonusOffice?.toString() ?? 'Pending'} onChange={event => setBonusPerBundle(event.target.value)} className={cn(selectClass, 'w-28')} /></label>}
-            <p className="basis-full text-sm text-text-secondary">Only mark confirmed same-customer fiber + wireless bundles. Bonus is additional to fiber payout, once per bundle; a blank unconfigured rate stays pending.</p>
+            {date < SOW_EFFECTIVE_DATE && convergedQty > 0 && <label className="flex flex-col gap-1 text-sm text-text-secondary">Office bonus / bundle ($)<input type="number" min={0} max={10000} step="0.01" value={bonusPerBundle} placeholder={commission.convergedBonusOffice?.toString() ?? 'Pending'} onChange={event => setBonusPerBundle(event.target.value)} className={cn(selectClass, 'w-28')} /></label>}
+            <p className="basis-full text-sm text-text-secondary">Only mark confirmed same-customer fiber + wireless bundles. The supplied SOW does not specify a converged bonus; current estimates do not add one.</p>
           </>}
           <label className="flex flex-col gap-1 text-[10px] text-text-muted uppercase tracking-wider">
             Qty
@@ -381,7 +392,9 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
             Insurance
             <input type="number" min={0} max={99} value={insurance} onChange={e => setInsurance(Math.max(0, parseInt(e.target.value) || 0))} className={cn(selectClass, 'w-16')} />
           </label>
-          <Button size="sm" onClick={addEntry} disabled={!loaded || !people.length || !allStores.length}><Plus className="w-3.5 h-3.5" /> Add Sale</Button>
+          {date >= SOW_EFFECTIVE_DATE && <SOWFields value={sowOptions} onChange={setSowOptions} />}
+          <Button size="sm" onClick={addEntry} disabled={!loaded || !people.length || !allStores.length}><Plus className="w-3.5 h-3.5" /> {editingId ? 'Save sale changes' : 'Add Sale'}</Button>
+          {editingId && <Button variant="secondary" size="sm" onClick={() => { setEditingId(null); setSowOptions({}); }}>Cancel edit</Button>}
           {loaded && !allStores.length && <p className="w-full text-sm text-text-secondary">Add a store under Roster → Manage stores before logging activity.</p>}
         </div>
       </div>
@@ -449,7 +462,7 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
                         'px-2 py-1.5 sm:px-1.5 sm:py-0.5 rounded text-[11px] sm:text-[9px] font-semibold border transition-all',
                         late ? 'bg-accent-orange/20 text-accent-orange border-accent-orange/40' : 'border-border-subtle text-text-muted hover:text-white hover:bg-white/5'
                       )}
-                      title="GPS late clock-out — charges the store's whole day at the Commission tab's $/line rate, split between late reps"
+                      title="GPS late clock-out — review EC eligibility on affected sales. The current SOW does not specify an automatic fine."
                     >
                       ⏰ Late out
                     </button>
@@ -467,7 +480,7 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
                       {!(p.stores ?? []).includes(late.store) && <option value={late.store}>{late.store}</option>}
                     </select>
                     <span className="text-[10px] text-accent-orange font-semibold">
-                      {late.lines === 0
+                      {date >= SOW_EFFECTIVE_DATE ? 'EC eligibility requires review; no automatic fine.' : late.lines === 0
                         ? `no lines at ${late.store} on ${date} — no chargeback`
                         : <>chargeback −{formatCurrency(late.amount)} <span className="text-text-muted font-normal">({late.lines} line{late.lines === 1 ? '' : 's'} × ${commission.latePenaltyPerLine ?? 15}{late.splitWith > 1 ? ` ÷ ${late.splitWith}` : ''})</span></>}
                     </span>
@@ -509,12 +522,14 @@ export function DailyTracker({ onDataChange }: DailyTrackerProps) {
           </p>
         )}
         {dayEntries.map(entry => {
-          const { total, parts } = entryRevenue(entry, commission);
+          const { total, parts, warnings } = entryRevenue(entry, commission);
           const isOpen = expanded === entry.id;
           return (
             <div key={entry.id} className="group rounded-xl glass border border-border-subtle overflow-hidden">
               <div className="flex flex-wrap items-center gap-3 px-3 py-2 text-xs">
+                <button type="button" className="min-h-11 text-accent-blue" onClick={() => { setEditingId(entry.id); setPerson(entry.person); setPlan(entry.plan); setQty(entry.qty); setNextUps(entry.nextUps); setInsurance(entry.insurance); setEntryStore(entry.store); setUpgradePlan(entry.upgradePlan ?? ''); setUpgradePlanBonus(entry.upgradePlanBonus?.toString() ?? ''); setConvergedQty(entry.convergedQty ?? 0); setBonusPerBundle(entry.convergedBonusPerBundle?.toString() ?? ''); setSowOptions({ retailer: entry.retailer, newLineTier: entry.newLineTier, upgradeTier: entry.upgradeTier, byod: entry.byod, autoBillPay: entry.autoBillPay, ecEligible: entry.ecEligible, protectionFour: entry.protectionFour, voipPort: entry.voipPort }); panelRef.current?.scrollIntoView({ behavior: 'smooth' }); }}>Edit sale</button>
                 <span className="font-semibold min-w-[110px]">{entry.person}</span>
+                {!!warnings?.length && <span className="text-accent-yellow" title={warnings.join(' ')}>Estimate · eligibility unverified</span>}
                 <span className="text-text-secondary">{entry.store}</span>
                 <span className="px-2 py-0.5 rounded-full bg-accent-blue/10 text-accent-blue border border-accent-blue/20 text-[10px]">
                   {entry.qty} × {productionPlanLabel(entry.plan)}{entry.upgradePlan ? ` / ${productionPlanLabel(entry.upgradePlan)}` : ''}

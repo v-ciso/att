@@ -386,7 +386,7 @@ export function Competition({ sales, commission, storeOptions, compact = false }
       });
       return;
     }
-    setComps(prev => (prev.length > 1 ? prev.filter(x => x.id !== comp.id) : prev));
+    setComps(prev => prev.filter(x => x.id !== comp.id));
     announce(`${comp.title} ended and saved to history.`);
     setShowPast(true);
     void loadPast();

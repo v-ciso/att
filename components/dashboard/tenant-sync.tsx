@@ -57,7 +57,7 @@ export function TenantSync({ children }: { children: ReactNode }) {
   const { data: loaded, error, mutate } = useSWR(
     readyToLoad ? ['tenant-bootstrap', tenant] : null,
     ([, id]) => hydrateTenant(id!),
-    { refreshInterval: 15_000, revalidateOnFocus: true, shouldRetryOnError: false, keepPreviousData: false },
+    { refreshInterval: 5_000, revalidateOnFocus: true, revalidateOnReconnect: true, shouldRetryOnError: false, keepPreviousData: false },
   );
 
   if (!protectedPage) return <>{children}</>;

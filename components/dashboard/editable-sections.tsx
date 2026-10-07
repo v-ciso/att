@@ -590,10 +590,10 @@ interface MoneyItem {
 }
 
 /** What this line contributes to the given view. */
-export function itemInView(item: MoneyItem, view: PnlView): number {
+export function itemInView(item: MoneyItem, view: PnlView, now = new Date()): number {
   const cadence = item.cadence ?? 'monthly';
   if (cadence === 'once') {
-    return inWindow(item.date || isoToday(), view) ? item.amount : 0;
+    return inWindow(item.date || isoToday(now), view, now) ? item.amount : 0;
   }
   return toView(item.amount, cadence, view);
 }
@@ -832,11 +832,13 @@ export interface PnlDerivedByView {
   yearly: { revenue: number; chargebacks: number };
 }
 
-export function PnlEditor({ derived }: { derived: PnlDerivedByView }) {
+export function PnlEditor({ derived, view: controlledView, onViewChange }: { derived: PnlDerivedByView; view?: PnlView; onViewChange?: (view: PnlView) => void }) {
   // A live account must not open on an $85,000 payroll it never entered — demo
   // shows sample expenses, live starts empty.
   const { state, setState, reset } = useLocalState<PnlState>('se-pnl-v1', DEFAULT_PNL, EMPTY_PNL);
-  const [view, setView] = useState<PnlView>('monthly');
+  const [localView, setLocalView] = useState<PnlView>('monthly');
+  const view = controlledView ?? localView;
+  const setView = onViewChange ?? setLocalView;
 
   const editList =
     (list: 'revenue' | 'expenses') =>
@@ -943,7 +945,7 @@ export function PnlEditor({ derived }: { derived: PnlDerivedByView }) {
           footer={
             <>
               <div className="mt-2 p-2 rounded-lg bg-accent-green/5 border border-accent-green/20 flex justify-between text-xs">
-                <span className="text-text-secondary">Sales commission <span className="text-text-muted">(auto · Daily Tracker, {view})</span></span>
+                <span className="text-text-secondary">Office production estimate <span className="text-text-muted">(auto · Daily Tracker, {view} · not confirmed cash)</span></span>
                 <span className="text-accent-green font-semibold">{formatCurrency(derivedCommission)}</span>
               </div>
               <div className="mt-1.5 p-2 rounded-lg bg-accent-green/5 border border-accent-green/20 flex justify-between text-xs">

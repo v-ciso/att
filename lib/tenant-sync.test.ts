@@ -62,6 +62,13 @@ async function run() {
   await flushTenantSync();
   assert.equal(requests.length, 1, 'acknowledged data must not be resent');
 
+  data['se-people-v1'] = [{ id: 'new-company-user', name: 'New lead', role: 'LEAD' }];
+  data['se-competitions-v1'] = [{ id: 'shared-contest', title: 'Company competition' }];
+  await hydrateTenant(tenant);
+  assert.match(storage.getItem(prefix + 'se-people-v1')!, /new-company-user/, 'new company users reach other devices');
+  assert.match(storage.getItem(prefix + 'se-competitions-v1')!, /shared-contest/, 'competition changes reach other devices');
+  assert.equal(requests.length, 1, 'read-only refresh does not write projected identities');
+
   storage.setItem(prefix + 'se-sales-v1', '[{"person":"unsaved edit"}]');
   data['se-sales-v1'] = [{ person: 'remote edit' }];
   await hydrateTenant(tenant);
