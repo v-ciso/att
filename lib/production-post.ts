@@ -56,7 +56,7 @@ export function formatProductionPost(sales: SaleEntry[], options: { date: string
       if (entry.convergedQty) {
         bundles += entry.convergedQty;
         const amount = entry.convergedBonusPerBundle;
-        const bonus = typeof amount === 'number' && Number.isFinite(amount) && amount >= 0 ? `$${amount.toFixed(2)} office bonus each` : 'office bonus pending';
+        const bonus = entry.date >= '2026-09-01' ? 'no bundle bonus specified in current SOW' : typeof amount === 'number' && Number.isFinite(amount) && amount >= 0 ? `$${amount.toFixed(2)} office bonus each` : 'office bonus pending';
         const bundleLabel = `Converged fiber + wireless bundle · ${bonus}`;
         groups.set(bundleLabel, (groups.get(bundleLabel) ?? 0) + entry.convergedQty);
       }

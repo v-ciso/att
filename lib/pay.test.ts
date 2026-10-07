@@ -11,7 +11,8 @@ import type { Person } from '../components/dashboard/roster';
 (globalThis as unknown as { window?: unknown }).window = undefined;
 
 const C = DEFAULT_COMMISSION;
-const today = new Date().toISOString().slice(0, 10);
+// These assertions protect the retained pre-SOW compensation records only.
+const today = '2026-08-31';
 
 const person = (name: string, role: Person['role'], team = ''): Person => ({
   id: name, name, role, stores: ['Costco 1018'], team, weeklyProfit: [], attendance: 100,
@@ -37,7 +38,7 @@ const sale = (who: string, plan: string, qty: number): SaleEntry => ({
 {
   const people = [person('Rep', 'REP')];
   const sales = [sale('Rep', 'Premium 2.0', 10)];
-  const pay = computePay(people[0], { sales, commission: C, people, period: 'daily' });
+  const pay = computePay(people[0], { sales, commission: C, people, period: 'all' });
   assert.strictEqual(pay.base, 400, 'rep: 10 lines x $40');
   assert.strictEqual(pay.bump, 0, 'a rep gets no per-line bump');
   assert.strictEqual(pay.override, 0, 'a rep gets no override');
@@ -47,7 +48,7 @@ const sale = (who: string, plan: string, qty: number): SaleEntry => ({
 {
   const people = [person('Lead', 'LEAD', 'Alpha'), person('Rep', 'REP', 'Alpha')];
   const sales = [sale('Lead', 'Value 2.0', 10), sale('Rep', 'Value 2.0', 10)];
-  const pay = computePay(people[0], { sales, commission: C, people, period: 'daily' });
+  const pay = computePay(people[0], { sales, commission: C, people, period: 'all' });
   assert.strictEqual(pay.base, 400, 'lead base: 10 x $40');
   assert.strictEqual(pay.bump, 50, 'lead bump: 10 x $5');
   assert.strictEqual(pay.total, 450, 'lead nets $45/line = $450');
@@ -62,7 +63,7 @@ const sale = (who: string, plan: string, qty: number): SaleEntry => ({
   const rep = person('Rep', 'REP', 'Alpha');
   const people = [asm, rep];
   const sales = [sale('Asm', 'Value 2.0', 10), sale('Rep', 'Value 2.0', 10)];
-  const pay = computePay(asm, { sales, commission: C, people, period: 'daily' });
+  const pay = computePay(asm, { sales, commission: C, people, period: 'all' });
   assert.strictEqual(pay.base, 400, 'asm base: 10 x $40');
   assert.strictEqual(pay.bump, 50, 'asm own-line bump: 10 x $5 -> $45/line');
   assert.ok(pay.total >= 450, 'asm nets at least $45/line on own production');
@@ -74,7 +75,7 @@ const sale = (who: string, plan: string, qty: number): SaleEntry => ({
   const rep = person('Rep', 'REP', 'Alpha');
   const people = [lead, rep];
   const sales = [sale('Lead', 'Value 2.0', 10), sale('Rep', 'Value 2.0', 10)];
-  const take = computeOfficeTake({ sales, commission: C, people, period: 'daily' });
+  const take = computeOfficeTake({ sales, commission: C, people, period: 'all' });
 
   assert.strictEqual(take.generated, 20 * 124, 'office generated: 20 lines x $124');
   assert.strictEqual(take.repPay, 20 * 40, 'rep pay: 20 lines x $40');
@@ -92,7 +93,7 @@ const sale = (who: string, plan: string, qty: number): SaleEntry => ({
 {
   const people = [person('A', 'ASM'), person('B', 'LEAD', 'Alpha'), person('C', 'REP', 'Alpha')];
   const sales = [sale('A', 'Value 2.0', 5), sale('B', 'Value 2.0', 5), sale('C', 'Value 2.0', 5)];
-  const take = computeOfficeTake({ sales, commission: C, people, period: 'daily' });
+  const take = computeOfficeTake({ sales, commission: C, people, period: 'all' });
   assert.ok(take.owner >= 0, `office take went negative: ${take.owner}`);
 }
 

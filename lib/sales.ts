@@ -8,8 +8,11 @@ import { CommissionState, DEFAULT_COMMISSION, normalizeCommission } from '@/comp
 import { Person } from '@/components/dashboard/roster';
 import { seedForWorkspace } from '@/lib/workspace';
 import { canonicalPlan } from '@/lib/production-post';
+import { SOW_EFFECTIVE_DATE, sowPayout, type PayoutDetails } from '@/lib/sow-payout';
+import { daysSince, isoToday } from '@/lib/roadtrips';
 
-export interface SaleEntry {
+export interface SaleEntry extends PayoutDetails {
+  personId?: string;
   id: string;
   date: string; // YYYY-MM-DD
   person: string; // roster name
@@ -82,18 +85,14 @@ export function loadCommission(): CommissionState {
 export function todayStr(offsetDays = 0): string {
   const d = new Date();
   d.setDate(d.getDate() + offsetDays);
-  return d.toISOString().slice(0, 10);
+  return isoToday(d);
 }
 
 export function inPeriod(dateStr: string, period: Period): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || Number.isNaN(new Date(`${dateStr}T12:00:00`).getTime())) return false;
   if (period === 'all') return true;
-  const date = new Date(dateStr + 'T12:00:00');
-  const now = new Date();
-  const msPerDay = 86400000;
-  const diffDays = Math.floor((now.getTime() - date.getTime()) / msPerDay);
-  // Daily covers yesterday + today: production is logged the morning after,
-  // so the morning meeting reviews yesterday's numbers.
-  if (period === 'daily') return dateStr === todayStr() || dateStr === todayStr(-1);
+  const diffDays = daysSince(dateStr);
+  if (period === 'daily') return dateStr === todayStr();
   if (period === 'weekly') return diffDays >= 0 && diffDays < 7;
   if (period === 'monthly') return diffDays >= 0 && diffDays < 30;
   return diffDays >= 0 && diffDays < 365; // yearly
@@ -157,7 +156,13 @@ export interface RevenuePart {
 export function entryRevenue(
   entry: SaleEntry,
   commission: CommissionState
-): { total: number; repTotal: number; parts: RevenuePart[] } {
+): { total: number; repTotal: number; parts: RevenuePart[]; warnings?: string[] } {
+  if (entry.date >= SOW_EFFECTIVE_DATE && !isB2B()) {
+    const lateAtStore = (loadLateOuts()[entry.date] ?? []).some(mark => mark.store.trim().toLowerCase() === entry.store.trim().toLowerCase());
+    const estimate = sowPayout(lateAtStore ? { ...entry, ecEligible: false } : entry);
+    if (lateAtStore) estimate.warnings.push('Store has a GPS late-out flag: EC excluded pending review.');
+    return { ...estimate, repTotal: 0 };
+  }
   const parts: RevenuePart[] = [];
   const qty = Number(entry.qty) || 0;
   const nextUps = Number(entry.nextUps) || 0;
@@ -188,7 +193,8 @@ export function entryRevenue(
 }
 
 export function isPhonePlan(commission: CommissionState, planName: string): boolean {
-  return commission.phonePlans.some(p => p.name === planName);
+  const plan = canonicalPlan(planName);
+  return commission.phonePlans.some(p => canonicalPlan(p.name) === plan) || /^(byod|tablet|wearable|new line|port)\b/i.test(plan);
 }
 
 export interface PersonStats {
@@ -291,7 +297,7 @@ export function aggregateSales(
     } else {
       agg.internet += qty;
     }
-    if (e.plan.toLowerCase().includes('premium')) agg.premium += qty;
+    if (canonicalPlan(e.plan).toLowerCase().includes('premium')) agg.premium += qty;
     agg.nextUps += nextUps;
     agg.insurance += insurance;
     agg.revenue += total;
@@ -301,7 +307,7 @@ export function aggregateSales(
       person: e.person, store: e.store, lines: 0, premium: 0, internet: 0, nextUps: 0, insurance: 0, revenue: 0, commission: 0, chargebacks: 0,
     };
     if (phone) ps.lines += qty; else ps.internet += qty;
-    if (e.plan.toLowerCase().includes('premium')) ps.premium += qty;
+    if (canonicalPlan(e.plan).toLowerCase().includes('premium')) ps.premium += qty;
     ps.nextUps += nextUps;
     ps.insurance += insurance;
     ps.revenue += total;
@@ -325,6 +331,8 @@ export function aggregateSales(
   const lateBook = loadLateOuts();
   const rate = commission.latePenaltyPerLine ?? 15;
   for (const [date, lateOuts] of Object.entries(lateBook)) {
+    // Current SOW describes conditional EC, not a blanket per-line fine.
+    if (date >= SOW_EFFECTIVE_DATE && !isB2B()) continue;
     const dateIncluded = opts.date ? date === opts.date : inPeriod(date, opts.period);
     if (!dateIncluded) continue;
     // group by store to split between that store's late reps

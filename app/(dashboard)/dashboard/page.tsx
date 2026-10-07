@@ -25,7 +25,6 @@ import { ReportTemplate, ReportSections, ALL_SECTIONS, SECTION_LABELS } from '@/
 import { RosterManager, loadPeople } from '@/components/dashboard/roster';
 import { Competition } from '@/components/dashboard/competition';
 import { ScheduleBoard } from '@/components/dashboard/schedule-board';
-import { ImportReport } from '@/components/dashboard/import-report';
 import { RecycleBin } from '@/components/dashboard/recycle-bin';
 import { ProfileDrawer } from '@/components/dashboard/profile-drawer';
 import { DailyTracker } from '@/components/dashboard/daily-tracker';
@@ -45,7 +44,6 @@ import { DocLibrary } from '@/components/dashboard/doc-library';
 import { FormGenerator } from '@/components/dashboard/form-generator';
 import { PromoArchive } from '@/components/dashboard/promo-archive';
 import { MeetingDocs } from '@/components/dashboard/meeting-docs';
-import { MeetingDDScoreboard } from '@/components/dashboard/meeting-dd-scoreboard';
 import { ProductionShare } from '@/components/dashboard/production-share';
 import { normalizeName, activePeople } from '@/lib/people';
 import { useTheme } from '@/components/white-label/theme-provider';
@@ -63,7 +61,6 @@ const ALL_TAB_ITEMS: { value: string; label: string; ariaLabel?: string }[] = [
   { value: 'competition', label: 'Competition' },
   { value: 'library', label: 'Library' },
   { value: 'pnl', label: 'P&L', ariaLabel: 'Profit and loss' },
-  { value: 'import', label: 'DD Reports' },
   { value: 'recycle', label: 'Recycle Bin' },
 ];
 
@@ -907,6 +904,7 @@ function DashboardContent() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {['dashboard', 'leaderboard', 'meeting'].includes(activeTab) && <>
           <PeriodChips period={period} onChange={(p) => { setPeriod(p); setPickDate(''); }} />
           <span className="flex items-center gap-1">
             <input
@@ -925,6 +923,7 @@ function DashboardContent() {
             )}
           </span>
           {!b2b && <StoreSelect options={storeOptions} selected={storeSel} onChange={setStoreSel} />}
+          </>}
           <Button onClick={() => setExportMenu(true)} size="sm">
             <FileText className="w-4 h-4" /> Export PDF
           </Button>
@@ -946,10 +945,11 @@ function DashboardContent() {
             <MapPin className="w-3 h-3" /> {storeOptions.length} {storeOptions.length === 1 ? 'Store' : 'Stores'}
           </Badge>
         )}
-        <Badge variant="blue" className="text-xs">
+        {['dashboard', 'leaderboard', 'meeting'].includes(activeTab) && <Badge variant="blue" className="text-xs">
           {pickDate ? `Date: ${pickDate}` : `${PERIOD_LABELS[period]} view`}
           {b2b ? '' : storeSel.length ? ` · ${storeSel.join(', ')}` : ' · all stores'}
-        </Badge>
+        </Badge>}
+        <span className="text-sm text-text-secondary">Company changes refresh every 5 seconds while this page is visible.</span>
       </div>
 
       </>}
@@ -966,14 +966,14 @@ function DashboardContent() {
 
       {activeTab === 'dashboard' && (
           <div id="view-panel-dashboard" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-dashboard" tabIndex={0}>
-            <MeetingDDScoreboard onOpenProfile={setProfileName} />
+            <p className="mb-4 text-sm leading-6 text-text-secondary">{pickDate ? `Production on ${pickDate}` : `${PERIOD_LABELS[period]} production${period === 'daily' ? ' · today' : period === 'weekly' ? ' · last 7 days' : period === 'monthly' ? ' · last 30 days' : ''}`} · {storeSel.length ? storeSel.join(', ') : 'all stores'} · office estimates from saved tracker activity.</p>
             <ProductionShare sales={sales} date={pickDate || todayStr(-1)} stores={storeSel} />
             {!hasData && (
             <Card className="mb-4 p-5 border-accent-blue/30">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="font-semibold text-sm">No tracker activity yet.</p>
-                  <p className="text-xs text-text-secondary mt-0.5">Daily Tracker activity is separate from confirmed weekly DD totals.</p>
+                  <p className="text-xs text-text-secondary mt-0.5">Log production in Daily Tracker. The same saved activity drives the dashboard, leaderboard, meeting, competition, and P&L estimates.</p>
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => switchTab('tracker')}><ClipboardList className="w-3.5 h-3.5" /> Open Tracker</Button>
@@ -1012,7 +1012,7 @@ function DashboardContent() {
             {/* Internet is cyan everywhere else (table column, pie slice) — it was
                 the one place rendering the same metric purple. */}
             <StatCard label="Internet" value={String(agg.internet)} sub={`${aggDaily.internet} in daily window`} icon={Zap} color="cyan" onClick={() => setKpiDrawer('internet')} className="stagger-2" />
-            <StatCard label="Tracker estimate" value={formatCurrency(agg.revenue)} sub="Daily Tracker estimate, not confirmed DD" icon={DollarSign} color="green" onClick={() => setKpiDrawer('revenue')} className="stagger-3" />
+            <StatCard label="Tracker estimate" value={formatCurrency(agg.revenue)} sub="SOW office estimate · not rep pay" icon={DollarSign} color="green" onClick={() => setKpiDrawer('revenue')} className="stagger-3" />
             <StatCard label="Premium Mix" value={`${premiumMix}%`} sub={`${agg.premium} premium lines`} icon={Star} color="yellow" onClick={() => setKpiDrawer('premium')} className="stagger-4" />
           </div>
 
@@ -1193,7 +1193,7 @@ function DashboardContent() {
 
         {activeTab === 'leaderboard' && (
           <div id="view-panel-leaderboard" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-leaderboard" tabIndex={0}>
-            <MeetingDDScoreboard onOpenProfile={setProfileName} />
+            <p className="mb-4 text-sm leading-6 text-text-secondary">{pickDate ? `Production on ${pickDate}` : `${PERIOD_LABELS[period]} production${period === 'daily' ? ' · today' : period === 'weekly' ? ' · last 7 days' : period === 'monthly' ? ' · last 30 days' : ''}`} · {storeSel.length ? storeSel.join(', ') : 'all stores'} · office estimates from saved tracker activity.</p>
             <Card className="p-5">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h2 className="text-xl font-bold neon-brand">
@@ -1273,7 +1273,7 @@ function DashboardContent() {
               </div>
             </div>
 
-            <MeetingDDScoreboard onOpenProfile={setProfileName} />
+            <p className="mb-4 text-sm leading-6 text-text-secondary">{pickDate ? `Production on ${pickDate}` : `${PERIOD_LABELS[period]} production${period === 'daily' ? ' · today' : period === 'weekly' ? ' · last 7 days' : period === 'monthly' ? ' · last 30 days' : ''}`} · {storeSel.length ? storeSel.join(', ') : 'all stores'} · office estimates from saved tracker activity.</p>
 
             {/* Tracker activity supports coaching; confirmed DD remains authoritative. */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
@@ -1453,16 +1453,12 @@ function DashboardContent() {
       {activeTab === 'pnl' && (
         <div id="view-panel-pnl" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-pnl" tabIndex={0}>
           <Card className="p-5">
-            <PnlEditor derived={pnlDerived} />
+            <PnlEditor derived={pnlDerived} view={period === 'all' ? 'monthly' : period} onViewChange={value => { setPeriod(value); setPickDate(''); }} />
           </Card>
         </div>
       )}
 
-      {activeTab === 'import' && (
-        <div id="view-panel-import" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-import" tabIndex={0}>
-          <Card className="p-5"><ImportReport /></Card>
-        </div>
-      )}
+
 
       {activeTab === 'recycle' && (
         <div id="view-panel-recycle" className="tab-panel" role="tabpanel" aria-labelledby="view-tab-recycle" tabIndex={0}>
@@ -1598,7 +1594,7 @@ function DashboardContent() {
       {exportSel && (
         <BodyPortal>
           <div id="print-root">
-            <ReportTemplate leaderboard={reportRows} sections={exportSel} />
+            <ReportTemplate leaderboard={reportRows} sections={exportSel} view={activeTab !== 'pnl' && pickDate ? 'daily' : period === 'all' ? 'monthly' : period} date={activeTab !== 'pnl' ? pickDate || undefined : undefined} production={activeTab === 'pnl' ? pnlDerived[period === 'all' ? 'monthly' : period] : period === 'all' && !pickDate ? pnlDerived.monthly : agg} productionLabel={pickDate || `${PERIOD_LABELS[period]} production`} />
           </div>
         </BodyPortal>
       )}

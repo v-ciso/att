@@ -72,7 +72,7 @@ export function assignEmployeeCodes(people: Person[], companyName?: string | nul
     if (seq != null && seq > max) max = seq;
   }
   return people.map(p => {
-    if (p.employeeCode && codeSequence(p.employeeCode) != null) return p;
+    if (p.employeeCode?.trim()) return p;
     max += 1;
     return { ...p, employeeCode: `${prefix}-${String(max).padStart(4, '0')}` };
   });
