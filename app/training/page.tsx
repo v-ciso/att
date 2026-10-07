@@ -38,6 +38,12 @@ export default function TrainingPage() {
         </div>
         <p className="text-sm training-muted">Fresh questions before repeats. Scores last for your current visit only—nothing is submitted or tracked.</p>
       </section>
+      <section aria-labelledby="roadmap-heading" className="training-panel flex flex-col items-start gap-5 p-6 sm:p-8">
+        <p className="training-accent text-sm font-semibold uppercase tracking-widest">Your next chapter</p>
+        <h2 id="roadmap-heading" className="text-balance text-3xl font-bold">From your first shift to your own market.</h2>
+        <p className="training-muted max-w-2xl leading-relaxed">Get your first-90-days plan, daily field tools, and the four-step career path: Sales Rep → Leader → Assistant Director/Manager → Owner.</p>
+        <Link href="/training/roadmap" className="training-button">Explore the new-hire roadmap <ArrowRight size={18} aria-hidden="true" /></Link>
+      </section>
       <TrainingResources />
     </main>
   );
