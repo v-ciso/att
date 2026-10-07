@@ -2,6 +2,90 @@
 @tailwind components;
 @tailwind utilities;
 
+.training-theme {
+  --training-bg: #14140f;
+  --training-surface: #1e1e18;
+  --training-text: #f6f4ec;
+  --training-muted: #b3b1a5;
+  --training-brand: #c9a227;
+  --training-border: color-mix(in srgb, var(--training-muted) 25%, transparent);
+  position: relative;
+  z-index: 1;
+  min-height: 100dvh;
+  background: var(--training-bg);
+  color: var(--training-text);
+  font-size: 16px;
+  line-height: 1.5;
+}
+.training-theme :is(a, button, summary):focus-visible {
+  outline: 2px solid var(--training-brand);
+  outline-offset: 5px;
+}
+.training-theme .training-muted { color: var(--training-muted); }
+.training-theme .training-accent { color: var(--training-brand); }
+.training-theme .training-panel {
+  border: 1px solid var(--training-border);
+  border-radius: 1rem;
+  background: var(--training-surface);
+  color: var(--training-text);
+}
+.training-theme .training-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 48px;
+  padding: 0.75rem 1.25rem;
+  border: 1px solid var(--training-brand);
+  border-radius: 0.625rem;
+  background: var(--training-brand);
+  color: var(--training-bg);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  transition: opacity 150ms;
+}
+.training-theme .training-button:hover { opacity: 0.85; }
+.training-theme .training-button-secondary {
+  border-color: var(--training-border);
+  background: transparent;
+  color: var(--training-text);
+}
+.training-theme .training-answer {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 64px;
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid var(--training-border);
+  border-radius: 0.75rem;
+  background: var(--training-surface);
+  color: var(--training-text);
+  text-align: left;
+  font-size: 16px;
+}
+.training-theme .training-answer:not(:disabled):hover { border-color: var(--training-brand); }
+.training-theme .training-answer[data-result='correct'] { border: 2px solid var(--training-brand); }
+.training-theme .training-answer[data-result='incorrect'] { border: 2px dashed var(--training-muted); }
+.training-theme .training-answer[data-result='other'] { opacity: 0.55; }
+.training-theme progress {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 1rem;
+  background: var(--training-border);
+  color: var(--training-brand);
+}
+.training-theme progress::-webkit-progress-bar { background: var(--training-border); }
+.training-theme progress::-webkit-progress-value { background: var(--training-brand); }
+.training-theme progress::-moz-progress-bar { background: var(--training-brand); }
+@media (prefers-reduced-motion: reduce) {
+  .training-theme * { scroll-behavior: auto; transition: none; }
+}
+
 @layer base {
   :root {
     --background: 0 0% 0%;

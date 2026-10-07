@@ -18,6 +18,7 @@
     "admin:removeuser": "npx tsx scripts/remove-user.ts",
     "admin:backup": "npx tsx scripts/backup-tenants.ts",
     "admin:verify-isolation": "npx tsx scripts/verify-isolation.ts",
+    "test:training": "npx tsx --test lib/training/engine.test.ts",
     "test:roadtrips": "npx tsx lib/roadtrips.test.ts",
     "test:pay": "npx tsx lib/pay.test.ts",
     "test:shifts": "npx tsx lib/shifts.test.ts",
@@ -32,7 +33,7 @@
     "test:competitions": "npx tsx scripts/test-competition-lifecycle.ts",
     "test:docs": "npx tsx scripts/test-docs-lifecycle.ts",
     "setup:docs-bucket": "npx tsx scripts/setup-docs-bucket.ts",
-    "test": "npm run test:roadtrips && npm run test:pay && npm run test:shifts && npm run test:workspace && npm run test:permissions && npm run test:attendance && npm run test:people && npm run test:rep-history && npm run test:promo-parse && npm run test:dd-reports && npx tsx lib/production-post.test.ts && npx tsx lib/sow-payout.test.ts && npx tsx lib/company-roster.test.ts && npx tsx lib/production-periods.test.ts",
+    "test": "npm run test:training && npm run test:roadtrips && npm run test:pay && npm run test:shifts && npm run test:workspace && npm run test:permissions && npm run test:attendance && npm run test:people && npm run test:rep-history && npm run test:promo-parse && npm run test:dd-reports && npx tsx lib/production-post.test.ts && npx tsx lib/sow-payout.test.ts && npx tsx lib/company-roster.test.ts && npx tsx lib/production-periods.test.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

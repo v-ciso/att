@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<meta name="theme-color" content="#14140F" />
+<title>Sorami Rep Practice</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+html,body{margin:0;background:#14140F;-webkit-tap-highlight-color:transparent}
+a{color:#C9A227;text-decoration:none}
+a:hover{color:#E3C45A}
+button{font-family:inherit}
+</style>
+</helmet>
+<template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#14140F"/><rect x="30" y="30" width="40" height="40" fill="#C9A227"/><text x="50" y="59" text-anchor="middle" font-family="Arial" font-weight="900" font-size="24" fill="#14140F">S</text></svg></template>
+
+<div style="min-height:100vh;background:#14140F;color:#F6F4EC;font-family:'IBM Plex Sans',system-ui,sans-serif;display:flex;justify-content:center">
+<div style="width:100%;max-width:540px;box-sizing:border-box;padding:18px 18px 28px;display:flex;flex-direction:column;min-height:100vh">
+
+  <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #C9A227;padding-bottom:12px;margin-bottom:18px">
+    <button onClick="{{ goHome }}" style="display:flex;align-items:center;gap:10px;background:none;border:none;color:#F6F4EC;padding:0;cursor:pointer">
+      <span style="width:18px;height:18px;background:#C9A227;display:block"></span>
+      <span style="font-family:'Archivo',sans-serif;font-weight:800;font-size:15px;letter-spacing:0.16em">SORAMI</span>
+    </button>
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;color:#8E8C82">{{ headerLabel }}</span>
+  </div>
+
+  <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex;flex-direction:column;flex:1">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.2em;color:#C9A227;margin-bottom:10px">REP PRACTICE · OFFERS UPDATED 09/29/2026</div>
+      <h1 style="font-family:'Archivo',sans-serif;font-weight:900;font-size:38px;line-height:0.98;letter-spacing:-0.03em;margin:0 0 12px">Practice until it's automatic.</h1>
+      <p style="font-size:15px;line-height:1.5;color:#C9C7BC;margin:0 0 22px">Pick a drill. Each round has 12 random questions, and every new round swaps in ones you haven't seen. Stuck? Tap Brush up.</p>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <sc-for list="{{ drillCards }}" as="d" hint-placeholder-count="2">
+          <div style="border:1.5px solid #3A3A33;background:#1B1B16;padding:16px">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.16em;color:#C9A227;margin-bottom:6px">{{ d.kicker }}</div>
+            <div style="font-family:'Archivo',sans-serif;font-weight:800;font-size:23px;line-height:1.1;margin-bottom:6px">{{ d.title }}</div>
+            <div style="font-size:14px;color:#A9A79C;line-height:1.45;margin-bottom:12px">{{ d.sub }}</div>
+            <div style="font-size:12.5px;color:#8E8C82;margin-bottom:12px">{{ d.stats }}</div>
+            <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:8px">
+              <button onClick="{{ d.start }}" style="min-height:52px;background:#C9A227;color:#14140F;border:none;font-family:'Archivo',sans-serif;font-weight:800;font-size:16px;cursor:pointer">Start round</button>
+              <button onClick="{{ d.study }}" style="min-height:52px;background:transparent;color:#F6F4EC;border:1.5px solid #6E6C64;font-family:'Archivo',sans-serif;font-weight:700;font-size:15px;cursor:pointer">Brush up</button>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="margin-top:auto;padding-top:24px;font-size:12px;color:#6E6C64;text-align:center">Sorami Marketing · associate practice only · offers change, so always quote from the current sheet</div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isQuestion }}">
+    <div style="display:flex;flex-direction:column;flex:1">
+      <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.12em;color:#8E8C82;margin-bottom:8px">
+        <span>QUESTION {{ qNum }} / 12</span><span>SCORE {{ score }}</span>
+      </div>
+      <div style="height:4px;background:#2A2A24;margin-bottom:18px"><div style="height:4px;background:#C9A227;width:{{ progress }}"></div></div>
+      <div style="align-self:flex-start;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.14em;color:#14140F;background:#C9A227;padding:4px 9px;margin-bottom:12px">{{ cur.topicUpper }}</div>
+      <div style="font-family:'Archivo',sans-serif;font-weight:700;font-size:21px;line-height:1.28;margin-bottom:18px;text-wrap:pretty">{{ cur.q }}</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <sc-for list="{{ cur.opts }}" as="o" hint-placeholder-count="4">
+          <button onClick="{{ o.pick }}" style="min-height:54px;text-align:left;padding:12px 16px;font-size:15.5px;line-height:1.35;cursor:pointer;border:2px solid {{ o.border }};background:{{ o.bg }};color:{{ o.color }};display:flex;justify-content:space-between;align-items:center;gap:10px"><span>{{ o.label }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px">{{ o.mark }}</span></button>
+        </sc-for>
+      </div>
+      <sc-if value="{{ cur.answered }}">
+        <div style="margin-top:16px;padding:12px 14px;border-left:3px solid {{ cur.whyColor }};background:#1B1B16;font-size:14.5px;line-height:1.5;color:#E8E6DC"><strong style="color:{{ cur.whyColor }}">{{ cur.verdict }}</strong> {{ cur.why }}</div>
+        <button onClick="{{ cur.brush }}" style="align-self:flex-start;margin-top:10px;background:none;border:none;padding:6px 0;color:#C9A227;font-size:14px;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:3px">Brush up on {{ cur.topic }} →</button>
+        <button onClick="{{ next }}" style="margin-top:auto;min-height:56px;background:#F6F4EC;color:#14140F;border:none;font-family:'Archivo',sans-serif;font-weight:800;font-size:17px;cursor:pointer">{{ nextLabel }}</button>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isDone }}">
+    <div style="display:flex;flex-direction:column;flex:1">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.2em;color:#C9A227;margin-bottom:10px">ROUND COMPLETE</div>
+      <div style="font-family:'Archivo',sans-serif;font-weight:900;font-size:64px;line-height:1;letter-spacing:-0.03em">{{ score }}<span style="color:#6E6C64"> / 12</span></div>
+      <div style="font-size:16px;color:#C9C7BC;margin:8px 0 20px">{{ resultLine }}</div>
+      <sc-if value="{{ hasMissed }}">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.16em;color:#8E8C82;margin-bottom:8px">REVIEW WHAT YOU MISSED</div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+          <sc-for list="{{ missed }}" as="m">
+            <div style="border:1px solid #3A3A33;padding:11px 13px;background:#1B1B16">
+              <div style="font-size:14px;font-weight:600;margin-bottom:5px">{{ m.q }}</div>
+              <div style="font-size:14px;color:#8FD19E">{{ m.a }}</div>
+              <div style="font-size:12.5px;color:#A9A79C;margin-top:3px">{{ m.why }}</div>
+              <button onClick="{{ m.brush }}" style="margin-top:6px;background:none;border:none;padding:4px 0;color:#C9A227;font-size:13px;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:3px">Brush up on {{ m.topic }} →</button>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <div style="margin-top:auto;display:flex;flex-direction:column;gap:10px">
+        <button onClick="{{ restart }}" style="min-height:56px;background:#C9A227;color:#14140F;border:none;font-family:'Archivo',sans-serif;font-weight:800;font-size:18px;cursor:pointer">New round — new questions</button>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button onClick="{{ studyCurrent }}" style="min-height:50px;background:transparent;color:#F6F4EC;border:1.5px solid #6E6C64;font-weight:600;font-size:15px;cursor:pointer">Brush up</button>
+          <button onClick="{{ goHome }}" style="min-height:50px;background:transparent;color:#F6F4EC;border:1.5px solid #6E6C64;font-weight:600;font-size:15px;cursor:pointer">All drills</button>
+        </div>
+        <div style="text-align:center;font-size:13px;color:#8E8C82">Best: {{ best }} / 12 · {{ unseen }} questions you haven't seen yet</div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isStudy }}">
+    <div style="display:flex;flex-direction:column;flex:1">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.2em;color:#C9A227;margin-bottom:8px">BRUSH UP · {{ drillTitleUpper }}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px">
+        <sc-for list="{{ studyTabs }}" as="t">
+          <button onClick="{{ t.pick }}" style="min-height:40px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;border:1.5px solid {{ t.border }};background:{{ t.bg }};color:{{ t.color }}">{{ t.label }}</button>
+        </sc-for>
+      </div>
+      <h2 style="font-family:'Archivo',sans-serif;font-weight:800;font-size:26px;line-height:1.1;margin:0 0 14px">{{ studyTitle }}</h2>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:22px">
+        <sc-for list="{{ studyFacts }}" as="f">
+          <div style="border:1px solid #3A3A33;background:#1B1B16;padding:12px 14px">
+            <div style="font-family:'Archivo',sans-serif;font-weight:700;font-size:15.5px;color:#F6F4EC;margin-bottom:4px">{{ f.h }}</div>
+            <div style="font-size:14.5px;line-height:1.5;color:#C9C7BC">{{ f.b }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="margin-top:auto;display:flex;flex-direction:column;gap:10px">
+        <button onClick="{{ studyResume }}" style="min-height:56px;background:#C9A227;color:#14140F;border:none;font-family:'Archivo',sans-serif;font-weight:800;font-size:17px;cursor:pointer">{{ studyResumeLabel }}</button>
+        <button onClick="{{ goHome }}" style="min-height:48px;background:transparent;color:#F6F4EC;border:1.5px solid #6E6C64;font-weight:600;font-size:15px;cursor:pointer">All drills</button>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const row = (r, i) => ({ id: i, topic: r[0], q: r[1], a: r[2], wrong: r[3], why: r[4] });
+const PROMO = [
+['iPhone trade-in','Cracked iPhone 14 traded for an iPhone 18 Pro on Premium 2.0. Credit?','$1,200',['$930','$500','$350'],'iPhone 14–17 in any condition = top tier. Premium top tier is $1,200.'],
+['iPhone trade-in','Same iPhone 14 trade, but on Extra 2.0.','$930',['$1,200','$500','$350'],'Extra 2.0 tops out at $930 on iPhone 18 Pro / Pro Max.'],
+['iPhone trade-in','Same iPhone 14 trade, but on Value 2.0.','$500',['$930','$750','$350'],'Value 2.0 top tier on iPhone 18 Pro / Pro Max is $500.'],
+['iPhone trade-in','iPhone 12 traded toward an iPhone 18 Pro Max on Premium 2.0.','$350',['$1,200','$930','$500'],'iPhone 13 and older = $350 on every plan.'],
+['iPhone trade-in','iPhone 13 Pro Max traded toward an iPhone 18 Pro on Premium 2.0.','$350',['$1,200','$930','$500'],'The 13 series isn\u2019t in the 14–17 group and is worth under $130, so it gets $350.'],
+['iPhone trade-in','iPhone 16 Pro Max traded for an iPhone 18 Pro Max on Value 2.0.','$500',['$1,200','$930','$350'],'Value tops out at $500. That\u2019s why we recommend Premium.'],
+['iPhone trade-in','Is the base iPhone 17 on the trade-in offer?','No — not eligible',['Yes — $1,200','Yes — $930','Only on Value 2.0'],'iPhone 17 is N/A. Only iPhone 18 Pro and 18 Pro Max.'],
+['iPhone trade-in','Which iPhone does NOT count toward the "any condition" top tier?','iPhone 16e',['iPhone 14','iPhone 15 Pro','iPhone 17'],'iPhone 14/15/16/17 series count — except the 16e.'],
+['iPhone trade-in','Customer wants the iPhone 18 Pro Max and the full credit. Which plan do you recommend?','Premium 2.0',['Value 2.0','Extra 2.0','Any plan pays the same'],'Only Premium 2.0 unlocks the full $1,200.'],
+['iPhone trade-in','On iPhone 18 Pro, how much more is Premium\u2019s top credit than Value\u2019s?','$700',['$270','$430','$850'],'$1,200 vs $500. Say: "On Value you\u2019d leave $700 on the table."'],
+['iPhone trade-in','On iPhone 18 Pro, how much more is Premium\u2019s top credit than Extra\u2019s?','$270',['$700','$100','$430'],'$1,200 vs $930.'],
+['iPhone trade-in','UYW Starter customer upgrades to iPhone 18 Pro, trading an iPhone 15. Credit?','$930',['$1,200','$500','$350'],'Legacy Starter plans pay the Extra-level $930 — upgrades only.'],
+['iPhone trade-in','A phone worth $150 (not an iPhone 14–17) toward an 18 Pro on Premium 2.0.','$930',['$1,200','$500','$350'],'$130–$179 lands on the $930 tier. $180+ gets $1,200.'],
+['iPhone trade-in','Premium legacy unlimited customer upgrades to 18 Pro Max with an iPhone 16. Credit?','$1,200',['$930','$500','$350'],'Premium legacy plans pay the same as Premium 2.0.'],
+['Android trade-in','Galaxy S26 Ultra on Value 2.0 with a qualifying trade.','$500',['$1,100','$900','$350'],'Every Android on Value 2.0 = $500.'],
+['Android trade-in','Trading a Galaxy S22 Ultra for a Z Fold8 on Premium 2.0.','$1,100',['$900','$500','$1,350'],'S22+ / S22 Ultra / Z Fold3 / Z Flip4 or newer, any condition = $1,100.'],
+['Android trade-in','Trading a Galaxy S10 for a Galaxy S26+ on Extra 2.0.','$900',['$1,100','$500','$350'],'S10 / Note10 / Z Flip3 or newer = $900 on Premium/Extra.'],
+['Android trade-in','Galaxy Z Flip8 on UYW Starter (upgrade) with a qualifying trade.','$900',['$1,100','$500','$350'],'Legacy Starter on Samsung = $900.'],
+['Android trade-in','Pixel 11 Pro XL on Premium 2.0, trading a phone worth $200+.','$1,350',['$1,000','$1,150','$1,320'],'The biggest credit on the sheet.'],
+['Android trade-in','Pixel 11 Pro XL on Extra 2.0, trading an old Pixel worth under $95.','$1,000',['$1,350','$1,150','$500'],'Any Pixel, any condition = $1,000 on the XL.'],
+['Android trade-in','Pixel 11 Pro on Premium 2.0, trading any Google Pixel.','$1,150',['$1,350','$1,000','$500'],'Pixel 11 Pro = $1,150 with any Pixel or $35+ trade.'],
+['Android trade-in','Motorola razr ultra on Premium 2.0, trading a phone worth $95+.','$1,320',['$1,000','$1,100','$500'],'$95+ = $1,320. $35+ = $1,000.'],
+['Android trade-in','For Samsung, Google and Motorola, how do Premium 2.0 and Extra 2.0 compare?','They pay the same',['Premium pays $270 more','Extra pays more','Only Premium qualifies'],'Only on iPhone does Premium beat Extra.'],
+['No trade-in','NEW LINE, iPhone 17 Pro 256GB, no trade-in. Per month?','$9.99/mo',['$14.99/mo','$5.99/mo','$19.99/mo'],'New line = $9.99. Upgrade = $14.99.'],
+['No trade-in','UPGRADE, iPhone 17 Pro 256GB, no trade-in. Per month?','$14.99/mo',['$9.99/mo','$19.99/mo','$20.99/mo'],'Upgrade = $14.99. New line = $9.99.'],
+['No trade-in','NEW LINE, iPhone 17 Pro Max 256GB, no trade-in. Per month?','$14.99/mo',['$19.99/mo','$9.99/mo','$25.99/mo'],'New line = $14.99. Upgrade = $19.99.'],
+['No trade-in','UPGRADE, iPhone 17 Pro Max 256GB, no trade-in. Per month?','$19.99/mo',['$14.99/mo','$25.99/mo','$31.99/mo'],'Upgrade = $19.99. New line = $14.99.'],
+['No trade-in','On the no-trade offer, what\u2019s the first thing to confirm before quoting a 17 Pro?','New line or upgrade',['Their favorite color','Their trade-in value','Their credit score'],'The price changes: 17 Pro is $9.99 new line vs $14.99 upgrade.'],
+['No trade-in','How much less per month is a NEW LINE 17 Pro than an upgrade?','$5/mo less',['Same price','$10/mo less','$2/mo less'],'$9.99 vs $14.99. Same gap on Pro Max: $14.99 vs $19.99.'],
+['No trade-in','UPGRADE, iPhone 17e 256GB, no trade-in. Per month?','$5.99/mo',['$4.99/mo','$9.99/mo','$11.99/mo'],'The cheapest iPhone on the Tiered Offer.'],
+['No trade-in','UPGRADE, iPhone Air 256GB, no trade-in. Per month?','$9.99/mo',['$5.99/mo','$15.99/mo','$14.99/mo'],'Air upgrade: $9.99 / $15.99 / $21.99.'],
+['No trade-in','UPGRADE, iPhone 17 Pro Max 2TB, no trade-in. Per month?','$37.99/mo',['$31.99/mo','$26.99/mo','$42.99/mo'],'Top of the Tiered Offer.'],
+['No trade-in','UPGRADE, iPhone 17 Pro 512GB. Per month?','$20.99/mo',['$14.99/mo','$25.99/mo','$26.99/mo'],'17 Pro upgrade: $14.99 / $20.99 / $26.99.'],
+['No trade-in','UPGRADE, Google Pixel 10a 128GB. Per month?','$5.99/mo',['$4.99/mo','$7.99/mo','$10.99/mo'],'Pixel 10a = $5.99, Pixel 11 = $10.99.'],
+['No trade-in','UPGRADE, Galaxy S26 256GB. Per month?','$15.99/mo',['$12.99/mo','$22.99/mo','$20.99/mo'],'S26 512GB is $22.99.'],
+['No trade-in','UPGRADE, Motorola razr+ (2026). Per month?','$12.99/mo',['$8.99/mo','$15.99/mo','$10.99/mo'],'Motorola Edge is $8.99.'],
+['No trade-in','UPGRADE, Galaxy A37 5G. Per month?','$7.99/mo',['$5.99/mo','$10.99/mo','$12.99/mo'],'A57 is $10.99, S26 FE is $12.99.'],
+['No trade-in','Tiered Offer bill credits are spread over…','36 months',['10 months','24 months','30 months'],'Always say the term with the price.'],
+['No trade-in','Can you sell the moto g (2026) at Costco?','No — not sold at Costco',['Yes, $4.99/mo','Only with a trade','Only on Premium'],'Available at every retailer except Costco.'],
+['No trade-in','On the Tiered Offer, sales tax is charged on…','Full retail price, at sale',['The monthly price','Nothing — it\u2019s waived','The credit amount'],'Taxes on full retail are due at point of sale.'],
+['Deal rules','The customer must send in the trade-in within…','30 days of activation',['14 days','90 days','3 billing cycles'],'Miss it and there are no promo credits.'],
+['Deal rules','Monthly promo credits start within…','3 billing cycles',['1 billing cycle','30 days','6 months'],'Tell them the first bills will be higher.'],
+['Deal rules','If another line on the account is cancelled within ___, credits stop.','90 days',['30 days','14 days','12 months'],'Disclose this on every deal.'],
+['Deal rules','Before shipping the old iPhone, the customer must…','Turn off Find My (activation lock)',['Keep the SIM in','Use the new phone\u2019s box','Leave data on it'],'Also factory reset and use AT&T\u2019s shipping kit.'],
+['Deal rules','Once the trade-in ships, can the customer get it back?','No — and data can\u2019t be recovered',['Yes, within 14 days','Yes, by calling the VIP line','Only if it fails inspection'],'Say it before they sign.'],
+['Deal rules','Two trade-ins on one deal. How do they ship?','One device per box',['Both in one box','In the new phone boxes','Drop off at Costco'],'AT&T sends a separate kit for each device.'],
+['Deal rules','Where do you check a live trade-in value?','tradein.att.com',['The Costco app','The customer\u2019s guess','Last week\u2019s sheet'],'The live tool always wins over the sheet.'],
+['Bundle','Pixel Watch 5 41mm on the bundle. Per month after credits?','$6.99/mo',['$7.99/mo','$13.89/mo','$4.99/mo'],'45mm is $7.99.'],
+['Bundle','Pixel Watch 5 45mm on the bundle. Per month after credits?','$7.99/mo',['$6.99/mo','$14.72/mo','$9.99/mo'],'41mm is $6.99.'],
+['Bundle','For the Pixel + Watch bundle, both must be bought within…','14 days of each other',['30 days','Same day','90 days'],'Watch goes on a new watch line.'],
+['Bundle','Which phones qualify for the Pixel Watch bundle?','Pixel 11, 11 Pro, 11 Pro XL',['Any Android','Pixel 10a only','Any phone'],'Phone on installment, any wireless plan.'],
+['Costco perks','Costco Digital Shop Card per line?','$100',['$50','$250','$35'],'Every eligible device purchase at the kiosk.'],
+['Costco perks','Costco upgrade private offer?','$50 — $5/mo for 10 months',['$100 — one time','$250 over 36 months','$5 one time'],'Per line upgraded through Costco AT&T.'],
+['Costco perks','Costco private offer for a switcher (port-in)?','$250 per line',['$100 per line','$50 per line','$800 per line'],'$6.95/mo for 36 months.'],
+['Costco perks','Costco private offer for an add-a-line?','$100 per line',['$250 per line','$50 per line','$35 per line'],'$2.78/mo for 36 months.'],
+['Costco perks','How does the customer get the $100 shop card?','Text with a link within 20 business days',['Mailed in 6–8 weeks','At the register today','As a bill credit'],'No redemption steps, and it never expires.'],
+['Costco perks','Activation / upgrade fee at the Costco kiosk?','Waived ($35 per line)',['$35 due today','Half off','Waived on new lines only'],'Credit shows in 1–3 bill cycles.'],
+['Costco perks','AutoPay & Paperless discount with ACH?','$10/mo per line',['$5/mo per line','$10/mo per account','$20/mo per line'],'$5/mo if they use a debit card.'],
+['Costco perks','Carrier Switcher offer — what\u2019s the catch?','Must stay 36 months or it\u2019s charged back',['Only 1 line','Must trade in','Only on Value 2.0'],'Up to $800 per line on a Visa Reward Card.'],
+['Costco perks','AT&T Appreciation discount — up to how much, and when?','Up to 20%, within 30 days',['Up to 50%, anytime','$20 flat, today','Up to 10%, 90 days'],'att.com/appreciation. The account holder must qualify.'],
+['Next Up Anytime','Next Up Anytime costs…','$10/mo per line',['Free at Costco','$5/mo per line','$10/mo per account'],'Say "$10 a month, per line" out loud every time.'],
+['Next Up Anytime','With Next Up Anytime, they can upgrade after…','1 payment',['12 payments','50% paid off','36 months'],'Upgrade early, any time.'],
+['Next Up Anytime','With Next Up Anytime, AT&T\u2019s best offers unlock at…','33% paid off',['50% paid off','1 payment','100% paid off'],'That\u2019s the yearly-upgrade pitch.'],
+['Next Up Anytime','When a Next Up customer upgrades again through Costco, they get…','Fee waived + $100 shop card + $50 credit',['Nothing extra','Just the shop card','$250 credit'],'Just like always, on every upgrade.'],
+['Next Up Anytime','Who is the best Next Up Anytime customer?','Wants the newest phone every year',['Keeps phones 4+ years','Only has a flip phone','Wants the cheapest bill'],'Qualify with: "How often do you like a new phone?"'],
+['Member care','Costco Member VIP Service Line?','(833) 950-4601',['(800) 331-0500','(888) 950-4601','611'],'Give it to every customer.'],
+['Member care','Which bill should look like the quoted price?','The third bill',['The first bill','The second bill','The sixth bill'],'Discounts can take 3 cycles and are back-dated to bill 1.'],
+['Member care','Why is the first bill higher?','Partial month + month in advance + fees',['It\u2019s a mistake','Taxes doubled','The plan changed'],'Say it before they sign.'],
+['Member care','Customer sees two tax charges on their card. Why?','Tax hold per device as each ships',['Double billing error','Costco fee','A late fee'],'Temporary. They only pay the tax owed.']
+].map(row);
+
+const PITCH = [
+['Compliance','A member walks by talking on their phone. What do you do?','Let them pass — never pitch someone on the phone',['Wave until they hang up','Walk alongside and wait','Hand them a flyer'],'On the phone = off limits. Greet the next member.'],
+['Compliance','A member says "No thanks." What do you do?','Smile, thank them, let them go',['Ask one more question','Catch them at checkout','Offer a better deal'],'One no and go. Every time.'],
+['Compliance','A member waves you off without saying a word.','Treat it as a no — let them go',['Try again louder','Follow for a few steps','Ask why'],'A wave-off is a no. One no and go.'],
+['Compliance','A member ignores your greeting and keeps walking.','Let them go, greet the next member',['Repeat it louder','Follow to the next aisle','Tap their cart'],'Never chase or crowd.'],
+['Compliance','A member said no earlier, then walks back up with a question.','Help them — they came to you',['Refuse — they already said no','Send them to an AT&T store','Pitch everything first'],'One no and go means you don\u2019t chase. If they come back, help them.'],
+['Compliance','How many times can you pitch a member who said no?','Zero — one no and go',['Twice','Three times','Once per visit'],'A second ask after a no is a compliance issue.'],
+['Compliance','Where do you engage members from?','At the kiosk — never follow them through the warehouse',['Anywhere in the store','Near the exit','At the food court'],'Stand where the traffic is, but stay at your kiosk.'],
+['Compliance','Customer asks "So it\u2019s free?"','Never say free — give the monthly price and the term',['"Yep, totally free"','"Basically free"','"Free after rebates"'],'"Free" without the term attached leads to cancellations.'],
+['Compliance','You want to close faster by saying "this ends today." It doesn\u2019t.','Never invent urgency',['Fine if it helps close','Only on slow days','Only for big deals'],'A fake deadline is the fastest way to a cancellation.'],
+['Compliance','Who signs the tablet?','The customer, themselves, in person',['You, to save time','Any family member','Your manager'],'Never touch the customer\u2019s signature.'],
+['Compliance','Customer asks something that isn\u2019t on the sheet.','"Let me confirm that before I tell you wrong."',['Give your best guess','Say "I think it\u2019s around…"','Change the subject'],'Quote only what\u2019s written. Confirm everything else.'],
+['Compliance','Which statement about the VIP line is compliant?','"You get a dedicated Costco VIP support line."',['"They\u2019ll fix anything."','"You\u2019ll never wait on hold."','"They\u2019ll credit you back."'],'Promise the access, never the outcome.'],
+['Compliance','Two reps are chatting with each other at the kiosk.','Break it up — a huddle looks like a closed kiosk',['Fine if it\u2019s slow','Fine for 10 minutes','Fine if facing out'],'Two reps talking to each other is a closed kiosk.'],
+['Compliance','A Costco employee asks you to stop doing something.','Comply politely, tell your manager the same day',['Explain why you\u2019re right','Ignore it','Argue it later'],'Never argue with store staff. Escalate the same day.'],
+['Compliance','A customer gets angry and starts arguing.','Stay calm, don\u2019t argue, offer the VIP line or your manager',['Argue your point','Walk away mid-sentence','Match their energy'],'Never argue or talk back.'],
+['Compliance','Can you quote an offer from memory?','No — from the current sheet or system',['Yes, if you\u2019re sure','Yes, for regulars','Yes, if it\u2019s close'],'Offers change on the client\u2019s cycle, not yours.'],
+['Compliance','A household of 2 — you could add 3 extra lines to hit numbers.','Don\u2019t oversell — sell what fits the household',['Add them all','Add them and cancel later','Add one "just in case"'],'Add-ons that don\u2019t fit come back as chargebacks with your name on them.'],
+['Compliance','Can you promise the trade-in credit comes off today?','No — credits are monthly and start within 3 cycles',['Yes, on the receipt','Yes, if they insist','Yes, for iPhones'],'Credits are applied monthly, not off the price on day one.'],
+['Compliance','You see a coworker keep pitching a member who said no.','Step in politely and tell your manager',['Ignore it','Join in','Post it in the group chat'],'Compliance beats production. Always.'],
+['Opening','What\u2019s the goal of the first 5 seconds?','A friendly question they can answer easily',['A full offer rundown','Your name and title','A price'],'Ask before you tell.'],
+['Opening','Which opener is best?','"Hi! Quick question — who do you have for your phone right now?"',['"Can I have 10 minutes?"','"Want to switch to AT&T?"','"Have you heard about our deals?"'],'Short, friendly, and easy to answer.'],
+['Opening','Who should you greet?','Everyone who isn\u2019t on the phone',['Only people who look interested','Only families','Only people with carts'],'Don\u2019t prejudge. You can\u2019t see a bill by looking at a jacket.'],
+['Opening','How do you get your opener to sound natural?','Say it out loud 20+ times before your shift',['Read it off your phone','Change it every time','Memorize a long script'],'The opener has to bore you before it sounds natural to them.'],
+['Discovery','What number do you need first?','Their total monthly bill, all in',['Their credit score','Their phone\u2019s serial number','Their ZIP code'],'The all-in bill decides whether there\u2019s a conversation.'],
+['Discovery','Customer says "I have an iPhone 15." What\u2019s your next question?','"Are you thinking about the new 18 Pro?"',['"How cracked is it?"','"Want a Samsung?"','"What\u2019s your password?"'],'An iPhone 15 in any condition gets top tier toward the 18 Pro.'],
+['Discovery','Customer wants the iPhone 18 Pro. Which plan do you recommend?','Premium 2.0, for the full $1,200',['Value 2.0, it\u2019s cheapest','Whatever they have','Extra 2.0 always'],'Show the side-by-side: $1,200 vs $930 vs $500. Then let them choose.'],
+['Discovery','Which question sets up Next Up Anytime?','"How often do you like getting a new phone?"',['"Do you like AT&T?"','"How old are you?"','"Do you use Wi-Fi?"'],'"Every year" = Next Up customer.'],
+['Discovery','Customer doesn\u2019t want to trade their phone in. What\u2019s your move?','Tiered Offer — ask if it\u2019s a new line or an upgrade',['End the conversation','Push the trade-in harder','Quote the trade-in price anyway'],'e.g. 17 Pro: $9.99 new line / $14.99 upgrade.'],
+['Rebuttals','What\u2019s the structure of every rebuttal?','Acknowledge → answer → ask',['Answer → argue → close','Ignore → pitch → close','Agree → leave'],'Finish on a question so the conversation stays yours.'],
+['Rebuttals','Why end a rebuttal with a question?','If you end on your answer, they use the silence to leave',['It sounds smarter','It fills time','Costco requires it'],'A question keeps you steering.'],
+['Rebuttals','"I\u2019m happy with what I have."','"Totally fair. What are you paying now, all in?"',['"You\u2019re wrong."','"Everyone says that."','"OK, bye."'],'Acknowledge, then ask for the bill.'],
+['Rebuttals','"I don\u2019t have time right now."','"Give me your bill total and I\u2019ll tell you in 30 seconds if it\u2019s worth it."',['"It only takes an hour."','"Come back later."','"You have time."'],'Respect their time. Offer a 30-second check.'],
+['Rebuttals','"I need to talk to my spouse."','"Makes sense. Let\u2019s get the numbers on paper. Are they free by phone now?"',['"They won\u2019t mind."','"Just sign now."','"Why do you need permission?"'],'Treat it as a household decision and make it easy.'],
+['Rebuttals','"I\u2019m still paying off my phone."','"There\u2019s a path for that. How much is left on it?"',['"Then you can\u2019t switch."','"Just pay it off first."','"That\u2019s your problem."'],'Carrier Switcher can reimburse up to $800 per line (36-month commitment).'],
+['Rebuttals','"I\u2019ll just do it online."','"Online there\u2019s no $100 shop card, no waived fee, no VIP line."',['"Online is a scam."','"OK, here\u2019s the website."','"You\u2019ll mess it up."'],'Name what they only get at the kiosk.'],
+['Rebuttals','"I had a bad experience with AT&T."','"I believe you. Buying here gets you the Costco VIP line. Was it billing or the device?"',['"That never happens."','"It\u2019s better now, trust me."','"Not my fault."'],'Acknowledge, show what\u2019s different, then ask.'],
+['Rebuttals','"Is this going to raise my bill later?"','Answer fully: first bills, credit timing, terms',['"No, never."','"Don\u2019t worry about it."','"Maybe a little."'],'This answer decides whether the sale sticks. Never soften it.'],
+['Rebuttals','"$10 more a month for Next Up? No thanks."','"Fair if you keep phones a few years — skip it."',['"You have to add it."','"It\u2019s basically free."','"Everyone gets it."'],'Never force it and never call it free.'],
+['Rebuttals','"My phone is cracked, it\u2019s worth nothing."','"If it\u2019s an iPhone 14–17, cracked still gets top tier."',['"Yeah, it\u2019s worthless."','"Get it fixed first."','"Only perfect phones count."'],'Any condition, except the 16e.'],
+['Rebuttals','"Why should I get Premium? It costs more."','"On the 18 Pro, Premium is the only way to the full $1,200."',['"Because I said so."','"It\u2019s required."','"Everyone gets it."'],'Show the gap: $270 over Extra, $700 over Value.'],
+['Rebuttals','"Is the shop card real?"','"Yes. It\u2019s texted within 20 business days and never expires."',['"Probably."','"It\u2019s mailed in 6 months."','"Only if you ask."'],'Digital card, no redemption steps.'],
+['Rebuttals','"I\u2019ll think about it."','"Totally. What part do you want to think over — the price or the phone?"',['"There\u2019s nothing to think about."','"OK, bye."','"The deal ends today."'],'Find the real objection. No fake urgency.'],
+['Closing','Best close for Next Up Anytime?','"Want me to add it so next year is a five-minute visit?"',['"You need this."','"Should I just add it?"','"Most people are dumb not to."'],'Make the future visit easy.'],
+['Closing','Which is a stronger close?','"256 or 512 gigs?"',['"So what do you think?"','"Do you want to buy?"','"Any questions?"'],'An easy choice moves the deal forward.'],
+['Closing','Before the customer leaves, what do you ALWAYS cover?','VIP line, first 3 bills, trade-in shipping steps',['Only the shop card','Your Instagram','Nothing, they\u2019ll figure it out'],'That\u2019s what prevents cancellations and callbacks.'],
+['Closing','When does a sale actually count?','When it activates',['When they sign','When they say yes','When the box is opened'],'A written sale isn\u2019t a paid sale until it activates.'],
+['Closing','Trade-in deal. What must they hear before they sign?','30 days to ship, and it can\u2019t be returned',['Nothing — it\u2019s automatic','That it\u2019s optional','That any box works'],'Say it every time, out loud.'],
+['Mindset','You just got a rude no. What happens to your face?','Reset — the next member can read the last one on you',['Show you\u2019re annoyed','Take a break','Vent to a teammate'],'Don\u2019t let a no change your face.'],
+['Mindset','Last hour of the shift, it\u2019s slow.','Keep greeting — that\u2019s where reps quietly quit',['Start packing up','Sit down','Scroll your phone'],'Work the full shift.'],
+['Mindset','Why log every conversation?','You can\u2019t fix a number you don\u2019t track',['Costco requires it','For fun','To look busy'],'Notebook out, every shift.'],
+['Mindset','End of shift — what\u2019s your debrief?','3 things I learned, 3 things I need help with',['Nothing','Total sales only','Complaints about the day'],'That\u2019s how you get better daily.'],
+['Mindset','Compliance vs. production — which wins?','Compliance, always',['Production','Depends on the day','Whatever the manager wants'],'Somebody lost a store over every rule.']
+].map(row);
+
+const STUDY = {
+promo: {
+'iPhone trade-in':[
+ {h:'Eligible phones',b:'iPhone 18 Pro and 18 Pro Max only. The base iPhone 17 is not eligible.'},
+ {h:'Top tier — any condition',b:'Trading an iPhone 14, 15, 16 or 17 (not 16e), even cracked: Premium $1,200 · Extra $930 · Value $500.'},
+ {h:'Any other phone worth $130+',b:'Premium $930 · Extra $930 · Value $500. $180+ gets the full $1,200 on Premium.'},
+ {h:'iPhone 13 or older / $35+ phone',b:'$350 on every plan.'},
+ {h:'Legacy plans (upgrades only)',b:'Premium legacy = Premium 2.0 column. UYW Starter / Starter SL / other legacy = $930 top, $350 basic.'},
+ {h:'Our recommendation',b:'Want the 18 Pro or Pro Max? Recommend Premium 2.0 — it\u2019s the only plan that pays the full $1,200 ($270 more than Extra, $700 more than Value).'}],
+'Android trade-in':[
+ {h:'Samsung — Z Fold8 Ultra, Z Fold8, Z Flip8, S26 Ultra, S26+',b:'Premium/Extra: $1,100 with S22+/S22 Ultra/Z Fold3/Z Flip4 or newer (any condition) or $95+ · $900 with S10/Note10/Z Flip3 or newer or $35+. Value: $500. Legacy Starter: $900.'},
+ {h:'Pixel 11 Pro XL',b:'Premium/Extra: $1,350 ($200+) · $1,150 ($95+) · $1,000 (any Pixel or $35+). Value: $500. Legacy Starter: $1,150 / $1,000.'},
+ {h:'Pixel 11 Pro',b:'$1,150 with any Pixel or $35+ on Premium, Extra and Legacy Starter. Value: $500.'},
+ {h:'Motorola razr ultra',b:'Premium/Extra: $1,320 ($95+) · $1,000 ($35+). Value: $500. Legacy Starter: $1,000.'},
+ {h:'Shortcut',b:'On Android, Premium and Extra pay the same. Value is always $500.'}],
+'No trade-in':[
+ {h:'First question: new line or upgrade?',b:'Prices differ. iPhone 17 Pro 256GB: $9.99 new line / $14.99 upgrade. iPhone 17 Pro Max 256GB: $14.99 new line / $19.99 upgrade.'},
+ {h:'iPhone upgrade prices',b:'17e $5.99 / $11.99 · Air $9.99 / $15.99 / $21.99 · 17 Pro $14.99 / $20.99 / $26.99 · 17 Pro Max $19.99 / $25.99 / $31.99 / $37.99 (256GB / 512GB / 1TB / 2TB).'},
+ {h:'Samsung upgrade prices',b:'A37 $7.99 · A57 $10.99 · S26 FE $12.99 · S26 256GB $15.99 · S25 Edge $20.99 · S26 512GB $22.99.'},
+ {h:'Google & Motorola upgrade prices',b:'Pixel 10a $5.99 · Pixel 11 $10.99 · Motorola Edge $8.99 · razr+ (2026) $12.99. The moto g (2026) is not sold at Costco.'},
+ {h:'Rules',b:'Credits over 36 months, starting within 3 cycles. Tax on full retail at sale. If Next Up Anytime is added, the $10/mo still applies.'}],
+'Deal rules':[
+ {h:'Required',b:'Installment plan + AT&T Unlimited plan.'},
+ {h:'Timing',b:'Ship the trade-in within 30 days of activation. Credits start within 3 bill cycles.'},
+ {h:'Credits stop if…',b:'The line isn\u2019t in good standing, or another line on the account is cancelled within 90 days.'},
+ {h:'Before shipping',b:'Turn off Find My / activation lock, factory reset, remove the SIM (older devices), use AT&T\u2019s kit, one device per box, photo the label.'},
+ {h:'Final',b:'Once shipped, it can\u2019t be returned and data can\u2019t be recovered. Check live value at tradein.att.com.'}],
+'Bundle':[
+ {h:'Pixel Watch 5 41mm',b:'$500 retail · $248.36 total credit · $6.99/mo after credits.'},
+ {h:'Pixel Watch 5 45mm',b:'$530 retail · $242.36 total credit · $7.99/mo after credits.'},
+ {h:'Requirements',b:'Buy a Pixel 11, 11 Pro or 11 Pro XL on installment (any plan, new or upgrade) + the watch on installment on a new watch line, within 14 days of each other.'}],
+'Costco perks':[
+ {h:'$100 Costco Digital Shop Card',b:'Per line, on an eligible device purchase. Texted within 20 business days. Never expires. Status: rewardcenter.att.com.'},
+ {h:'Costco Private Offers',b:'Switch $250 ($6.95 × 36) · Add-a-line $100 ($2.78 × 36) · Upgrade $50 ($5 × 10).'},
+ {h:'Fees & discounts',b:'$35 activation/upgrade fee waived · AutoPay & Paperless $10/mo per line with ACH ($5 debit).'},
+ {h:'Switchers & appreciation',b:'Carrier Switcher up to $800/line (stay 36 months). AT&T Appreciation up to 20% (att.com/appreciation within 30 days).'}],
+'Next Up Anytime':[
+ {h:'What it is',b:'$10/mo per line. Upgrade after 1 payment. AT&T\u2019s best offers unlock at 33% paid.'},
+ {h:'The Costco kicker',b:'Every upgrade through Costco AT&T: fee waived, another $100 shop card, $50 in credits ($5/mo × 10) per line.'},
+ {h:'The pitch',b:'Qualify ("How often do you like a new phone?") → Explain → Stack Costco → Close ("Want me to add it so next year is a five-minute visit?").'}],
+'Member care':[
+ {h:'Costco Member VIP Service Line',b:'(833) 950-4601. Promise the access, never the outcome.'},
+ {h:'Bills 1–3',b:'Bill 1: partial month + month in advance + fees. Bill 2 may still be higher. Bill 3: settled, with discounts back-dated to bill 1.'},
+ {h:'Tax holds',b:'A tax hold per device as each ships. Temporary duplicates drop off.'},
+ {h:'Track & activate',b:'att.com/checkmyorder (99- order # + ZIP) · att.com/getstarted · number transfer takes up to 1 hour.'}]
+},
+pitch: {
+'Compliance':[
+ {h:'On the phone = off limits',b:'Never pitch a member who is on a phone call. Let them pass and greet the next person.'},
+ {h:'One no and go',b:'"No," a wave-off, or being ignored all count as a no. Smile, thank them, let them go. Never ask twice, never follow. If they come back to you, help them.'},
+ {h:'Stay at the kiosk',b:'Engage from your kiosk. Never follow members through the warehouse or crowd them.'},
+ {h:'Say it straight',b:'Never say "free." Never invent urgency. Quote only from the current sheet. "Let me confirm that before I tell you wrong."'},
+ {h:'The paperwork',b:'The customer signs the tablet themselves, in person. Don\u2019t oversell lines the household doesn\u2019t need.'},
+ {h:'Store staff',b:'Never argue with a customer, store staff or a teammate. Comply, then tell your manager the same day.'},
+ {h:'The VIP line',b:'Say "You get a dedicated Costco VIP support line." Never say "they\u2019ll fix anything," "no hold times," or "they\u2019ll credit you."'}],
+'Opening':[
+ {h:'Ask before you tell',b:'Open with an easy, friendly question, not a pitch: "Hi! Quick question — who do you have for your phone right now?"'},
+ {h:'Greet everyone',b:'Everyone who isn\u2019t on the phone. Don\u2019t prejudge — you can\u2019t see a bill by looking at a jacket.'},
+ {h:'Practice',b:'Say your opener out loud 20 times before your first shift, and 20 more on the drive in.'}],
+'Discovery':[
+ {h:'The first number',b:'Their total monthly bill, all in.'},
+ {h:'Trade-in or not?',b:'"Are you trading in a phone today?" Yes → trade-in grid. No → Tiered Offer (ask: new line or upgrade?).'},
+ {h:'Wants the 18 Pro?',b:'Show Premium vs Extra vs Value side by side ($1,200 / $930 / $500) and recommend Premium.'},
+ {h:'Next Up setup',b:'"How often do you like getting a new phone?"'}],
+'Rebuttals':[
+ {h:'The rule',b:'Acknowledge → answer → ask. Finish on a question or they use the silence to leave.'},
+ {h:'"I\u2019m happy with what I have."',b:'"Totally fair — most people are until they see the breakdown. What are you paying now, all in?"'},
+ {h:'"No time."',b:'"I won\u2019t hold you up. Give me your bill total and I\u2019ll tell you in 30 seconds if it\u2019s worth a conversation."'},
+ {h:'"Talk to my spouse."',b:'"Makes sense. Let\u2019s get the exact numbers on paper so you\u2019re not guessing tonight — are they free by phone now?"'},
+ {h:'"Still paying off my phone."',b:'"That\u2019s the most common situation I see. There\u2019s a reimbursement path — how much is left, roughly?"'},
+ {h:'"I\u2019ll do it online."',b:'"You can — but online there\u2019s no $100 Costco shop card, no waived fee, and no VIP line. Two minutes here saves the callback."'},
+ {h:'"Bad experience with AT&T."',b:'"I believe you. Buying here gets you the Costco VIP line instead of the general queue. Was it billing or the device?"'},
+ {h:'"Will my bill go up?"',b:'Answer completely: first bills, when credits start, promo terms, agreement length. Never soften it.'},
+ {h:'"My phone is cracked."',b:'"If it\u2019s an iPhone 14–17, cracked still gets the top credit."'},
+ {h:'"I\u2019ll think about it."',b:'"Totally. What part do you want to think over — the price or the phone?"'}],
+'Closing':[
+ {h:'Give a choice',b:'"256 or 512?" beats "So what do you think?"'},
+ {h:'Next Up close',b:'"Want me to add it so next year is a five-minute visit?"'},
+ {h:'Before they leave',b:'VIP line (833) 950-4601 · bills 1–3 · trade-in: 30 days, Find My off, one device per box.'},
+ {h:'It counts when…',b:'It activates. A written sale isn\u2019t a paid sale.'}],
+'Mindset':[
+ {h:'Compliance beats production',b:'Always. Somebody lost a store over every rule.'},
+ {h:'Reset after a no',b:'The next member can read the last one on your face.'},
+ {h:'Full shift',b:'The last hour is where most reps quietly quit.'},
+ {h:'Log and debrief',b:'Log every conversation. End of shift: 3 things I learned, 3 things I need help with.'}]
+}
+};
+
+const DRILLS = {
+  promo: { kicker:'DRILL 01', title:'Costco Promotions', sub:'Trade-in credits, no-trade-in prices, bundles, Costco perks and Next Up Anytime.', bank: PROMO },
+  pitch: { kicker:'DRILL 02', title:'Pitch, Rebuttals & Compliance', sub:'On the phone? Don\u2019t pitch. One no and go. Openers, rebuttals and closes.', bank: PITCH }
+};
+const shuffle = arr => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const KEY = 'sorami-rep-practice-v1';
+const blank = () => ({ seen: [], best: 0, rounds: 0 });
+
+class Component extends DCLogic {
+  state = { screen: 'home', drill: 'promo', round: [], idx: 0, picks: [], studyTopic: null, from: 'home', stats: { promo: blank(), pitch: blank() } };
+  componentDidMount() {
+    let stats = this.state.stats;
+    try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s) stats = { promo: { ...blank(), ...s.promo }, pitch: { ...blank(), ...s.pitch } }; } catch (e) {}
+    const h = (location.hash || '').replace('#', '');
+    this.setState({ stats }, () => {
+      if (h === 'promo' || h === 'pitch') this.start(h);
+      else if (h === 'study-promo' || h === 'study-pitch') this.study(h.slice(6), null, 'home');
+    });
+  }
+  persist(stats) { try { localStorage.setItem(KEY, JSON.stringify(stats)); } catch (e) {} }
+  top() { try { window.scrollTo(0, 0); } catch (e) {} }
+  start(drill) {
+    const bank = DRILLS[drill].bank;
+    const st = this.state.stats[drill];
+    let seen = st.seen.filter(id => id < bank.length);
+    let pool = bank.filter(q => !seen.includes(q.id));
+    if (pool.length < 12) { seen = []; pool = bank; }
+    const round = shuffle(pool).slice(0, 12).map(q => ({ ...q, opts: shuffle([q.a, ...q.wrong]) }));
+    seen = seen.concat(round.map(q => q.id));
+    const stats = { ...this.state.stats, [drill]: { ...st, seen } };
+    this.setState({ screen: 'q', drill, round, idx: 0, picks: [], stats });
+    this.persist(stats); this.top();
+  }
+  study(drill, topic, from) {
+    const topics = Object.keys(STUDY[drill]);
+    this.setState({ screen: 'study', drill, studyTopic: topic && topics.includes(topic) ? topic : topics[0], from: from || this.state.screen });
+    this.top();
+  }
+  next = () => {
+    const { idx, round, picks, drill } = this.state;
+    if (idx < round.length - 1) { this.setState({ idx: idx + 1 }); this.top(); return; }
+    const score = round.filter((q, i) => q.opts[picks[i]] === q.a).length;
+    const st = this.state.stats[drill];
+    const stats = { ...this.state.stats, [drill]: { ...st, best: Math.max(st.best, score), rounds: st.rounds + 1 } };
+    this.setState({ screen: 'done', stats }); this.persist(stats); this.top();
+  };
+  renderVals() {
+    const { screen, drill, round, idx, picks, stats, studyTopic, from } = this.state;
+    const D = DRILLS[drill], st = stats[drill];
+    const score = round.filter((q, i) => picks[i] !== undefined && q.opts[picks[i]] === q.a).length;
+    let cur = { topic: '', topicUpper: '', q: '', opts: [], answered: false };
+    const q = round[idx];
+    if (q) {
+      const pick = picks[idx], answered = pick !== undefined, right = answered && q.opts[pick] === q.a;
+      cur = {
+        topic: q.topic, topicUpper: q.topic.toUpperCase(), q: q.q, answered,
+        verdict: right ? 'Correct.' : 'Not quite — it\u2019s: ' + q.a + '.', why: q.why,
+        whyColor: right ? '#8FD19E' : '#F0A597',
+        brush: () => this.study(drill, q.topic, 'q'),
+        opts: q.opts.map((label, oi) => {
+          const isRight = label === q.a, isPick = oi === pick;
+          let border = '#3A3A33', bg = '#1B1B16', color = '#F6F4EC', mark = '';
+          if (answered && isRight) { border = '#4E9A5E'; bg = '#1E3524'; color = '#DFF3E3'; mark = '\u2713'; }
+          else if (answered && isPick) { border = '#C0473A'; bg = '#3A1C18'; color = '#F6DAD5'; mark = '\u2715'; }
+          else if (answered) { color = '#8E8C82'; }
+          return { label, border, bg, color, mark, pick: () => { if (!answered) { const p = picks.slice(); p[idx] = oi; this.setState({ picks: p }); } } };
+        })
+      };
+    }
+    const missed = round.filter((qq, i) => qq.opts[picks[i]] !== qq.a).map(qq => ({ q: qq.q, a: '\u2713 ' + qq.a, why: qq.why, topic: qq.topic, brush: () => this.study(drill, qq.topic, 'done') }));
+    const unseen = D.bank.length - st.seen.filter(id => id < D.bank.length).length;
+    const drillCards = Object.keys(DRILLS).map(k => {
+      const s = stats[k];
+      return { ...DRILLS[k], stats: DRILLS[k].bank.length + ' questions' + (s.rounds ? ' · best ' + s.best + '/12 · ' + s.rounds + ' rounds played' : ''), start: () => this.start(k), study: () => this.study(k, null, 'home') };
+    });
+    const studyTopics = Object.keys(STUDY[drill]);
+    const activeTopic = studyTopic || studyTopics[0];
+    const resumeQ = from === 'q' && screen === 'study';
+    const resumeDone = from === 'done';
+    return {
+      isHome: screen === 'home', isQuestion: screen === 'q', isDone: screen === 'done', isStudy: screen === 'study',
+      headerLabel: screen === 'home' ? 'REP PRACTICE' : D.title.toUpperCase(),
+      drillCards, goHome: () => { this.setState({ screen: 'home' }); this.top(); },
+      next: this.next, nextLabel: idx < round.length - 1 ? 'Next question' : 'See my score',
+      qNum: idx + 1, progress: ((idx + (picks[idx] !== undefined ? 1 : 0)) / 12 * 100) + '%',
+      score, cur, missed, hasMissed: missed.length > 0, unseen, best: st.best,
+      restart: () => this.start(drill), studyCurrent: () => this.study(drill, null, 'done'),
+      resultLine: score === 12 ? 'Perfect round. You\u2019re kiosk-ready.' : score >= 10 ? 'Close. Review the misses and go again.' : 'Review the misses below, then run a new round.',
+      drillTitleUpper: D.title.toUpperCase(), studyTitle: activeTopic,
+      studyTabs: studyTopics.map(t => ({ label: t, pick: () => { this.setState({ studyTopic: t }); this.top(); }, border: t === activeTopic ? '#C9A227' : '#3A3A33', bg: t === activeTopic ? '#C9A227' : 'transparent', color: t === activeTopic ? '#14140F' : '#C9C7BC' })),
+      studyFacts: STUDY[drill][activeTopic] || [],
+      studyResumeLabel: resumeQ ? 'Back to my question' : resumeDone ? 'Back to my score' : 'Start ' + D.title + ' drill',
+      studyResume: () => { if (resumeQ) this.setState({ screen: 'q' }); else if (resumeDone) this.setState({ screen: 'done' }); else this.start(drill); this.top(); }
+    };
+  }
+}
+</script>
+</body>
+</html>

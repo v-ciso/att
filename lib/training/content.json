@@ -1,0 +1,1760 @@
+{
+  "promo": [
+    {
+      "id": 0,
+      "topic": "iPhone trade-in",
+      "q": "Cracked iPhone 14 traded for an iPhone 18 Pro on Premium 2.0. Credit?",
+      "a": "$1,200",
+      "wrong": [
+        "$930",
+        "$500",
+        "$350"
+      ],
+      "why": "iPhone 14–17 in any condition = top tier. Premium top tier is $1,200."
+    },
+    {
+      "id": 1,
+      "topic": "iPhone trade-in",
+      "q": "Same iPhone 14 trade, but on Extra 2.0.",
+      "a": "$930",
+      "wrong": [
+        "$1,200",
+        "$500",
+        "$350"
+      ],
+      "why": "Extra 2.0 tops out at $930 on iPhone 18 Pro / Pro Max."
+    },
+    {
+      "id": 2,
+      "topic": "iPhone trade-in",
+      "q": "Same iPhone 14 trade, but on Value 2.0.",
+      "a": "$500",
+      "wrong": [
+        "$930",
+        "$750",
+        "$350"
+      ],
+      "why": "Value 2.0 top tier on iPhone 18 Pro / Pro Max is $500."
+    },
+    {
+      "id": 3,
+      "topic": "iPhone trade-in",
+      "q": "iPhone 12 traded toward an iPhone 18 Pro Max on Premium 2.0.",
+      "a": "$350",
+      "wrong": [
+        "$1,200",
+        "$930",
+        "$500"
+      ],
+      "why": "iPhone 13 and older = $350 on every plan."
+    },
+    {
+      "id": 4,
+      "topic": "iPhone trade-in",
+      "q": "iPhone 13 Pro Max traded toward an iPhone 18 Pro on Premium 2.0.",
+      "a": "$350",
+      "wrong": [
+        "$1,200",
+        "$930",
+        "$500"
+      ],
+      "why": "The 13 series isn’t in the 14–17 group and is worth under $130, so it gets $350."
+    },
+    {
+      "id": 5,
+      "topic": "iPhone trade-in",
+      "q": "iPhone 16 Pro Max traded for an iPhone 18 Pro Max on Value 2.0.",
+      "a": "$500",
+      "wrong": [
+        "$1,200",
+        "$930",
+        "$350"
+      ],
+      "why": "Value tops out at $500. That’s why we recommend Premium."
+    },
+    {
+      "id": 6,
+      "topic": "iPhone trade-in",
+      "q": "Is the base iPhone 17 on the trade-in offer?",
+      "a": "No — not eligible",
+      "wrong": [
+        "Yes — $1,200",
+        "Yes — $930",
+        "Only on Value 2.0"
+      ],
+      "why": "iPhone 17 is N/A. Only iPhone 18 Pro and 18 Pro Max."
+    },
+    {
+      "id": 7,
+      "topic": "iPhone trade-in",
+      "q": "Which iPhone does NOT count toward the \"any condition\" top tier?",
+      "a": "iPhone 16e",
+      "wrong": [
+        "iPhone 14",
+        "iPhone 15 Pro",
+        "iPhone 17"
+      ],
+      "why": "iPhone 14/15/16/17 series count — except the 16e."
+    },
+    {
+      "id": 8,
+      "topic": "iPhone trade-in",
+      "q": "Customer wants the iPhone 18 Pro Max and the full credit. Which plan do you recommend?",
+      "a": "Premium 2.0",
+      "wrong": [
+        "Value 2.0",
+        "Extra 2.0",
+        "Any plan pays the same"
+      ],
+      "why": "Only Premium 2.0 unlocks the full $1,200."
+    },
+    {
+      "id": 9,
+      "topic": "iPhone trade-in",
+      "q": "On iPhone 18 Pro, how much more is Premium’s top credit than Value’s?",
+      "a": "$700",
+      "wrong": [
+        "$270",
+        "$430",
+        "$850"
+      ],
+      "why": "$1,200 vs $500. Say: \"On Value you’d leave $700 on the table.\""
+    },
+    {
+      "id": 10,
+      "topic": "iPhone trade-in",
+      "q": "On iPhone 18 Pro, how much more is Premium’s top credit than Extra’s?",
+      "a": "$270",
+      "wrong": [
+        "$700",
+        "$100",
+        "$430"
+      ],
+      "why": "$1,200 vs $930."
+    },
+    {
+      "id": 11,
+      "topic": "iPhone trade-in",
+      "q": "UYW Starter customer upgrades to iPhone 18 Pro, trading an iPhone 15. Credit?",
+      "a": "$930",
+      "wrong": [
+        "$1,200",
+        "$500",
+        "$350"
+      ],
+      "why": "Legacy Starter plans pay the Extra-level $930 — upgrades only."
+    },
+    {
+      "id": 12,
+      "topic": "iPhone trade-in",
+      "q": "A phone worth $150 (not an iPhone 14–17) toward an 18 Pro on Premium 2.0.",
+      "a": "$930",
+      "wrong": [
+        "$1,200",
+        "$500",
+        "$350"
+      ],
+      "why": "$130–$179 lands on the $930 tier. $180+ gets $1,200."
+    },
+    {
+      "id": 13,
+      "topic": "iPhone trade-in",
+      "q": "Premium legacy unlimited customer upgrades to 18 Pro Max with an iPhone 16. Credit?",
+      "a": "$1,200",
+      "wrong": [
+        "$930",
+        "$500",
+        "$350"
+      ],
+      "why": "Premium legacy plans pay the same as Premium 2.0."
+    },
+    {
+      "id": 14,
+      "topic": "Android trade-in",
+      "q": "Galaxy S26 Ultra on Value 2.0 with a qualifying trade.",
+      "a": "$500",
+      "wrong": [
+        "$1,100",
+        "$900",
+        "$350"
+      ],
+      "why": "Every Android on Value 2.0 = $500."
+    },
+    {
+      "id": 15,
+      "topic": "Android trade-in",
+      "q": "Trading a Galaxy S22 Ultra for a Z Fold8 on Premium 2.0.",
+      "a": "$1,100",
+      "wrong": [
+        "$900",
+        "$500",
+        "$1,350"
+      ],
+      "why": "S22+ / S22 Ultra / Z Fold3 / Z Flip4 or newer, any condition = $1,100."
+    },
+    {
+      "id": 16,
+      "topic": "Android trade-in",
+      "q": "Trading a Galaxy S10 for a Galaxy S26+ on Extra 2.0.",
+      "a": "$900",
+      "wrong": [
+        "$1,100",
+        "$500",
+        "$350"
+      ],
+      "why": "S10 / Note10 / Z Flip3 or newer = $900 on Premium/Extra."
+    },
+    {
+      "id": 17,
+      "topic": "Android trade-in",
+      "q": "Galaxy Z Flip8 on UYW Starter (upgrade) with a qualifying trade.",
+      "a": "$900",
+      "wrong": [
+        "$1,100",
+        "$500",
+        "$350"
+      ],
+      "why": "Legacy Starter on Samsung = $900."
+    },
+    {
+      "id": 18,
+      "topic": "Android trade-in",
+      "q": "Pixel 11 Pro XL on Premium 2.0, trading a phone worth $200+.",
+      "a": "$1,350",
+      "wrong": [
+        "$1,000",
+        "$1,150",
+        "$1,320"
+      ],
+      "why": "The biggest credit on the sheet."
+    },
+    {
+      "id": 19,
+      "topic": "Android trade-in",
+      "q": "Pixel 11 Pro XL on Extra 2.0, trading an old Pixel worth under $95.",
+      "a": "$1,000",
+      "wrong": [
+        "$1,350",
+        "$1,150",
+        "$500"
+      ],
+      "why": "Any Pixel, any condition = $1,000 on the XL."
+    },
+    {
+      "id": 20,
+      "topic": "Android trade-in",
+      "q": "Pixel 11 Pro on Premium 2.0, trading any Google Pixel.",
+      "a": "$1,150",
+      "wrong": [
+        "$1,350",
+        "$1,000",
+        "$500"
+      ],
+      "why": "Pixel 11 Pro = $1,150 with any Pixel or $35+ trade."
+    },
+    {
+      "id": 21,
+      "topic": "Android trade-in",
+      "q": "Motorola razr ultra on Premium 2.0, trading a phone worth $95+.",
+      "a": "$1,320",
+      "wrong": [
+        "$1,000",
+        "$1,100",
+        "$500"
+      ],
+      "why": "$95+ = $1,320. $35+ = $1,000."
+    },
+    {
+      "id": 22,
+      "topic": "Android trade-in",
+      "q": "For Samsung, Google and Motorola, how do Premium 2.0 and Extra 2.0 compare?",
+      "a": "They pay the same",
+      "wrong": [
+        "Premium pays $270 more",
+        "Extra pays more",
+        "Only Premium qualifies"
+      ],
+      "why": "Only on iPhone does Premium beat Extra."
+    },
+    {
+      "id": 23,
+      "topic": "No trade-in",
+      "q": "NEW LINE, iPhone 17 Pro 256GB, no trade-in. Per month?",
+      "a": "$9.99/mo",
+      "wrong": [
+        "$14.99/mo",
+        "$5.99/mo",
+        "$19.99/mo"
+      ],
+      "why": "New line = $9.99. Upgrade = $14.99."
+    },
+    {
+      "id": 24,
+      "topic": "No trade-in",
+      "q": "UPGRADE, iPhone 17 Pro 256GB, no trade-in. Per month?",
+      "a": "$14.99/mo",
+      "wrong": [
+        "$9.99/mo",
+        "$19.99/mo",
+        "$20.99/mo"
+      ],
+      "why": "Upgrade = $14.99. New line = $9.99."
+    },
+    {
+      "id": 25,
+      "topic": "No trade-in",
+      "q": "NEW LINE, iPhone 17 Pro Max 256GB, no trade-in. Per month?",
+      "a": "$14.99/mo",
+      "wrong": [
+        "$19.99/mo",
+        "$9.99/mo",
+        "$25.99/mo"
+      ],
+      "why": "New line = $14.99. Upgrade = $19.99."
+    },
+    {
+      "id": 26,
+      "topic": "No trade-in",
+      "q": "UPGRADE, iPhone 17 Pro Max 256GB, no trade-in. Per month?",
+      "a": "$19.99/mo",
+      "wrong": [
+        "$14.99/mo",
+        "$25.99/mo",
+        "$31.99/mo"
+      ],
+      "why": "Upgrade = $19.99. New line = $14.99."
+    },
+    {
+      "id": 27,
+      "topic": "No trade-in",
+      "q": "On the no-trade offer, what’s the first thing to confirm before quoting a 17 Pro?",
+      "a": "New line or upgrade",
+      "wrong": [
+        "Their favorite color",
+        "Their trade-in value",
+        "Their credit score"
+      ],
+      "why": "The price changes: 17 Pro is $9.99 new line vs $14.99 upgrade."
+    },
+    {
+      "id": 28,
+      "topic": "No trade-in",
+      "q": "How much less per month is a NEW LINE 17 Pro than an upgrade?",
+      "a": "$5/mo less",
+      "wrong": [
+        "Same price",
+        "$10/mo less",
+        "$2/mo less"
+      ],
+      "why": "$9.99 vs $14.99. Same gap on Pro Max: $14.99 vs $19.99."
+    },
+    {
+      "id": 29,
+      "topic": "No trade-in",
+      "q": "UPGRADE, iPhone 17e 256GB, no trade-in. Per month?",
+      "a": "$5.99/mo",
+      "wrong": [
+        "$4.99/mo",
+        "$9.99/mo",
+        "$11.99/mo"
+      ],
+      "why": "The cheapest iPhone on the Tiered Offer."
+    },
+    {
+      "id": 30,
+      "topic": "No trade-in",
+      "q": "UPGRADE, iPhone Air 256GB, no trade-in. Per month?",
+      "a": "$9.99/mo",
+      "wrong": [
+        "$5.99/mo",
+        "$15.99/mo",
+        "$14.99/mo"
+      ],
+      "why": "Air upgrade: $9.99 / $15.99 / $21.99."
+    },
+    {
+      "id": 31,
+      "topic": "No trade-in",
+      "q": "UPGRADE, iPhone 17 Pro Max 2TB, no trade-in. Per month?",
+      "a": "$37.99/mo",
+      "wrong": [
+        "$31.99/mo",
+        "$26.99/mo",
+        "$42.99/mo"
+      ],
+      "why": "Top of the Tiered Offer."
+    },
+    {
+      "id": 32,
+      "topic": "No trade-in",
+      "q": "UPGRADE, iPhone 17 Pro 512GB. Per month?",
+      "a": "$20.99/mo",
+      "wrong": [
+        "$14.99/mo",
+        "$25.99/mo",
+        "$26.99/mo"
+      ],
+      "why": "17 Pro upgrade: $14.99 / $20.99 / $26.99."
+    },
+    {
+      "id": 33,
+      "topic": "No trade-in",
+      "q": "UPGRADE, Google Pixel 10a 128GB. Per month?",
+      "a": "$5.99/mo",
+      "wrong": [
+        "$4.99/mo",
+        "$7.99/mo",
+        "$10.99/mo"
+      ],
+      "why": "Pixel 10a = $5.99, Pixel 11 = $10.99."
+    },
+    {
+      "id": 34,
+      "topic": "No trade-in",
+      "q": "UPGRADE, Galaxy S26 256GB. Per month?",
+      "a": "$15.99/mo",
+      "wrong": [
+        "$12.99/mo",
+        "$22.99/mo",
+        "$20.99/mo"
+      ],
+      "why": "S26 512GB is $22.99."
+    },
+    {
+      "id": 35,
+      "topic": "No trade-in",
+      "q": "UPGRADE, Motorola razr+ (2026). Per month?",
+      "a": "$12.99/mo",
+      "wrong": [
+        "$8.99/mo",
+        "$15.99/mo",
+        "$10.99/mo"
+      ],
+      "why": "Motorola Edge is $8.99."
+    },
+    {
+      "id": 36,
+      "topic": "No trade-in",
+      "q": "UPGRADE, Galaxy A37 5G. Per month?",
+      "a": "$7.99/mo",
+      "wrong": [
+        "$5.99/mo",
+        "$10.99/mo",
+        "$12.99/mo"
+      ],
+      "why": "A57 is $10.99, S26 FE is $12.99."
+    },
+    {
+      "id": 37,
+      "topic": "No trade-in",
+      "q": "Tiered Offer bill credits are spread over…",
+      "a": "36 months",
+      "wrong": [
+        "10 months",
+        "24 months",
+        "30 months"
+      ],
+      "why": "Always say the term with the price."
+    },
+    {
+      "id": 38,
+      "topic": "No trade-in",
+      "q": "Can you sell the moto g (2026) at Costco?",
+      "a": "No — not sold at Costco",
+      "wrong": [
+        "Yes, $4.99/mo",
+        "Only with a trade",
+        "Only on Premium"
+      ],
+      "why": "Available at every retailer except Costco."
+    },
+    {
+      "id": 39,
+      "topic": "No trade-in",
+      "q": "On the Tiered Offer, sales tax is charged on…",
+      "a": "Full retail price, at sale",
+      "wrong": [
+        "The monthly price",
+        "Nothing — it’s waived",
+        "The credit amount"
+      ],
+      "why": "Taxes on full retail are due at point of sale."
+    },
+    {
+      "id": 40,
+      "topic": "Deal rules",
+      "q": "The customer must send in the trade-in within…",
+      "a": "30 days of activation",
+      "wrong": [
+        "14 days",
+        "90 days",
+        "3 billing cycles"
+      ],
+      "why": "Miss it and there are no promo credits."
+    },
+    {
+      "id": 41,
+      "topic": "Deal rules",
+      "q": "Monthly promo credits start within…",
+      "a": "3 billing cycles",
+      "wrong": [
+        "1 billing cycle",
+        "30 days",
+        "6 months"
+      ],
+      "why": "Tell them the first bills will be higher."
+    },
+    {
+      "id": 42,
+      "topic": "Deal rules",
+      "q": "If another line on the account is cancelled within ___, credits stop.",
+      "a": "90 days",
+      "wrong": [
+        "30 days",
+        "14 days",
+        "12 months"
+      ],
+      "why": "Disclose this on every deal."
+    },
+    {
+      "id": 43,
+      "topic": "Deal rules",
+      "q": "Before shipping the old iPhone, the customer must…",
+      "a": "Turn off Find My (activation lock)",
+      "wrong": [
+        "Keep the SIM in",
+        "Use the new phone’s box",
+        "Leave data on it"
+      ],
+      "why": "Also factory reset and use AT&T’s shipping kit."
+    },
+    {
+      "id": 44,
+      "topic": "Deal rules",
+      "q": "Once the trade-in ships, can the customer get it back?",
+      "a": "No — and data can’t be recovered",
+      "wrong": [
+        "Yes, within 14 days",
+        "Yes, by calling the VIP line",
+        "Only if it fails inspection"
+      ],
+      "why": "Say it before they sign."
+    },
+    {
+      "id": 45,
+      "topic": "Deal rules",
+      "q": "Two trade-ins on one deal. How do they ship?",
+      "a": "One device per box",
+      "wrong": [
+        "Both in one box",
+        "In the new phone boxes",
+        "Drop off at Costco"
+      ],
+      "why": "AT&T sends a separate kit for each device."
+    },
+    {
+      "id": 46,
+      "topic": "Deal rules",
+      "q": "Where do you check a live trade-in value?",
+      "a": "tradein.att.com",
+      "wrong": [
+        "The Costco app",
+        "The customer’s guess",
+        "Last week’s sheet"
+      ],
+      "why": "The live tool always wins over the sheet."
+    },
+    {
+      "id": 47,
+      "topic": "Bundle",
+      "q": "Pixel Watch 5 41mm on the bundle. Per month after credits?",
+      "a": "$6.99/mo",
+      "wrong": [
+        "$7.99/mo",
+        "$13.89/mo",
+        "$4.99/mo"
+      ],
+      "why": "45mm is $7.99."
+    },
+    {
+      "id": 48,
+      "topic": "Bundle",
+      "q": "Pixel Watch 5 45mm on the bundle. Per month after credits?",
+      "a": "$7.99/mo",
+      "wrong": [
+        "$6.99/mo",
+        "$14.72/mo",
+        "$9.99/mo"
+      ],
+      "why": "41mm is $6.99."
+    },
+    {
+      "id": 49,
+      "topic": "Bundle",
+      "q": "For the Pixel + Watch bundle, both must be bought within…",
+      "a": "14 days of each other",
+      "wrong": [
+        "30 days",
+        "Same day",
+        "90 days"
+      ],
+      "why": "Watch goes on a new watch line."
+    },
+    {
+      "id": 50,
+      "topic": "Bundle",
+      "q": "Which phones qualify for the Pixel Watch bundle?",
+      "a": "Pixel 11, 11 Pro, 11 Pro XL",
+      "wrong": [
+        "Any Android",
+        "Pixel 10a only",
+        "Any phone"
+      ],
+      "why": "Phone on installment, any wireless plan."
+    },
+    {
+      "id": 51,
+      "topic": "Costco perks",
+      "q": "Costco Digital Shop Card per line?",
+      "a": "$100",
+      "wrong": [
+        "$50",
+        "$250",
+        "$35"
+      ],
+      "why": "Every eligible device purchase at the kiosk."
+    },
+    {
+      "id": 52,
+      "topic": "Costco perks",
+      "q": "Costco upgrade private offer?",
+      "a": "$50 — $5/mo for 10 months",
+      "wrong": [
+        "$100 — one time",
+        "$250 over 36 months",
+        "$5 one time"
+      ],
+      "why": "Per line upgraded through Costco AT&T."
+    },
+    {
+      "id": 53,
+      "topic": "Costco perks",
+      "q": "Costco private offer for a switcher (port-in)?",
+      "a": "$250 per line",
+      "wrong": [
+        "$100 per line",
+        "$50 per line",
+        "$800 per line"
+      ],
+      "why": "$6.95/mo for 36 months."
+    },
+    {
+      "id": 54,
+      "topic": "Costco perks",
+      "q": "Costco private offer for an add-a-line?",
+      "a": "$100 per line",
+      "wrong": [
+        "$250 per line",
+        "$50 per line",
+        "$35 per line"
+      ],
+      "why": "$2.78/mo for 36 months."
+    },
+    {
+      "id": 55,
+      "topic": "Costco perks",
+      "q": "How does the customer get the $100 shop card?",
+      "a": "Text with a link within 20 business days",
+      "wrong": [
+        "Mailed in 6–8 weeks",
+        "At the register today",
+        "As a bill credit"
+      ],
+      "why": "No redemption steps, and it never expires."
+    },
+    {
+      "id": 56,
+      "topic": "Costco perks",
+      "q": "Activation / upgrade fee at the Costco kiosk?",
+      "a": "Waived ($35 per line)",
+      "wrong": [
+        "$35 due today",
+        "Half off",
+        "Waived on new lines only"
+      ],
+      "why": "Credit shows in 1–3 bill cycles."
+    },
+    {
+      "id": 57,
+      "topic": "Costco perks",
+      "q": "AutoPay & Paperless discount with ACH?",
+      "a": "$10/mo per line",
+      "wrong": [
+        "$5/mo per line",
+        "$10/mo per account",
+        "$20/mo per line"
+      ],
+      "why": "$5/mo if they use a debit card."
+    },
+    {
+      "id": 58,
+      "topic": "Costco perks",
+      "q": "Carrier Switcher offer — what’s the catch?",
+      "a": "Must stay 36 months or it’s charged back",
+      "wrong": [
+        "Only 1 line",
+        "Must trade in",
+        "Only on Value 2.0"
+      ],
+      "why": "Up to $800 per line on a Visa Reward Card."
+    },
+    {
+      "id": 59,
+      "topic": "Costco perks",
+      "q": "AT&T Appreciation discount — up to how much, and when?",
+      "a": "Up to 20%, within 30 days",
+      "wrong": [
+        "Up to 50%, anytime",
+        "$20 flat, today",
+        "Up to 10%, 90 days"
+      ],
+      "why": "att.com/appreciation. The account holder must qualify."
+    },
+    {
+      "id": 60,
+      "topic": "Next Up Anytime",
+      "q": "Next Up Anytime costs…",
+      "a": "$10/mo per line",
+      "wrong": [
+        "Free at Costco",
+        "$5/mo per line",
+        "$10/mo per account"
+      ],
+      "why": "Say \"$10 a month, per line\" out loud every time."
+    },
+    {
+      "id": 61,
+      "topic": "Next Up Anytime",
+      "q": "With Next Up Anytime, they can upgrade after…",
+      "a": "1 payment",
+      "wrong": [
+        "12 payments",
+        "50% paid off",
+        "36 months"
+      ],
+      "why": "Upgrade early, any time."
+    },
+    {
+      "id": 62,
+      "topic": "Next Up Anytime",
+      "q": "With Next Up Anytime, AT&T’s best offers unlock at…",
+      "a": "33% paid off",
+      "wrong": [
+        "50% paid off",
+        "1 payment",
+        "100% paid off"
+      ],
+      "why": "That’s the yearly-upgrade pitch."
+    },
+    {
+      "id": 63,
+      "topic": "Next Up Anytime",
+      "q": "When a Next Up customer upgrades again through Costco, they get…",
+      "a": "Fee waived + $100 shop card + $50 credit",
+      "wrong": [
+        "Nothing extra",
+        "Just the shop card",
+        "$250 credit"
+      ],
+      "why": "Just like always, on every upgrade."
+    },
+    {
+      "id": 64,
+      "topic": "Next Up Anytime",
+      "q": "Who is the best Next Up Anytime customer?",
+      "a": "Wants the newest phone every year",
+      "wrong": [
+        "Keeps phones 4+ years",
+        "Only has a flip phone",
+        "Wants the cheapest bill"
+      ],
+      "why": "Qualify with: \"How often do you like a new phone?\""
+    },
+    {
+      "id": 65,
+      "topic": "Member care",
+      "q": "Costco Member VIP Service Line?",
+      "a": "(833) 950-4601",
+      "wrong": [
+        "(800) 331-0500",
+        "(888) 950-4601",
+        "611"
+      ],
+      "why": "Give it to every customer."
+    },
+    {
+      "id": 66,
+      "topic": "Member care",
+      "q": "Which bill should look like the quoted price?",
+      "a": "The third bill",
+      "wrong": [
+        "The first bill",
+        "The second bill",
+        "The sixth bill"
+      ],
+      "why": "Discounts can take 3 cycles and are back-dated to bill 1."
+    },
+    {
+      "id": 67,
+      "topic": "Member care",
+      "q": "Why is the first bill higher?",
+      "a": "Partial month + month in advance + fees",
+      "wrong": [
+        "It’s a mistake",
+        "Taxes doubled",
+        "The plan changed"
+      ],
+      "why": "Say it before they sign."
+    },
+    {
+      "id": 68,
+      "topic": "Member care",
+      "q": "Customer sees two tax charges on their card. Why?",
+      "a": "Tax hold per device as each ships",
+      "wrong": [
+        "Double billing error",
+        "Costco fee",
+        "A late fee"
+      ],
+      "why": "Temporary. They only pay the tax owed."
+    }
+  ],
+  "pitch": [
+    {
+      "id": 0,
+      "topic": "Compliance",
+      "q": "A member walks by talking on their phone. What do you do?",
+      "a": "Let them pass — never pitch someone on the phone",
+      "wrong": [
+        "Wave until they hang up",
+        "Walk alongside and wait",
+        "Hand them a flyer"
+      ],
+      "why": "On the phone = off limits. Greet the next member."
+    },
+    {
+      "id": 1,
+      "topic": "Compliance",
+      "q": "A member says \"No thanks.\" What do you do?",
+      "a": "Smile, thank them, let them go",
+      "wrong": [
+        "Ask one more question",
+        "Catch them at checkout",
+        "Offer a better deal"
+      ],
+      "why": "One no and go. Every time."
+    },
+    {
+      "id": 2,
+      "topic": "Compliance",
+      "q": "A member waves you off without saying a word.",
+      "a": "Treat it as a no — let them go",
+      "wrong": [
+        "Try again louder",
+        "Follow for a few steps",
+        "Ask why"
+      ],
+      "why": "A wave-off is a no. One no and go."
+    },
+    {
+      "id": 3,
+      "topic": "Compliance",
+      "q": "A member ignores your greeting and keeps walking.",
+      "a": "Let them go, greet the next member",
+      "wrong": [
+        "Repeat it louder",
+        "Follow to the next aisle",
+        "Tap their cart"
+      ],
+      "why": "Never chase or crowd."
+    },
+    {
+      "id": 4,
+      "topic": "Compliance",
+      "q": "A member said no earlier, then walks back up with a question.",
+      "a": "Help them — they came to you",
+      "wrong": [
+        "Refuse — they already said no",
+        "Send them to an AT&T store",
+        "Pitch everything first"
+      ],
+      "why": "One no and go means you don’t chase. If they come back, help them."
+    },
+    {
+      "id": 5,
+      "topic": "Compliance",
+      "q": "How many times can you pitch a member who said no?",
+      "a": "Zero — one no and go",
+      "wrong": [
+        "Twice",
+        "Three times",
+        "Once per visit"
+      ],
+      "why": "A second ask after a no is a compliance issue."
+    },
+    {
+      "id": 6,
+      "topic": "Compliance",
+      "q": "Where do you engage members from?",
+      "a": "At the kiosk — never follow them through the warehouse",
+      "wrong": [
+        "Anywhere in the store",
+        "Near the exit",
+        "At the food court"
+      ],
+      "why": "Stand where the traffic is, but stay at your kiosk."
+    },
+    {
+      "id": 7,
+      "topic": "Compliance",
+      "q": "Customer asks \"So it’s free?\"",
+      "a": "Never say free — give the monthly price and the term",
+      "wrong": [
+        "\"Yep, totally free\"",
+        "\"Basically free\"",
+        "\"Free after rebates\""
+      ],
+      "why": "\"Free\" without the term attached leads to cancellations."
+    },
+    {
+      "id": 8,
+      "topic": "Compliance",
+      "q": "You want to close faster by saying \"this ends today.\" It doesn’t.",
+      "a": "Never invent urgency",
+      "wrong": [
+        "Fine if it helps close",
+        "Only on slow days",
+        "Only for big deals"
+      ],
+      "why": "A fake deadline is the fastest way to a cancellation."
+    },
+    {
+      "id": 9,
+      "topic": "Compliance",
+      "q": "Who signs the tablet?",
+      "a": "The customer, themselves, in person",
+      "wrong": [
+        "You, to save time",
+        "Any family member",
+        "Your manager"
+      ],
+      "why": "Never touch the customer’s signature."
+    },
+    {
+      "id": 10,
+      "topic": "Compliance",
+      "q": "Customer asks something that isn’t on the sheet.",
+      "a": "\"Let me confirm that before I tell you wrong.\"",
+      "wrong": [
+        "Give your best guess",
+        "Say \"I think it’s around…\"",
+        "Change the subject"
+      ],
+      "why": "Quote only what’s written. Confirm everything else."
+    },
+    {
+      "id": 11,
+      "topic": "Compliance",
+      "q": "Which statement about the VIP line is compliant?",
+      "a": "\"You get a dedicated Costco VIP support line.\"",
+      "wrong": [
+        "\"They’ll fix anything.\"",
+        "\"You’ll never wait on hold.\"",
+        "\"They’ll credit you back.\""
+      ],
+      "why": "Promise the access, never the outcome."
+    },
+    {
+      "id": 12,
+      "topic": "Compliance",
+      "q": "Two reps are chatting with each other at the kiosk.",
+      "a": "Break it up — a huddle looks like a closed kiosk",
+      "wrong": [
+        "Fine if it’s slow",
+        "Fine for 10 minutes",
+        "Fine if facing out"
+      ],
+      "why": "Two reps talking to each other is a closed kiosk."
+    },
+    {
+      "id": 13,
+      "topic": "Compliance",
+      "q": "A Costco employee asks you to stop doing something.",
+      "a": "Comply politely, tell your manager the same day",
+      "wrong": [
+        "Explain why you’re right",
+        "Ignore it",
+        "Argue it later"
+      ],
+      "why": "Never argue with store staff. Escalate the same day."
+    },
+    {
+      "id": 14,
+      "topic": "Compliance",
+      "q": "A customer gets angry and starts arguing.",
+      "a": "Stay calm, don’t argue, offer the VIP line or your manager",
+      "wrong": [
+        "Argue your point",
+        "Walk away mid-sentence",
+        "Match their energy"
+      ],
+      "why": "Never argue or talk back."
+    },
+    {
+      "id": 15,
+      "topic": "Compliance",
+      "q": "Can you quote an offer from memory?",
+      "a": "No — from the current sheet or system",
+      "wrong": [
+        "Yes, if you’re sure",
+        "Yes, for regulars",
+        "Yes, if it’s close"
+      ],
+      "why": "Offers change on the client’s cycle, not yours."
+    },
+    {
+      "id": 16,
+      "topic": "Compliance",
+      "q": "A household of 2 — you could add 3 extra lines to hit numbers.",
+      "a": "Don’t oversell — sell what fits the household",
+      "wrong": [
+        "Add them all",
+        "Add them and cancel later",
+        "Add one \"just in case\""
+      ],
+      "why": "Add-ons that don’t fit come back as chargebacks with your name on them."
+    },
+    {
+      "id": 17,
+      "topic": "Compliance",
+      "q": "Can you promise the trade-in credit comes off today?",
+      "a": "No — credits are monthly and start within 3 cycles",
+      "wrong": [
+        "Yes, on the receipt",
+        "Yes, if they insist",
+        "Yes, for iPhones"
+      ],
+      "why": "Credits are applied monthly, not off the price on day one."
+    },
+    {
+      "id": 18,
+      "topic": "Compliance",
+      "q": "You see a coworker keep pitching a member who said no.",
+      "a": "Step in politely and tell your manager",
+      "wrong": [
+        "Ignore it",
+        "Join in",
+        "Post it in the group chat"
+      ],
+      "why": "Compliance beats production. Always."
+    },
+    {
+      "id": 19,
+      "topic": "Opening",
+      "q": "What’s the goal of the first 5 seconds?",
+      "a": "A friendly question they can answer easily",
+      "wrong": [
+        "A full offer rundown",
+        "Your name and title",
+        "A price"
+      ],
+      "why": "Ask before you tell."
+    },
+    {
+      "id": 20,
+      "topic": "Opening",
+      "q": "Which opener is best?",
+      "a": "\"Hi! Quick question — who do you have for your phone right now?\"",
+      "wrong": [
+        "\"Can I have 10 minutes?\"",
+        "\"Want to switch to AT&T?\"",
+        "\"Have you heard about our deals?\""
+      ],
+      "why": "Short, friendly, and easy to answer."
+    },
+    {
+      "id": 21,
+      "topic": "Opening",
+      "q": "Who should you greet?",
+      "a": "Everyone who isn’t on the phone",
+      "wrong": [
+        "Only people who look interested",
+        "Only families",
+        "Only people with carts"
+      ],
+      "why": "Don’t prejudge. You can’t see a bill by looking at a jacket."
+    },
+    {
+      "id": 22,
+      "topic": "Opening",
+      "q": "How do you get your opener to sound natural?",
+      "a": "Say it out loud 20+ times before your shift",
+      "wrong": [
+        "Read it off your phone",
+        "Change it every time",
+        "Memorize a long script"
+      ],
+      "why": "The opener has to bore you before it sounds natural to them."
+    },
+    {
+      "id": 23,
+      "topic": "Discovery",
+      "q": "What number do you need first?",
+      "a": "Their total monthly bill, all in",
+      "wrong": [
+        "Their credit score",
+        "Their phone’s serial number",
+        "Their ZIP code"
+      ],
+      "why": "The all-in bill decides whether there’s a conversation."
+    },
+    {
+      "id": 24,
+      "topic": "Discovery",
+      "q": "Customer says \"I have an iPhone 15.\" What’s your next question?",
+      "a": "\"Are you thinking about the new 18 Pro?\"",
+      "wrong": [
+        "\"How cracked is it?\"",
+        "\"Want a Samsung?\"",
+        "\"What’s your password?\""
+      ],
+      "why": "An iPhone 15 in any condition gets top tier toward the 18 Pro."
+    },
+    {
+      "id": 25,
+      "topic": "Discovery",
+      "q": "Customer wants the iPhone 18 Pro. Which plan do you recommend?",
+      "a": "Premium 2.0, for the full $1,200",
+      "wrong": [
+        "Value 2.0, it’s cheapest",
+        "Whatever they have",
+        "Extra 2.0 always"
+      ],
+      "why": "Show the side-by-side: $1,200 vs $930 vs $500. Then let them choose."
+    },
+    {
+      "id": 26,
+      "topic": "Discovery",
+      "q": "Which question sets up Next Up Anytime?",
+      "a": "\"How often do you like getting a new phone?\"",
+      "wrong": [
+        "\"Do you like AT&T?\"",
+        "\"How old are you?\"",
+        "\"Do you use Wi-Fi?\""
+      ],
+      "why": "\"Every year\" = Next Up customer."
+    },
+    {
+      "id": 27,
+      "topic": "Discovery",
+      "q": "Customer doesn’t want to trade their phone in. What’s your move?",
+      "a": "Tiered Offer — ask if it’s a new line or an upgrade",
+      "wrong": [
+        "End the conversation",
+        "Push the trade-in harder",
+        "Quote the trade-in price anyway"
+      ],
+      "why": "e.g. 17 Pro: $9.99 new line / $14.99 upgrade."
+    },
+    {
+      "id": 28,
+      "topic": "Rebuttals",
+      "q": "What’s the structure of every rebuttal?",
+      "a": "Acknowledge → answer → ask",
+      "wrong": [
+        "Answer → argue → close",
+        "Ignore → pitch → close",
+        "Agree → leave"
+      ],
+      "why": "Finish on a question so the conversation stays yours."
+    },
+    {
+      "id": 29,
+      "topic": "Rebuttals",
+      "q": "Why end a rebuttal with a question?",
+      "a": "If you end on your answer, they use the silence to leave",
+      "wrong": [
+        "It sounds smarter",
+        "It fills time",
+        "Costco requires it"
+      ],
+      "why": "A question keeps you steering."
+    },
+    {
+      "id": 30,
+      "topic": "Rebuttals",
+      "q": "\"I’m happy with what I have.\"",
+      "a": "\"Totally fair. What are you paying now, all in?\"",
+      "wrong": [
+        "\"You’re wrong.\"",
+        "\"Everyone says that.\"",
+        "\"OK, bye.\""
+      ],
+      "why": "Acknowledge, then ask for the bill."
+    },
+    {
+      "id": 31,
+      "topic": "Rebuttals",
+      "q": "\"I don’t have time right now.\"",
+      "a": "\"Give me your bill total and I’ll tell you in 30 seconds if it’s worth it.\"",
+      "wrong": [
+        "\"It only takes an hour.\"",
+        "\"Come back later.\"",
+        "\"You have time.\""
+      ],
+      "why": "Respect their time. Offer a 30-second check."
+    },
+    {
+      "id": 32,
+      "topic": "Rebuttals",
+      "q": "\"I need to talk to my spouse.\"",
+      "a": "\"Makes sense. Let’s get the numbers on paper. Are they free by phone now?\"",
+      "wrong": [
+        "\"They won’t mind.\"",
+        "\"Just sign now.\"",
+        "\"Why do you need permission?\""
+      ],
+      "why": "Treat it as a household decision and make it easy."
+    },
+    {
+      "id": 33,
+      "topic": "Rebuttals",
+      "q": "\"I’m still paying off my phone.\"",
+      "a": "\"There’s a path for that. How much is left on it?\"",
+      "wrong": [
+        "\"Then you can’t switch.\"",
+        "\"Just pay it off first.\"",
+        "\"That’s your problem.\""
+      ],
+      "why": "Carrier Switcher can reimburse up to $800 per line (36-month commitment)."
+    },
+    {
+      "id": 34,
+      "topic": "Rebuttals",
+      "q": "\"I’ll just do it online.\"",
+      "a": "\"Online there’s no $100 shop card, no waived fee, no VIP line.\"",
+      "wrong": [
+        "\"Online is a scam.\"",
+        "\"OK, here’s the website.\"",
+        "\"You’ll mess it up.\""
+      ],
+      "why": "Name what they only get at the kiosk."
+    },
+    {
+      "id": 35,
+      "topic": "Rebuttals",
+      "q": "\"I had a bad experience with AT&T.\"",
+      "a": "\"I believe you. Buying here gets you the Costco VIP line. Was it billing or the device?\"",
+      "wrong": [
+        "\"That never happens.\"",
+        "\"It’s better now, trust me.\"",
+        "\"Not my fault.\""
+      ],
+      "why": "Acknowledge, show what’s different, then ask."
+    },
+    {
+      "id": 36,
+      "topic": "Rebuttals",
+      "q": "\"Is this going to raise my bill later?\"",
+      "a": "Answer fully: first bills, credit timing, terms",
+      "wrong": [
+        "\"No, never.\"",
+        "\"Don’t worry about it.\"",
+        "\"Maybe a little.\""
+      ],
+      "why": "This answer decides whether the sale sticks. Never soften it."
+    },
+    {
+      "id": 37,
+      "topic": "Rebuttals",
+      "q": "\"$10 more a month for Next Up? No thanks.\"",
+      "a": "\"Fair if you keep phones a few years — skip it.\"",
+      "wrong": [
+        "\"You have to add it.\"",
+        "\"It’s basically free.\"",
+        "\"Everyone gets it.\""
+      ],
+      "why": "Never force it and never call it free."
+    },
+    {
+      "id": 38,
+      "topic": "Rebuttals",
+      "q": "\"My phone is cracked, it’s worth nothing.\"",
+      "a": "\"If it’s an iPhone 14–17, cracked still gets top tier.\"",
+      "wrong": [
+        "\"Yeah, it’s worthless.\"",
+        "\"Get it fixed first.\"",
+        "\"Only perfect phones count.\""
+      ],
+      "why": "Any condition, except the 16e."
+    },
+    {
+      "id": 39,
+      "topic": "Rebuttals",
+      "q": "\"Why should I get Premium? It costs more.\"",
+      "a": "\"On the 18 Pro, Premium is the only way to the full $1,200.\"",
+      "wrong": [
+        "\"Because I said so.\"",
+        "\"It’s required.\"",
+        "\"Everyone gets it.\""
+      ],
+      "why": "Show the gap: $270 over Extra, $700 over Value."
+    },
+    {
+      "id": 40,
+      "topic": "Rebuttals",
+      "q": "\"Is the shop card real?\"",
+      "a": "\"Yes. It’s texted within 20 business days and never expires.\"",
+      "wrong": [
+        "\"Probably.\"",
+        "\"It’s mailed in 6 months.\"",
+        "\"Only if you ask.\""
+      ],
+      "why": "Digital card, no redemption steps."
+    },
+    {
+      "id": 41,
+      "topic": "Rebuttals",
+      "q": "\"I’ll think about it.\"",
+      "a": "\"Totally. What part do you want to think over — the price or the phone?\"",
+      "wrong": [
+        "\"There’s nothing to think about.\"",
+        "\"OK, bye.\"",
+        "\"The deal ends today.\""
+      ],
+      "why": "Find the real objection. No fake urgency."
+    },
+    {
+      "id": 42,
+      "topic": "Closing",
+      "q": "Best close for Next Up Anytime?",
+      "a": "\"Want me to add it so next year is a five-minute visit?\"",
+      "wrong": [
+        "\"You need this.\"",
+        "\"Should I just add it?\"",
+        "\"Most people are dumb not to.\""
+      ],
+      "why": "Make the future visit easy."
+    },
+    {
+      "id": 43,
+      "topic": "Closing",
+      "q": "Which is a stronger close?",
+      "a": "\"256 or 512 gigs?\"",
+      "wrong": [
+        "\"So what do you think?\"",
+        "\"Do you want to buy?\"",
+        "\"Any questions?\""
+      ],
+      "why": "An easy choice moves the deal forward."
+    },
+    {
+      "id": 44,
+      "topic": "Closing",
+      "q": "Before the customer leaves, what do you ALWAYS cover?",
+      "a": "VIP line, first 3 bills, trade-in shipping steps",
+      "wrong": [
+        "Only the shop card",
+        "Your Instagram",
+        "Nothing, they’ll figure it out"
+      ],
+      "why": "That’s what prevents cancellations and callbacks."
+    },
+    {
+      "id": 45,
+      "topic": "Closing",
+      "q": "When does a sale actually count?",
+      "a": "When it activates",
+      "wrong": [
+        "When they sign",
+        "When they say yes",
+        "When the box is opened"
+      ],
+      "why": "A written sale isn’t a paid sale until it activates."
+    },
+    {
+      "id": 46,
+      "topic": "Closing",
+      "q": "Trade-in deal. What must they hear before they sign?",
+      "a": "30 days to ship, and it can’t be returned",
+      "wrong": [
+        "Nothing — it’s automatic",
+        "That it’s optional",
+        "That any box works"
+      ],
+      "why": "Say it every time, out loud."
+    },
+    {
+      "id": 47,
+      "topic": "Mindset",
+      "q": "You just got a rude no. What happens to your face?",
+      "a": "Reset — the next member can read the last one on you",
+      "wrong": [
+        "Show you’re annoyed",
+        "Take a break",
+        "Vent to a teammate"
+      ],
+      "why": "Don’t let a no change your face."
+    },
+    {
+      "id": 48,
+      "topic": "Mindset",
+      "q": "Last hour of the shift, it’s slow.",
+      "a": "Keep greeting — that’s where reps quietly quit",
+      "wrong": [
+        "Start packing up",
+        "Sit down",
+        "Scroll your phone"
+      ],
+      "why": "Work the full shift."
+    },
+    {
+      "id": 49,
+      "topic": "Mindset",
+      "q": "Why log every conversation?",
+      "a": "You can’t fix a number you don’t track",
+      "wrong": [
+        "Costco requires it",
+        "For fun",
+        "To look busy"
+      ],
+      "why": "Notebook out, every shift."
+    },
+    {
+      "id": 50,
+      "topic": "Mindset",
+      "q": "End of shift — what’s your debrief?",
+      "a": "3 things I learned, 3 things I need help with",
+      "wrong": [
+        "Nothing",
+        "Total sales only",
+        "Complaints about the day"
+      ],
+      "why": "That’s how you get better daily."
+    },
+    {
+      "id": 51,
+      "topic": "Mindset",
+      "q": "Compliance vs. production — which wins?",
+      "a": "Compliance, always",
+      "wrong": [
+        "Production",
+        "Depends on the day",
+        "Whatever the manager wants"
+      ],
+      "why": "Somebody lost a store over every rule."
+    }
+  ],
+  "study": {
+    "promo": {
+      "iPhone trade-in": [
+        {
+          "h": "Eligible phones",
+          "b": "iPhone 18 Pro and 18 Pro Max only. The base iPhone 17 is not eligible."
+        },
+        {
+          "h": "Top tier — any condition",
+          "b": "Trading an iPhone 14, 15, 16 or 17 (not 16e), even cracked: Premium $1,200 · Extra $930 · Value $500."
+        },
+        {
+          "h": "Any other phone worth $130+",
+          "b": "Premium $930 · Extra $930 · Value $500. $180+ gets the full $1,200 on Premium."
+        },
+        {
+          "h": "iPhone 13 or older / $35+ phone",
+          "b": "$350 on every plan."
+        },
+        {
+          "h": "Legacy plans (upgrades only)",
+          "b": "Premium legacy = Premium 2.0 column. UYW Starter / Starter SL / other legacy = $930 top, $350 basic."
+        },
+        {
+          "h": "Our recommendation",
+          "b": "Want the 18 Pro or Pro Max? Recommend Premium 2.0 — it’s the only plan that pays the full $1,200 ($270 more than Extra, $700 more than Value)."
+        }
+      ],
+      "Android trade-in": [
+        {
+          "h": "Samsung — Z Fold8 Ultra, Z Fold8, Z Flip8, S26 Ultra, S26+",
+          "b": "Premium/Extra: $1,100 with S22+/S22 Ultra/Z Fold3/Z Flip4 or newer (any condition) or $95+ · $900 with S10/Note10/Z Flip3 or newer or $35+. Value: $500. Legacy Starter: $900."
+        },
+        {
+          "h": "Pixel 11 Pro XL",
+          "b": "Premium/Extra: $1,350 ($200+) · $1,150 ($95+) · $1,000 (any Pixel or $35+). Value: $500. Legacy Starter: $1,150 / $1,000."
+        },
+        {
+          "h": "Pixel 11 Pro",
+          "b": "$1,150 with any Pixel or $35+ on Premium, Extra and Legacy Starter. Value: $500."
+        },
+        {
+          "h": "Motorola razr ultra",
+          "b": "Premium/Extra: $1,320 ($95+) · $1,000 ($35+). Value: $500. Legacy Starter: $1,000."
+        },
+        {
+          "h": "Shortcut",
+          "b": "On Android, Premium and Extra pay the same. Value is always $500."
+        }
+      ],
+      "No trade-in": [
+        {
+          "h": "First question: new line or upgrade?",
+          "b": "Prices differ. iPhone 17 Pro 256GB: $9.99 new line / $14.99 upgrade. iPhone 17 Pro Max 256GB: $14.99 new line / $19.99 upgrade."
+        },
+        {
+          "h": "iPhone upgrade prices",
+          "b": "17e $5.99 / $11.99 · Air $9.99 / $15.99 / $21.99 · 17 Pro $14.99 / $20.99 / $26.99 · 17 Pro Max $19.99 / $25.99 / $31.99 / $37.99 (256GB / 512GB / 1TB / 2TB)."
+        },
+        {
+          "h": "Samsung upgrade prices",
+          "b": "A37 $7.99 · A57 $10.99 · S26 FE $12.99 · S26 256GB $15.99 · S25 Edge $20.99 · S26 512GB $22.99."
+        },
+        {
+          "h": "Google & Motorola upgrade prices",
+          "b": "Pixel 10a $5.99 · Pixel 11 $10.99 · Motorola Edge $8.99 · razr+ (2026) $12.99. The moto g (2026) is not sold at Costco."
+        },
+        {
+          "h": "Rules",
+          "b": "Credits over 36 months, starting within 3 cycles. Tax on full retail at sale. If Next Up Anytime is added, the $10/mo still applies."
+        }
+      ],
+      "Deal rules": [
+        {
+          "h": "Required",
+          "b": "Installment plan + AT&T Unlimited plan."
+        },
+        {
+          "h": "Timing",
+          "b": "Ship the trade-in within 30 days of activation. Credits start within 3 bill cycles."
+        },
+        {
+          "h": "Credits stop if…",
+          "b": "The line isn’t in good standing, or another line on the account is cancelled within 90 days."
+        },
+        {
+          "h": "Before shipping",
+          "b": "Turn off Find My / activation lock, factory reset, remove the SIM (older devices), use AT&T’s kit, one device per box, photo the label."
+        },
+        {
+          "h": "Final",
+          "b": "Once shipped, it can’t be returned and data can’t be recovered. Check live value at tradein.att.com."
+        }
+      ],
+      "Bundle": [
+        {
+          "h": "Pixel Watch 5 41mm",
+          "b": "$500 retail · $248.36 total credit · $6.99/mo after credits."
+        },
+        {
+          "h": "Pixel Watch 5 45mm",
+          "b": "$530 retail · $242.36 total credit · $7.99/mo after credits."
+        },
+        {
+          "h": "Requirements",
+          "b": "Buy a Pixel 11, 11 Pro or 11 Pro XL on installment (any plan, new or upgrade) + the watch on installment on a new watch line, within 14 days of each other."
+        }
+      ],
+      "Costco perks": [
+        {
+          "h": "$100 Costco Digital Shop Card",
+          "b": "Per line, on an eligible device purchase. Texted within 20 business days. Never expires. Status: rewardcenter.att.com."
+        },
+        {
+          "h": "Costco Private Offers",
+          "b": "Switch $250 ($6.95 × 36) · Add-a-line $100 ($2.78 × 36) · Upgrade $50 ($5 × 10)."
+        },
+        {
+          "h": "Fees & discounts",
+          "b": "$35 activation/upgrade fee waived · AutoPay & Paperless $10/mo per line with ACH ($5 debit)."
+        },
+        {
+          "h": "Switchers & appreciation",
+          "b": "Carrier Switcher up to $800/line (stay 36 months). AT&T Appreciation up to 20% (att.com/appreciation within 30 days)."
+        }
+      ],
+      "Next Up Anytime": [
+        {
+          "h": "What it is",
+          "b": "$10/mo per line. Upgrade after 1 payment. AT&T’s best offers unlock at 33% paid."
+        },
+        {
+          "h": "The Costco kicker",
+          "b": "Every upgrade through Costco AT&T: fee waived, another $100 shop card, $50 in credits ($5/mo × 10) per line."
+        },
+        {
+          "h": "The pitch",
+          "b": "Qualify (\"How often do you like a new phone?\") → Explain → Stack Costco → Close (\"Want me to add it so next year is a five-minute visit?\")."
+        }
+      ],
+      "Member care": [
+        {
+          "h": "Costco Member VIP Service Line",
+          "b": "(833) 950-4601. Promise the access, never the outcome."
+        },
+        {
+          "h": "Bills 1–3",
+          "b": "Bill 1: partial month + month in advance + fees. Bill 2 may still be higher. Bill 3: settled, with discounts back-dated to bill 1."
+        },
+        {
+          "h": "Tax holds",
+          "b": "A tax hold per device as each ships. Temporary duplicates drop off."
+        },
+        {
+          "h": "Track & activate",
+          "b": "att.com/checkmyorder (99- order # + ZIP) · att.com/getstarted · number transfer takes up to 1 hour."
+        }
+      ]
+    },
+    "pitch": {
+      "Compliance": [
+        {
+          "h": "On the phone = off limits",
+          "b": "Never pitch a member who is on a phone call. Let them pass and greet the next person."
+        },
+        {
+          "h": "One no and go",
+          "b": "\"No,\" a wave-off, or being ignored all count as a no. Smile, thank them, let them go. Never ask twice, never follow. If they come back to you, help them."
+        },
+        {
+          "h": "Stay at the kiosk",
+          "b": "Engage from your kiosk. Never follow members through the warehouse or crowd them."
+        },
+        {
+          "h": "Say it straight",
+          "b": "Never say \"free.\" Never invent urgency. Quote only from the current sheet. \"Let me confirm that before I tell you wrong.\""
+        },
+        {
+          "h": "The paperwork",
+          "b": "The customer signs the tablet themselves, in person. Don’t oversell lines the household doesn’t need."
+        },
+        {
+          "h": "Store staff",
+          "b": "Never argue with a customer, store staff or a teammate. Comply, then tell your manager the same day."
+        },
+        {
+          "h": "The VIP line",
+          "b": "Say \"You get a dedicated Costco VIP support line.\" Never say \"they’ll fix anything,\" \"no hold times,\" or \"they’ll credit you.\""
+        }
+      ],
+      "Opening": [
+        {
+          "h": "Ask before you tell",
+          "b": "Open with an easy, friendly question, not a pitch: \"Hi! Quick question — who do you have for your phone right now?\""
+        },
+        {
+          "h": "Greet everyone",
+          "b": "Everyone who isn’t on the phone. Don’t prejudge — you can’t see a bill by looking at a jacket."
+        },
+        {
+          "h": "Practice",
+          "b": "Say your opener out loud 20 times before your first shift, and 20 more on the drive in."
+        }
+      ],
+      "Discovery": [
+        {
+          "h": "The first number",
+          "b": "Their total monthly bill, all in."
+        },
+        {
+          "h": "Trade-in or not?",
+          "b": "\"Are you trading in a phone today?\" Yes → trade-in grid. No → Tiered Offer (ask: new line or upgrade?)."
+        },
+        {
+          "h": "Wants the 18 Pro?",
+          "b": "Show Premium vs Extra vs Value side by side ($1,200 / $930 / $500) and recommend Premium."
+        },
+        {
+          "h": "Next Up setup",
+          "b": "\"How often do you like getting a new phone?\""
+        }
+      ],
+      "Rebuttals": [
+        {
+          "h": "The rule",
+          "b": "Acknowledge → answer → ask. Finish on a question or they use the silence to leave."
+        },
+        {
+          "h": "\"I’m happy with what I have.\"",
+          "b": "\"Totally fair — most people are until they see the breakdown. What are you paying now, all in?\""
+        },
+        {
+          "h": "\"No time.\"",
+          "b": "\"I won’t hold you up. Give me your bill total and I’ll tell you in 30 seconds if it’s worth a conversation.\""
+        },
+        {
+          "h": "\"Talk to my spouse.\"",
+          "b": "\"Makes sense. Let’s get the exact numbers on paper so you’re not guessing tonight — are they free by phone now?\""
+        },
+        {
+          "h": "\"Still paying off my phone.\"",
+          "b": "\"That’s the most common situation I see. There’s a reimbursement path — how much is left, roughly?\""
+        },
+        {
+          "h": "\"I’ll do it online.\"",
+          "b": "\"You can — but online there’s no $100 Costco shop card, no waived fee, and no VIP line. Two minutes here saves the callback.\""
+        },
+        {
+          "h": "\"Bad experience with AT&T.\"",
+          "b": "\"I believe you. Buying here gets you the Costco VIP line instead of the general queue. Was it billing or the device?\""
+        },
+        {
+          "h": "\"Will my bill go up?\"",
+          "b": "Answer completely: first bills, when credits start, promo terms, agreement length. Never soften it."
+        },
+        {
+          "h": "\"My phone is cracked.\"",
+          "b": "\"If it’s an iPhone 14–17, cracked still gets the top credit.\""
+        },
+        {
+          "h": "\"I’ll think about it.\"",
+          "b": "\"Totally. What part do you want to think over — the price or the phone?\""
+        }
+      ],
+      "Closing": [
+        {
+          "h": "Give a choice",
+          "b": "\"256 or 512?\" beats \"So what do you think?\""
+        },
+        {
+          "h": "Next Up close",
+          "b": "\"Want me to add it so next year is a five-minute visit?\""
+        },
+        {
+          "h": "Before they leave",
+          "b": "VIP line (833) 950-4601 · bills 1–3 · trade-in: 30 days, Find My off, one device per box."
+        },
+        {
+          "h": "It counts when…",
+          "b": "It activates. A written sale isn’t a paid sale."
+        }
+      ],
+      "Mindset": [
+        {
+          "h": "Compliance beats production",
+          "b": "Always. Somebody lost a store over every rule."
+        },
+        {
+          "h": "Reset after a no",
+          "b": "The next member can read the last one on your face."
+        },
+        {
+          "h": "Full shift",
+          "b": "The last hour is where most reps quietly quit."
+        },
+        {
+          "h": "Log and debrief",
+          "b": "Log every conversation. End of shift: 3 things I learned, 3 things I need help with."
+        }
+      ]
+    }
+  }
+}
